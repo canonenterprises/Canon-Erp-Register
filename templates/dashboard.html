@@ -330,23 +330,23 @@
         </div>
         <div class="col-span-1 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Poly Bag Size</label><input type="text" name="poly_size" value="{{ form_order.poly_size if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
-            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Pcs Per Poly</label><input type="number" name="pcs_poly" value="{{ form_order.pcs_poly if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Pcs Per Poly</label><input type="number" id="pcs_poly" name="pcs_poly" value="{{ form_order.pcs_poly if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Carton Size</label><input type="text" name="ctn_size" value="{{ form_order.ctn_size if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Carton Label</label><input type="text" name="ctn_label" value="{{ form_order.ctn_label if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Barcode</label><input type="text" name="barcode" value="{{ form_order.barcode if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
         </div>
         
         <div class="col-span-1 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Qty Per Bail</label><input type="number" name="qty_bail" value="{{ form_order.qty_bail if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Qty Per Bail</label><input type="number" id="qty_bail" name="qty_bail" value="{{ form_order.qty_bail if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Gross Weight Bail</label><input type="text" name="gross_w_bail" value="{{ form_order.gross_w_bail if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Net Weight Bail</label><input type="text" name="net_w_bail" value="{{ form_order.net_w_bail if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
-            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Total Bails</label><input type="number" name="total_bails" value="{{ form_order.total_bails if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Total Bails</label><input type="number" name="total_bails" value="{{ form_order.total_bails if form_order else '' }}" class="w-full p-2 border rounded-lg bg-slate-100" readonly></div>
         </div>
         <div class="col-span-1 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Qty Per CTN</label><input type="number" name="qty_ctn" value="{{ form_order.qty_ctn if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Qty Per CTN</label><input type="number" id="qty_ctn" name="qty_ctn" value="{{ form_order.qty_ctn if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Gross Weight CTN</label><input type="text" name="gross_w" value="{{ form_order.gross_w if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Net Weight CTN</label><input type="text" name="net_w" value="{{ form_order.net_w if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
-            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Total CTN</label><input type="number" name="total_ctn" value="{{ form_order.total_ctn if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Total CTN</label><input type="number" name="total_ctn" value="{{ form_order.total_ctn if form_order else '' }}" class="w-full p-2 border rounded-lg bg-slate-100" readonly></div>
         </div>
 
         <div><label class="text-[15px] font-bold text-slate-600 uppercase">Shipment Date</label><input type="date" name="ship_date" value="{{ form_order.ship_date if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
@@ -385,9 +385,32 @@
             const extensionInput = document.getElementById('extension_order_pcs');
             const hiddenExtension = document.getElementById('hidden_extension_order_pcs');
             const orderForm = document.getElementById('order_form');
+            const pcsPerPolyInput = document.getElementById('pcs_poly');
+            const qtyPerBailInput = document.getElementById('qty_bail');
+            const qtyPerCtnInput = document.getElementById('qty_ctn');
+            const totalBailsInput = document.querySelector('input[name="total_bails"]');
+            const totalCtnInput = document.querySelector('input[name="total_ctn"]');
             const originalOrderPcs = pcsInput ? (parseFloat(pcsInput.value) || 0) : 0;
             const originalExtensionPcs = extensionInput ? (parseFloat(extensionInput.value) || 0) : 0;
             const baseOrderPcs = Math.max(0, originalOrderPcs - originalExtensionPcs);
+
+            function calculatePackagingTotals() {
+                const orderPcs = Number.parseFloat(qtyInput && qtyInput.value);
+                const pcsPerPoly = Number.parseFloat(pcsPerPolyInput && pcsPerPolyInput.value);
+                const qtyPerBail = Number.parseFloat(qtyPerBailInput && qtyPerBailInput.value);
+                const qtyPerCtn = Number.parseFloat(qtyPerCtnInput && qtyPerCtnInput.value);
+
+                if (totalBailsInput) {
+                    totalBailsInput.value = Number.isFinite(orderPcs) && Number.isFinite(pcsPerPoly) && pcsPerPoly > 0 && Number.isFinite(qtyPerBail) && qtyPerBail > 0
+                        ? String(orderPcs / pcsPerPoly / qtyPerBail)
+                        : '';
+                }
+                if (totalCtnInput) {
+                    totalCtnInput.value = Number.isFinite(orderPcs) && Number.isFinite(pcsPerPoly) && pcsPerPoly > 0 && Number.isFinite(qtyPerCtn) && qtyPerCtn > 0
+                        ? String(orderPcs / pcsPerPoly / qtyPerCtn)
+                        : '';
+                }
+            }
 
             function syncLabelWithPcs() {
                 if (labelInput && pcsInput) labelInput.value = pcsInput.value || '';
@@ -407,6 +430,7 @@
                     hiddenDozen.value = updatedDozen.toFixed(3);
                     hiddenExtension.value = extensionInput.value || '';
                     if (labelInput) labelInput.value = String(updatedPcs);
+                    calculatePackagingTotals();
                 });
             }
 
@@ -440,6 +464,7 @@
                     hiddenPcs.value = '';
                     qtyInput.value = '';
                 }
+                calculatePackagingTotals();
                 calculateUsage();
             }
 
@@ -464,11 +489,16 @@
                     hiddenDozen.value = '';
                     qtyInput.value = '';
                 }
+                calculatePackagingTotals();
                 calculateUsage();
             }
 
             if (dozenInput) dozenInput.addEventListener('input', onDozenInput);
             if (pcsInput) pcsInput.addEventListener('input', onPcsInput);
+            [pcsPerPolyInput, qtyPerBailInput, qtyPerCtnInput].forEach(function (input) {
+                if (input) input.addEventListener('input', calculatePackagingTotals);
+            });
+            calculatePackagingTotals();
 
             // Ensure hidden fields are updated before the form is submitted
             if (orderForm) {

@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 {% include 'navbar.html' %}
+{% set inventory_read_only = (session.get('role') not in ('owner', 'manager') or read_only_profile) and inventory and inventory.id %}
 <div class="max-w-9xl mx-auto p-6 pt-20 md:pt-20" id="print-area">
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
         
@@ -34,6 +35,7 @@
         <form id="inventory-form" method="POST" action="{{ url_for('save_inventory', job_no=selected_job) }}">
             <input type="hidden" name="serial_no" value="{{ serial_no or '' }}">
             <input type="hidden" name="inventory_id" value="{{ inventory.id if inventory else '' }}">
+            <fieldset {% if inventory_read_only %}disabled{% endif %}>
             <!-- Header -->
             <div class="flex justify-between items-center mb-6">
                 <div>
@@ -308,6 +310,7 @@
                     Printed on: <span id="print-time"></span>
                 </p>
             </div>
+            </fieldset>
             <!-- Action Buttons -->
             <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end sm:items-center sm:gap-3 no-print">
                 <a href="{{ url_for('saved_inventory', job_no=selected_job) }}" class="w-full sm:w-auto text-center px-5 py-2 rounded-lg bg-slate-950 text-white text-xs font-bold">
@@ -316,9 +319,11 @@
                 <button type="button" onclick="printInventory()" class="w-full sm:w-auto px-5 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold">
                     Print Inventory
                 </button>
+                {% if not inventory_read_only %}
                 <button type="submit" class="w-full sm:w-auto px-5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold">
                     Save Inventory Record
                 </button>
+                {% endif %}
             </div>
         </form>
     </div>

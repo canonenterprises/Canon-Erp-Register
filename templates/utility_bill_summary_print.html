@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 
-<div class="utility-page mx-auto max-w-6xl px-4 py-6 print:p-0">
+<div class="utility-page mx-auto max-w-7xl space-y-6 rounded-lg border border-slate-300 bg-white p-5 shadow-sm sm:p-8 print:shadow-none print:border-0 print:rounded-none">
 
   <div class="mb-5 flex justify-between print:hidden">
     <a href="{{ url_for('accounts_utility_bill_summary', summary_id=summary.id) }}"
@@ -38,12 +38,16 @@
         <strong class="meta-value">{{ bill.provider or '' }}</strong>
       </div>
       <div class="meta-item">
-        <span class="meta-label">PRD. DATE</span>
-        <strong class="meta-value meta-date">{{ summary.invoice_date if document_type == 'invoice' else '' }}</strong>
+        <span class="meta-label">BILL MONTH</span>
+        <strong class="meta-value meta-month">{{ billing_month_display }}</strong>
       </div>
       <div class="meta-item">
-        <span class="meta-label">BILL PERIOD</span>
-        <strong class="meta-value meta-month">{{ bill.billing_period or '' }}</strong>
+        <span class="meta-label">BILLING MONTH</span>
+        <strong class="meta-value meta-month">{{ billing_month_display }}</strong>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">PRD. DATE</span>
+        <strong class="meta-value meta-date">{{ prd_date_display }}</strong>
       </div>
       <div class="meta-item">
         <span class="meta-label">DUE DATE</span>
@@ -154,16 +158,24 @@
           <strong>{{ '{:,.0f}'.format(summary_rows | sum(attribute='units')) }}</strong>
         </div>
 
+        {% set rate_totals = namespace(electric=0) %}
+        {% for item in summary_rows %}
+          {% if item.total_electric_charges is defined %}
+            {% set rate_totals.electric = rate_totals.electric + item.total_electric_charges %}
+          {% else %}
+            {% set rate_totals.electric = rate_totals.electric + (item.electric_charges or 0) + (item.adjustment or 0) + (item.fuel_charges or 0) + (item.additional_surcharge or 0) + (item.tariff_difference or 0) %}
+          {% endif %}
+        {% endfor %}
         <div class="rate-row">
           <span>TOTAL AMOUNT</span>
-          <strong>Rs {{ '{:,.0f}'.format(summary_rows | sum(attribute='electric_charges')) }}</strong>
+          <strong>Rs {{ '{:,.0f}'.format(rate_totals.electric) }}</strong>
         </div>
 
         <div class="rate-row">
           <span>PER UNIT</span>
           <strong>
             {% set total_units = summary_rows | sum(attribute='units') %}
-            {{ '{:,.2f}'.format((summary_rows | sum(attribute='electric_charges')) / total_units if total_units else 0) }}
+            {{ '{:,.2f}'.format(rate_totals.electric / total_units if total_units else 0) }}
           </strong>
         </div>
       </div>
@@ -204,6 +216,10 @@
     </div>
     {% endif %}
 
+    <footer class="document-footer">
+      <span>Prepared by: {{ prepared_by }}</span>
+      <span>Printed on: {{ print_timestamp }}</span>
+    </footer>
 
   </article>
 </div>
@@ -280,7 +296,7 @@
 /* Header */
 .bill-header {
   display: grid;
-  grid-template-columns: 1.3fr 1fr 1.3fr 1fr;
+  grid-template-columns: 1.3fr 1fr 1.3fr 1fr 1fr;
   margin-bottom: 8px;
   border: 1.5px solid #111;
 }
@@ -350,7 +366,7 @@
   background: #f0f0f0;
   color: #111;
   text-align: center;
-  font-size: 11px;
+  font-size: 9px;
   line-height: 1.15;
   font-weight: 900;
   overflow-wrap: anywhere;
@@ -512,13 +528,14 @@
 
 .document-footer {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-top: 24px;
-  padding: 0 2px;
-  font-size: 8px;
-  font-weight: 500;
+  margin-top: 18px;
+  padding-top: 8px;
+  border-top: 1px solid #111;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 /* =========================
@@ -533,13 +550,33 @@
 
   html,
   body {
-    width: auto !important;
-    margin: 1mm !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
     color: #000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  body > .min-h-screen.flex.flex-col {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  main {
+    display: block !important;
+    flex: none !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
   }
 
   body * {
@@ -552,18 +589,31 @@
   }
 
   .utility-page {
+    display: block !important;
     width: 100% !important;
     max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
   }
 
+  .utility-page > * {
+    margin-block: 0 !important;
+  }
+
   .utility-document {
+    display: flex !important;
+    flex-direction: column !important;
     width: 100% !important;
+    box-sizing: border-box !important;
+    min-height: 190mm !important;
+    height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     border: 0 !important;
     box-shadow: none !important;
+    color: #000 !important;
     font-size: 10pt !important;
     font-weight: 700 !important;
   }
@@ -594,7 +644,7 @@
   }
 
   .bill-header {
-    grid-template-columns: 1.3fr 1fr 1.3fr 1fr !important;
+    grid-template-columns: 1.3fr 1fr 1.3fr 1fr 1fr !important;
   }
 
   .meta-item {
@@ -604,11 +654,13 @@
 
   .meta-label {
     margin-bottom: 3px !important;
+    color: #000 !important;
     font-size: 9pt !important;
     font-weight: 900 !important;
   }
 
   .meta-value {
+    color: #000 !important;
     font-size: 12pt !important;
     font-weight: 900 !important;
   }
@@ -626,7 +678,8 @@
 
   .billing-table thead th {
     height: 42px !important;
-    font-size: 9.5pt !important;
+    color: #000 !important;
+    font-size: 9px !important;
     line-height: 1.12 !important;
     font-weight: 900 !important;
     background: #eee !important;
@@ -634,6 +687,7 @@
 
   .billing-table tbody td {
     height: 54px !important;
+    color: #000 !important;
     font-size: 10pt !important;
     font-weight: 700 !important;
   }
@@ -670,11 +724,13 @@
   }
 
   .rate-heading {
+    color: #000 !important;
     font-size: 10pt !important;
   }
 
   .rate-row,
   .rate-row strong {
+    color: #000 !important;
     font-size: 9pt !important;
   }
 
@@ -685,6 +741,7 @@
   .payment-row {
     grid-template-columns: 125px 12px minmax(0, 1fr) !important;
     gap: 5px !important;
+    color: #000 !important;
     font-size: 10pt !important;
   }
 
@@ -699,8 +756,12 @@
   }
 
   .document-footer {
-    margin-top: 18px !important;
-    font-size: 7.5pt !important;
+    justify-content: space-between !important;
+    margin-top: auto !important;
+    padding-top: 6px !important;
+    border-top: 1px solid #111 !important;
+    color: #000 !important;
+    font-size: 9pt !important;
   }
 
   .notes {

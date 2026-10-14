@@ -2965,6 +2965,7 @@ class UtilityBillSummary(db.Model):
     utility_bill_id = db.Column(db.Integer, db.ForeignKey('utility_bill.id', ondelete='CASCADE'), nullable=False, index=True)
     title = db.Column(db.String(200), nullable=False, default='')
     invoice_to = db.Column(db.String(200), nullable=False, default='')
+    bank_name = db.Column(db.String(100), nullable=False, default='')
     invoice_no = db.Column(db.String(40), unique=True, nullable=True, index=True)
     invoice_date = db.Column(db.String(10), nullable=False, default='')
     cheque_image = db.Column(db.String(255), nullable=False, default='')
@@ -4294,9 +4295,14 @@ def ensure_table_columns(engine):
                         conn.execute(text(column_def))
         if 'utility_bill_summary' in inspector.get_table_names():
             summary_columns = {column['name'] for column in inspector.get_columns('utility_bill_summary')}
-            if 'cheque_image' not in summary_columns:
-                with engine.begin() as conn:
-                    conn.execute(text("ALTER TABLE utility_bill_summary ADD COLUMN cheque_image VARCHAR(255) NOT NULL DEFAULT ''"))
+            summary_column_migrations = {
+                'cheque_image': "ALTER TABLE utility_bill_summary ADD COLUMN cheque_image VARCHAR(255) NOT NULL DEFAULT ''",
+                'bank_name': "ALTER TABLE utility_bill_summary ADD COLUMN bank_name VARCHAR(100) NOT NULL DEFAULT ''",
+            }
+            for column_name, migration in summary_column_migrations.items():
+                if column_name not in summary_columns:
+                    with engine.begin() as conn:
+                        conn.execute(text(migration))
     except Exception:
         pass
 
@@ -6109,6 +6115,77 @@ def accounts_utility_bills():
     )
 
 
+UTILITY_BILL_BANKS = (
+    'Al Baraka Bank (Pakistan) Limited',
+    'Allied Bank Limited',
+    'Apna Microfinance Bank Limited',
+    'Askari Bank Limited',
+    'Bank Alfalah Limited',
+    'Bank AL Habib Limited',
+    'Bank of Azad Jammu and Kashmir',
+    'Bank of China Limited',
+    'Bank of Khyber',
+    'Bank of Punjab',
+    'BankIslami Pakistan Limited',
+    'Citibank N.A.',
+    'Deutsche Bank AG',
+    'Dubai Islamic Bank Pakistan Limited',
+    'Faysal Bank Limited',
+    'First Women Bank Limited',
+    'Habib Bank Limited',
+    'Habib Metropolitan Bank Limited',
+    'HBL Microfinance Bank Limited',
+    'Industrial and Commercial Bank of China Limited',
+    'JS Bank Limited',
+    'Khushhali Microfinance Bank Limited',
+    'LOLC Microfinance Bank Limited',
+    'MCB Bank Limited',
+    'MCB Islamic Bank Limited',
+    'Meezan Bank Limited',
+    'Mobilink Microfinance Bank Limited',
+    'MUFG Bank Limited',
+    'National Bank of Pakistan',
+    'NRSP Microfinance Bank Limited',
+    'Pak Oman Microfinance Bank Limited',
+    'Punjab Provincial Cooperative Bank Limited',
+    'Samba Bank Limited',
+    'Sindh Bank Limited',
+    'Sindh Microfinance Bank Limited',
+    'Soneri Bank Limited',
+    'Standard Chartered Bank (Pakistan) Limited',
+    'Telenor Microfinance Bank Limited',
+    'U Microfinance Bank Limited',
+    'United Bank Limited',
+    'Zarai Taraqiati Bank Limited',
+)
+
+
+def next_utility_bill_voucher_no():
+    stored_numbers = UtilityBillSummary.query.with_entities(UtilityBillSummary.invoice_no).filter(
+        UtilityBillSummary.invoice_no.isnot(None)
+    ).all()
+    voucher_numbers = []
+    for (invoice_no,) in stored_numbers:
+        if not invoice_no:
+            continue
+        if invoice_no.isdigit():
+            voucher_numbers.append(int(invoice_no))
+            continue
+        legacy_match = re.fullmatch(r'UBS-\d{4}-(\d+)', invoice_no)
+        if legacy_match:
+            voucher_numbers.append(int(legacy_match.group(1)))
+    highest_number = max(voucher_numbers, default=0)
+    return f'{highest_number + 1:04d}'
+
+
+def normalize_utility_bill_voucher_no(summary):
+    legacy_match = re.fullmatch(r'UBS-\d{4}-(\d+)', summary.invoice_no or '')
+    if not legacy_match:
+        return False
+    summary.invoice_no = f'{int(legacy_match.group(1)):04d}'
+    return True
+
+
 @app.route('/accounts/utility-bill-summary', methods=['GET', 'POST'])
 def accounts_utility_bill_summary():
     denied = accounts_management_access('accounts')
@@ -6134,12 +6211,13 @@ def accounts_utility_bill_summary():
         company = (request.form.get('company') or 'Canon').strip().title()
         provider = (request.form.get('provider') or '').strip()
         account_reference = (request.form.get('account_reference') or '').strip()
+        bank_name = (request.form.get('bank_name') or '').strip()
         billing_period = (request.form.get('billing_period') or '').strip()
         bill_date = (request.form.get('bill_date') or '').strip()
         due_date = (request.form.get('due_date') or '').strip()
 
         row_fields = (
-            'meter_no', 'bill_no', 'location', 'previous_reading', 'present_reading', 'units', 'rate',
+            'meter_no', 'bill_no', 'location', 'previous_reading', 'present_reading', 'units', 'electric_charges',
             'adjustment', 'fuel_charges', 'additional_surcharge', 'tariff_difference',
             'maintenance_charges', 'water_charges',
         )
@@ -6185,19 +6263,30 @@ def accounts_utility_bill_summary():
                         raise ValueError(f'Enter a valid number for {field.replace("_", " ")} in row {index + 1}.')
                 if numbers['units'] == 0 and numbers['present_reading'] >= numbers['previous_reading']:
                     numbers['units'] = numbers['present_reading'] - numbers['previous_reading']
-                line_total = numbers['units'] * numbers['rate'] + sum(
+                total_electric_charges = numbers['electric_charges'] + sum(
                     numbers[field] for field in (
                         'adjustment', 'fuel_charges', 'additional_surcharge', 'tariff_difference',
-                        'maintenance_charges', 'water_charges',
                     )
                 )
-                summary_rows.append({**raw, **numbers, 'electric_charges': round(numbers['units'] * numbers['rate'], 2), 'total': round(line_total, 2)})
+                line_total = total_electric_charges + numbers['maintenance_charges'] + numbers['water_charges']
+                rate = total_electric_charges / numbers['units'] if numbers['units'] else 0
+                summary_rows.append({
+                    **raw,
+                    **numbers,
+                    'rate': round(rate, 2),
+                    'total_electric_charges': round(total_electric_charges, 2),
+                    'total': round(line_total, 2),
+                })
             if not summary_rows:
                 raise ValueError('Add at least one meter row to the summary.')
             invoice_date = (request.form.get('invoice_date') or '').strip()
+            if bank_name and bank_name not in UTILITY_BILL_BANKS:
+                raise ValueError('Select a valid bank.')
             if action == 'create_invoice':
                 if not (request.form.get('invoice_to') or '').strip():
                     raise ValueError('Enter who this invoice is for.')
+                if not bank_name:
+                    raise ValueError('Select a bank.')
                 datetime.strptime(invoice_date, '%Y-%m-%d')
                 if not cheque_filename and not (summary and summary.cheque_image):
                     raise ValueError('Upload the cheque image before generating the invoice.')
@@ -6231,6 +6320,7 @@ def accounts_utility_bill_summary():
 
         summary.title = (request.form.get('title') or bill.provider or 'Utility Bill Summary').strip()[:200]
         summary.invoice_to = (request.form.get('invoice_to') or '').strip()[:200]
+        summary.bank_name = bank_name
         summary.invoice_date = invoice_date if action == 'create_invoice' else (summary.invoice_date or today)
         if cheque_filename:
             cheque_upload.save(os.path.join(app.config['UPLOAD_FOLDER'], cheque_filename))
@@ -6242,8 +6332,9 @@ def accounts_utility_bill_summary():
         summary.created_by = summary.created_by or session.get('name') or session.get('user') or ''
         db.session.add(summary)
         db.session.flush()
+        normalize_utility_bill_voucher_no(summary)
         if action == 'create_invoice' and not summary.invoice_no:
-            summary.invoice_no = f'UBS-{datetime.utcnow().year}-{summary.id:05d}'
+            summary.invoice_no = next_utility_bill_voucher_no()
         db.session.commit()
         flash('Bill summary saved.' if action == 'save_summary' else 'Invoice created from the bill summary.', 'success')
         return redirect(url_for('accounts_utility_bill_summary', summary_id=summary.id, view='invoice' if action == 'create_invoice' else None))
@@ -6253,7 +6344,11 @@ def accounts_utility_bill_summary():
         summary_rows = json.loads(summary.rows_json or '[]')
     else:
         summary_rows = []
+    normalized_current_number = normalize_utility_bill_voucher_no(summary) if summary else False
     summaries = UtilityBillSummary.query.order_by(UtilityBillSummary.created_at.desc(), UtilityBillSummary.id.desc()).limit(100).all()
+    normalized_list_numbers = [normalize_utility_bill_voucher_no(item) for item in summaries]
+    if normalized_current_number or any(normalized_list_numbers):
+        db.session.commit()
     return render_template(
         'utility_bill_summary.html',
         summary=summary,
@@ -6261,6 +6356,7 @@ def accounts_utility_bill_summary():
         summary_rows=summary_rows or [{}],
         summaries=summaries,
         utility_types=utility_types,
+        bank_names=UTILITY_BILL_BANKS,
         today=today,
         current_month=datetime.utcnow().strftime('%Y-%m'),
         view=request.args.get('view', 'edit'),
@@ -6277,21 +6373,37 @@ def print_utility_bill_summary(summary_id, document_type):
     summary = UtilityBillSummary.query.get_or_404(summary_id)
     if document_type == 'invoice' and not summary.invoice_no:
         abort(404)
-    template_name = 'utility_bill_invoice_print.html' if document_type == 'invoice' else 'utility_bill_summary_print.html'
+    if normalize_utility_bill_voucher_no(summary):
+        db.session.commit()
+    bill = summary.utility_bill
+    print_time = datetime.now(timezone(timedelta(hours=5), name='PKT'))
+    try:
+        billing_month_display = datetime.strptime(bill.billing_period or '', '%Y-%m').strftime('%b-%y').upper()
+    except ValueError:
+        billing_month_display = bill.billing_period or ''
+    try:
+        prd_date_display = datetime.strptime(bill.bill_date or '', '%Y-%m-%d').strftime('%d-%m-%Y')
+    except ValueError:
+        prd_date_display = bill.bill_date or ''
+    template_name = 'utility_bill_voucher_print.html' if document_type == 'invoice' else 'utility_bill_summary_print.html'
     template_context = {
         'summary': summary,
-        'bill': summary.utility_bill,
+        'bill': bill,
+        'billing_month_display': billing_month_display,
+        'prd_date_display': prd_date_display,
         'summary_rows': json.loads(summary.rows_json or '[]'),
         'document_type': document_type,
+        'prepared_by': session.get('name') or session.get('user') or 'System',
+        'print_timestamp': f"{print_time.strftime('%A, %B')} {print_time.day}, {print_time.strftime('%Y at %I:%M %p')}",
         'company_name': 'HARAM ENTERPRISES' if summary.utility_bill.company == 'Haram' else 'CANON ENTERPRISES',
         'company_logo_screen': 'haram-black.png' if summary.utility_bill.company == 'Haram' else 'canon logo black.webp',
         'company_logo_print': 'haram-black.png' if summary.utility_bill.company == 'Haram' else 'canon logo black.webp',
+        'bank_name': summary.bank_name or bill.provider,
     }
     if document_type == 'invoice':
         template_context.update(
             amount_words=amount_in_words(summary.total_amount, indian=True),
             cheque_image_url=summary.cheque_image,
-            print_timestamp=datetime.now().strftime('%m/%d/%Y / %I:%M %p'),
         )
     return render_template(
         template_name,
@@ -6315,22 +6427,33 @@ def utility_bill_invoice(bill_id):
     latest_payment = payments[-1]
     summary = UtilityBillSummary.query.filter_by(utility_bill_id=bill.id).order_by(UtilityBillSummary.id.desc()).first()
     if summary:
+        normalize_utility_bill_voucher_no(summary)
         if not summary.invoice_no:
-            summary.invoice_no = f'UBS-{datetime.utcnow().year}-{summary.id:05d}'
+            summary.invoice_no = next_utility_bill_voucher_no()
         if not summary.invoice_date:
             summary.invoice_date = latest_payment.paid_on or bill.bill_date
         invoice_summary = summary
         summary_rows = json.loads(summary.rows_json or '[]')
     else:
-        invoice_summary = SimpleNamespace(
-            id=None,
-            invoice_no=f'UB-{bill.created_at.year}-{bill.id:05d}',
+        summary_rows = [{
+            'meter_no': bill.account_reference or '',
+            'bill_no': bill.provider,
+            'location': bill.utility_type,
+            'total': bill.amount,
+        }]
+        invoice_summary = UtilityBillSummary(
+            utility_bill_id=bill.id,
+            title=f'{bill.utility_type} Bill Summary',
             invoice_date=latest_payment.paid_on or bill.bill_date,
             invoice_to=bill.company,
+            invoice_no=next_utility_bill_voucher_no(),
+            rows_json=json.dumps(summary_rows),
             total_amount=bill.amount,
             notes=bill.notes or '',
+            created_by=bill.created_by or '',
         )
-        summary_rows = []
+        db.session.add(invoice_summary)
+        summary = invoice_summary
     db.session.commit()
 
     if not summary_rows:
@@ -6343,7 +6466,7 @@ def utility_bill_invoice(bill_id):
     cheque_payment = next((payment for payment in reversed(payments) if payment.cheque_image), None)
     cheque_image_url = cheque_payment.cheque_image if cheque_payment else (summary.cheque_image if summary else '')
     return render_template(
-        'utility_bill_invoice_print.html',
+        'utility_bill_voucher_print.html',
         summary=invoice_summary,
         bill=bill,
         summary_rows=summary_rows,
@@ -6353,10 +6476,10 @@ def utility_bill_invoice(bill_id):
         amount_words=amount_in_words(bill.amount, indian=True),
         cheque_image_url=cheque_image_url,
         cheque_no=latest_payment.cheque_number or latest_payment.tid or '',
-        bank_name=latest_payment.method,
         payment_date=latest_payment.paid_on,
         payment_reference_label='PAYMENT REF',
-        payment_method_label='METHOD',
+        payment_method_label='BANK' if summary and summary.bank_name else 'METHOD',
+        bank_name=summary.bank_name if summary and summary.bank_name else latest_payment.method,
         invoice_title='UTILITY BILL PAYMENT INVOICE',
         invoice_back_url=url_for('accounts_utility_bills'),
         print_timestamp=datetime.now().strftime('%m/%d/%Y / %I:%M %p'),
@@ -8181,6 +8304,7 @@ PAGE_ACCESS_OPTIONS = [
     ('receiving_challan', 'Receiving Challan', ('manager', 'operations', 'assistant_manager')),
     ('inventory', 'Inventory', ('manager', 'operations', 'assistant_manager')),
     ('requirements', 'Requirement Slips', ('manager', 'operations', 'assistant_manager')),
+    ('order_accessories', 'Order Accessories', ('manager', 'operations', 'assistant_manager')),
     ('cutting', 'Cutting Sheets', ('manager', 'operations', 'assistant_manager')),
     ('production_entry', 'Production Entry', ('manager', 'operations', 'assistant_manager')),
     ('production_log', 'Production Log', ('manager', 'operations', 'assistant_manager')),
@@ -8207,6 +8331,7 @@ PAGE_ACCESS_OPTIONS = [
     ('petty_cash', 'Petty Cash', ('accounts',)),
     ('accessories_billing', 'Accessories Billing', ('accounts',)),
     ('utility_bills', 'Utility Bills', ('accounts',)),
+    ('utility_bill_summary', 'Utility Bill Summary', ('accounts',)),
 ]
 SPECIAL_ACCESS_OPTIONS = [
     ('fabric_reports', 'Fabric report sections', ('stock',)),
@@ -8304,12 +8429,18 @@ def required_page_for_request():
         return 'departments'
     if path.startswith('/factory-in-out-ledger'):
         return 'factory_ledger'
+    if path.startswith('/manager/article-head'):
+        return 'article_head_detail'
+    if path.startswith('/order/') and '/accessories' in path:
+        return 'order_accessories'
     if path.startswith(('/manager/dashboard', '/manager/articles', '/manager/article/', '/order/')):
         return 'orders'
     if path.startswith(('/accounts/credit-debit-ledger', '/accounts/company-credit-debit')):
         return 'credit_debit'
     if path.startswith('/accounts/petty-cash'):
         return 'petty_cash'
+    if path.startswith('/accounts/utility-bill-summary'):
+        return 'utility_bill_summary'
     if path.startswith('/accounts/accessories-billing'):
         return 'accessories_billing'
     if path.startswith('/accounts/utility-bills'):
@@ -8366,7 +8497,11 @@ def enforce_profile_portal_access():
         ):
             g.page_access_keys = account_page_access(account)
             required_page = required_page_for_request()
-            if required_page is None or required_page in g.page_access_keys:
+            if required_page is None:
+                return None
+            if required_page == 'article_head_detail' and 'orders' in g.page_access_keys:
+                return None
+            if required_page in g.page_access_keys:
                 return None
             abort(403)
     elif required_portal is None:
@@ -9512,8 +9647,10 @@ def receiving_challan():
 
     if request.method == 'POST':
         challan_id = request.form.get('challan_id')
-        if challan_id and is_read_only_profile():
-            return reject_read_only_edit()
+        if challan_id and (
+            session.get('role') not in ('owner', 'manager') or is_read_only_profile()
+        ):
+            return reject_read_only_edit('Only the owner and manager can update saved receiving challans.')
         serial_no = request.form.get('serial_no') or generate_receiving_serial()
         supplier_value = request.form.get('suppliers', '')
 
@@ -9761,6 +9898,8 @@ def saved_receiving_challans():
 def delete_receiving_challan():
     if not session.get('role'):
         return redirect(url_for('index'))
+    if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
+        return reject_read_only_edit('Only the owner and manager can delete receiving challans.')
 
     challan_id = request.form.get('challan_id')
     job_no = request.form.get('job_no', '')
@@ -9780,6 +9919,8 @@ def delete_receiving_challan():
 def delete_inventory():
     if not session.get('role'):
         return redirect(url_for('index'))
+    if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
+        return reject_read_only_edit('Only the owner and manager can delete inventory records.')
 
     inventory_id = request.form.get('inventory_id')
     job_no = request.form.get('job_no', '')
@@ -10980,6 +11121,10 @@ def save_inventory():
     job_no = request.args.get('job_no') or request.form.get('job_no') or request.args.get('order_id') or request.args.get('auto_job') or ''
     order = Order.query.filter_by(job_no=job_no).first() if job_no else None
     inventory_id = request.form.get('inventory_id') or request.args.get('inv_id')
+    if inventory_id and (
+        session.get('role') not in ('owner', 'manager') or is_read_only_profile()
+    ):
+        return reject_read_only_edit('Only the owner and manager can update saved inventory records.')
     serial_no = request.form.get('serial_no') or request.args.get('serial_no') or generate_inventory_serial()
 
     required_header_keys = [
@@ -11877,7 +12022,7 @@ def production_log():
     job_no = request.args.get('job_no') or request.args.get('filter_job')
     selected_cut = request.args.get('cut_no') or request.args.get('filter_cut')
     if request.method == 'POST':
-        if session.get('role') not in ('owner', 'manager'):
+        if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
             flash('Only an owner or manager can delete production logs.', 'danger')
             return redirect(url_for('production_log', job_no=job_no, cut_no=selected_cut or None))
         selected_ids = set()
@@ -13933,20 +14078,38 @@ def departments():
                 flash('Department deleted successfully.', 'success')
             return redirect(url_for('departments'))
 
+        department_id = request.form.get('department_id', type=int)
         name = (request.form.get('name') or '').strip()
         if not name:
             flash('Please enter a department name.', 'danger')
             return redirect(url_for('departments'))
-        if Department.query.filter(func.lower(Department.name) == name.lower()).first():
+
+        department = Department.query.get(department_id) if department_id else None
+        if department_id and not department:
+            flash('Department not found.', 'danger')
+            return redirect(url_for('departments'))
+        duplicate_query = Department.query.filter(
+            func.lower(func.trim(Department.name)) == name.casefold()
+        )
+        if department:
+            duplicate_query = duplicate_query.filter(Department.id != department.id)
+        if duplicate_query.first():
             flash('This department already exists.', 'danger')
             return redirect(url_for('departments'))
+        if department:
+            department.name = name
+            db.session.commit()
+            flash('Department updated successfully.', 'success')
+            return redirect(url_for('departments'))
+
         db.session.add(Department(name=name))
         db.session.commit()
         flash('Department added successfully.', 'success')
         return redirect(url_for('departments'))
 
+    editing_department = Department.query.get(request.args.get('edit_id', type=int)) if request.args.get('edit_id') else None
     department_list = Department.query.order_by(func.lower(Department.name)).all()
-    return render_template('departments.html', departments=department_list)
+    return render_template('departments.html', departments=department_list, editing_department=editing_department)
 
 
 @app.route('/manager/workers/<job_no>', methods=['GET', 'POST'], endpoint='workers')
@@ -13958,8 +14121,6 @@ def workers(job_no=None):
     if request.method == 'POST':
         # Get form data
         worker_id = request.form.get('worker_id')
-        if worker_id and is_read_only_profile():
-            return reject_read_only_edit('Saved worker profiles cannot be changed.')
         name = request.form.get('name')
         email = request.form.get('email')
         phone = request.form.get('phone')
@@ -14122,8 +14283,6 @@ def workers(job_no=None):
     editing_worker = None
     new_entry = request.args.get('new_entry') == '1'
     query_worker_id = None if new_entry else (request.args.get('worker_id') or request.args.get('edit_id'))
-    if is_read_only_profile():
-        query_worker_id = None
     if query_worker_id:
         try:
             editing_worker = Worker.query.get(int(query_worker_id))
@@ -14505,8 +14664,8 @@ def worker_attendance():
 def delete_worker():
     if not session.get('role'):
         return redirect(url_for('index'))
-    if is_read_only_profile():
-        return reject_read_only_edit('Saved worker profiles cannot be deleted.')
+    if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
+        return reject_read_only_edit('Only the owner and manager can delete worker profiles.')
 
     worker_id = request.form.get('worker_id')
     worker = Worker.query.get(worker_id) if worker_id else None
@@ -16211,6 +16370,10 @@ def accessories_portal(portal_page='home'):
             return redirect_to_portal('issuance-store-finder', order_id=order_id or None)
 
         if action in {'edit_issue', 'delete_issue'}:
+            if action == 'delete_issue' and (
+                session.get('role') not in ('owner', 'manager') or is_read_only_profile()
+            ):
+                return reject_read_only_edit('Only the owner and manager can delete accessory issue entries.')
             issue = AccessoryIssue.query.get(request.form.get('issue_id')) if request.form.get('issue_id') else None
             if action != 'save_issue' and (not issue or issue.requirement_id != item.id):
                 flash('Issue entry not found.', 'danger')
@@ -19103,7 +19266,7 @@ def create_combined_shipment():
 
 @app.route('/stock-portal/orders/<path:job_no>/delete-shipment', methods=['POST'])
 def delete_order_shipment(job_no):
-    if session.get('role') not in ('owner', 'manager'):
+    if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
         flash('Only owner and manager can delete shipments.', 'danger')
         return redirect(request.referrer or url_for('goods_delivery_portal'))
 

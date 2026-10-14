@@ -271,7 +271,7 @@
     {% endif %}
 
     <div class="mb-3 flex justify-end gap-2 no-print">
-        {% if session.get('role') in ('owner', 'manager') %}
+        {% if session.get('role') in ('owner', 'manager') and not read_only_profile %}
         <button type="button" id="toggle-log-selection" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100"><i class="fa-solid fa-check-double"></i> Select</button>
         <button type="submit" form="delete-production-logs" id="delete-selected-logs" class="hidden inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-red-700"><i class="fa-solid fa-trash"></i> Delete</button>
         {% endif %}

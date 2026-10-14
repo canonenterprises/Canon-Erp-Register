@@ -21,13 +21,14 @@
           <label class="text-xs font-bold uppercase text-slate-500">Company<select name="company" required class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="Canon" {% if not bill or bill.company == 'Canon' %}selected{% endif %}>Canon</option><option value="Haram" {% if bill and bill.company == 'Haram' %}selected{% endif %}>Haram</option></select></label>
           <label class="text-xs font-bold uppercase text-slate-500">Provider<input name="provider" value="{{ bill.provider if bill else '' }}" maxlength="150" required placeholder="Utility company or combined bill name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
           <label class="text-xs font-bold uppercase text-slate-500">Account / consumer no.<input name="account_reference" value="{{ bill.account_reference if bill else '' }}" maxlength="100" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
-          <label class="text-xs font-bold uppercase text-slate-500">Billing month<input type="month" name="billing_period" value="{{ bill.billing_period if bill else current_month }}" required class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Bill Month<input type="month" name="billing_period" value="{{ bill.billing_period if bill else current_month }}" required class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
           <label class="text-xs font-bold uppercase text-slate-500">Bill date<input type="date" name="bill_date" value="{{ bill.bill_date if bill else today }}" required class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
           <label class="text-xs font-bold uppercase text-slate-500">Due date<input type="date" name="due_date" value="{{ bill.due_date if bill else '' }}" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
         </div>
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <label class="text-xs font-bold uppercase text-slate-500">Summary title<input name="title" value="{{ summary.title if summary else (bill.provider if bill else 'Utility Bill Summary') }}" maxlength="200" required class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
           <label class="text-xs font-bold uppercase text-slate-500">Invoice to<input name="invoice_to" value="{{ summary.invoice_to if summary else '' }}" maxlength="200" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm" placeholder="Customer or department"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Select Bank<select name="bank_name" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="">Select bank</option>{% for bank_name in bank_names %}<option value="{{ bank_name }}" {% if summary and summary.bank_name == bank_name %}selected{% endif %}>{{ bank_name }}</option>{% endfor %}</select></label>
           <label class="text-xs font-bold uppercase text-slate-500">Invoice date<input type="date" name="invoice_date" value="{{ summary.invoice_date if summary and summary.invoice_date else today }}" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
         </div>
         <label class="block max-w-xl text-xs font-bold uppercase text-slate-600">Cheque image <span class="text-rose-700">Required to create invoice</span>
@@ -35,15 +36,25 @@
           {% if summary and summary.cheque_image %}<span class="mt-1 block text-xs font-medium normal-case text-emerald-700">Cheque image uploaded. Select another file to replace it.</span>{% endif %}
         </label>
         <div class="overflow-x-auto border-y border-slate-200">
-          <table class="w-full min-w-[1500px] text-left text-xs" id="summary-rows-table">
-            <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-600"><tr><th class="px-2 py-2">Meter No.</th><th class="px-2 py-2">Bill No.</th><th class="px-2 py-2">Location</th><th class="px-2 py-2">Previous</th><th class="px-2 py-2">Present</th><th class="px-2 py-2">Units</th><th class="px-2 py-2">Rate / Unit</th><th class="px-2 py-2">Adjustment</th><th class="px-2 py-2">Fuel</th><th class="px-2 py-2">Surcharge</th><th class="px-2 py-2">Tariff Diff.</th><th class="px-2 py-2">Maintenance</th><th class="px-2 py-2">Water</th><th class="px-2 py-2">Row Total</th><th class="px-2 py-2"></th></tr></thead>
+          <table class="w-full min-w-[1800px] text-left text-xs" id="summary-rows-table">
+            <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-600"><tr><th class="px-2 py-2">S.No</th><th class="px-2 py-2">Meter No.</th><th class="px-2 py-2">Bill No.</th><th class="px-2 py-2">Location</th><th class="px-2 py-2">Previous Reading</th><th class="px-2 py-2">Present Reading</th><th class="px-2 py-2">Units Used</th><th class="px-2 py-2">Amount</th><th class="px-2 py-2">Uniform Adj.</th><th class="px-2 py-2">Fuel Charges</th><th class="px-2 py-2">Addt. Surcharge</th><th class="px-2 py-2">Tariff Diff.</th><th class="px-2 py-2">Per Unit Rate</th><th class="px-2 py-2">Total Electric Charges</th><th class="px-2 py-2">Maint. Charges</th><th class="px-2 py-2">Water Charges</th><th class="px-2 py-2">Total Amount</th><th class="px-2 py-2"></th></tr></thead>
             <tbody data-summary-rows>
               {% for item in summary_rows %}
               <tr class="border-t border-slate-100">
+                <td class="summary-serial px-2 py-1 text-center font-bold">{{ loop.index }}</td>
                 <td class="p-1"><input name="meter_no" value="{{ item.meter_no or '' }}" required placeholder="Meter" class="w-24 rounded border border-slate-300 px-2 py-1.5"></td>
                 <td class="p-1"><input name="bill_no" value="{{ item.bill_no or '' }}" placeholder="Bill no." class="w-24 rounded border border-slate-300 px-2 py-1.5"></td>
                 <td class="p-1"><input name="location" value="{{ item.location or '' }}" placeholder="Location" class="w-32 rounded border border-slate-300 px-2 py-1.5"></td>
-                {% for field in ['previous_reading', 'present_reading', 'units', 'rate', 'adjustment', 'fuel_charges', 'additional_surcharge', 'tariff_difference', 'maintenance_charges', 'water_charges'] %}
+                {% for field in ['previous_reading', 'present_reading', 'units'] %}
+                <td class="p-1"><input name="{{ field }}" type="number" step="0.01" value="{{ item[field] if item and item[field] is defined else '' }}" class="w-24 rounded border border-slate-300 px-2 py-1.5" aria-label="{{ field|replace('_', ' ')|title }}"></td>
+                {% endfor %}
+                <td class="p-1"><input name="electric_charges" type="number" step="0.01" value="{{ item.electric_charges if item and item.electric_charges is defined else '' }}" class="w-24 rounded border border-slate-300 px-2 py-1.5" aria-label="Amount"></td>
+                {% for field in ['adjustment', 'fuel_charges', 'additional_surcharge', 'tariff_difference'] %}
+                <td class="p-1"><input name="{{ field }}" type="number" step="0.01" value="{{ item[field] if item and item[field] is defined else '' }}" class="w-24 rounded border border-slate-300 px-2 py-1.5" aria-label="{{ field|replace('_', ' ')|title }}"></td>
+                {% endfor %}
+                <td class="summary-rate px-2 py-1 text-right">{{ '{:,.2f}'.format(item.rate or 0) if item else '0.00' }}</td>
+                <td class="summary-electric-total px-2 py-1 text-right font-bold">0.00</td>
+                {% for field in ['maintenance_charges', 'water_charges'] %}
                 <td class="p-1"><input name="{{ field }}" type="number" step="0.01" value="{{ item[field] if item and item[field] is defined else '' }}" class="w-24 rounded border border-slate-300 px-2 py-1.5" aria-label="{{ field|replace('_', ' ')|title }}"></td>
                 {% endfor %}
                 <td class="summary-row-total px-2 py-1 text-right font-bold">{{ '{:,.2f}'.format(item.total or 0) if item else '0.00' }}</td>
@@ -84,14 +95,19 @@
   const form = document.getElementById('bill-summary-form');
   const rows = document.querySelector('[data-summary-rows]');
   if (!form || !rows) return;
-  const numericNames = ['previous_reading', 'present_reading', 'units', 'rate', 'adjustment', 'fuel_charges', 'additional_surcharge', 'tariff_difference', 'maintenance_charges', 'water_charges'];
+  const numericNames = ['previous_reading', 'present_reading', 'units', 'electric_charges', 'adjustment', 'fuel_charges', 'additional_surcharge', 'tariff_difference', 'maintenance_charges', 'water_charges'];
   const money = value => Number.isFinite(value) ? value.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+  const bankName = form.querySelector('[name="bank_name"]');
   form.querySelector('[data-save-summary]')?.addEventListener('click', () => {
     form.querySelector('[data-summary-action]').value = 'save_summary';
     const recipient = form.querySelector('[name="invoice_to"]');
     if (recipient) {
       recipient.required = false;
       recipient.setCustomValidity('');
+    }
+    if (bankName) {
+      bankName.required = false;
+      bankName.setCustomValidity('');
     }
     const chequeImage = form.querySelector('[data-cheque-image]');
     if (chequeImage) {
@@ -101,12 +117,17 @@
   });
   function updateTotals() {
     let grandTotal = 0;
-    rows.querySelectorAll('tr').forEach(row => {
+    rows.querySelectorAll('tr').forEach((row, index) => {
+      row.querySelector('.summary-serial').textContent = index + 1;
       const values = {};
       numericNames.forEach(name => values[name] = Number(row.querySelector(`[name="${name}"]`).value) || 0);
       const units = values.units || Math.max(0, values.present_reading - values.previous_reading);
-      const total = units * values.rate + values.adjustment + values.fuel_charges + values.additional_surcharge + values.tariff_difference + values.maintenance_charges + values.water_charges;
+      const totalElectric = values.electric_charges + values.adjustment + values.fuel_charges + values.additional_surcharge + values.tariff_difference;
+      const rate = units ? totalElectric / units : 0;
+      const total = totalElectric + values.maintenance_charges + values.water_charges;
       grandTotal += total;
+      row.querySelector('.summary-rate').textContent = money(rate);
+      row.querySelector('.summary-electric-total').textContent = money(totalElectric);
       row.querySelector('.summary-row-total').textContent = money(total);
     });
     form.querySelector('[data-summary-total]').textContent = `PKR ${money(grandTotal)}`;
@@ -123,11 +144,16 @@
     row.querySelectorAll('input').forEach(input => input.value = '');
     row.querySelector('.summary-row-total').textContent = '0.00';
     rows.appendChild(row);
+    updateTotals();
   });
   form.querySelector('[data-create-summary-invoice]')?.addEventListener('click', () => {
     form.querySelector('[data-summary-action]').value = 'create_invoice';
     const recipient = form.querySelector('[name="invoice_to"]');
     if (recipient) recipient.required = true;
+    if (bankName) {
+      bankName.required = true;
+      bankName.setCustomValidity('');
+    }
     const chequeImage = form.querySelector('[data-cheque-image]');
     if (chequeImage) chequeImage.required = chequeImage.dataset.existing !== 'true';
   });
@@ -135,10 +161,12 @@
     if (form.querySelector('[data-summary-action]').value !== 'create_invoice') return;
     const recipient = form.querySelector('[name="invoice_to"]');
     if (recipient && !recipient.value.trim()) recipient.setCustomValidity('Enter who this invoice is for.');
+    if (bankName && !bankName.value) bankName.setCustomValidity('Select a bank.');
     const chequeImage = form.querySelector('[data-cheque-image]');
     if (chequeImage && chequeImage.dataset.existing !== 'true' && !chequeImage.value) chequeImage.setCustomValidity('Upload the cheque image before generating the invoice.');
   });
   form.querySelector('[name="invoice_to"]')?.addEventListener('input', event => event.target.setCustomValidity(''));
+  bankName?.addEventListener('change', () => bankName.setCustomValidity(''));
   form.querySelector('[data-cheque-image]')?.addEventListener('change', event => event.target.setCustomValidity(''));
   updateTotals();
 }());

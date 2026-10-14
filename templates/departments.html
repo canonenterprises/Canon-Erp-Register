@@ -10,10 +10,12 @@
         </header>
 
         <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-            <h2 class="text-xl font-black text-slate-900">Add Department</h2>
+            <h2 class="text-xl font-black text-slate-900">{{ 'Edit Department' if editing_department else 'Add Department' }}</h2>
             <form method="post" class="mt-4 flex flex-col gap-3 sm:flex-row">
-                <input type="text" name="name" required maxlength="100" placeholder="Department name" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold focus:border-indigo-400 focus:outline-none">
-                <button type="submit" class="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-indigo-700">Add Department</button>
+                {% if editing_department %}<input type="hidden" name="department_id" value="{{ editing_department.id }}">{% endif %}
+                <input type="text" name="name" required maxlength="100" placeholder="Department name" value="{{ editing_department.name if editing_department else '' }}" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold focus:border-indigo-400 focus:outline-none">
+                <button type="submit" class="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-indigo-700">{{ 'Update Department' if editing_department else 'Add Department' }}</button>
+                {% if editing_department %}<a href="{{ url_for('departments') }}" class="rounded-xl border border-slate-300 px-5 py-3 text-center text-sm font-bold text-slate-700 hover:bg-slate-50">Cancel</a>{% endif %}
             </form>
         </section>
         <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -21,7 +23,7 @@
             <div class="mt-4 overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead class="border-b border-slate-200 text-left text-[11px] uppercase tracking-wider text-slate-500">
-                        <tr><th class="p-3">S.No</th><th class="p-3">Department</th><th class="p-3">Store Rooms</th>{% if not read_only_profile %}<th class="p-3 text-right">Actions</th>{% endif %}</tr>
+                        <tr><th class="p-3">S.No</th><th class="p-3">Department</th><th class="p-3">Store Rooms</th><th class="p-3 text-right">Actions</th></tr>
                     </thead>
                     <tbody>
                         {% for department in departments %}
@@ -52,17 +54,18 @@
                                 </form>
                                 {% endif %}
                             </td>
-                            {% if not read_only_profile %}
                             <td class="p-3 text-right">
+                                <a href="{{ url_for('departments', edit_id=department.id) }}" class="mr-2 inline-flex rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100">Edit</a>
+                                {% if session.get('role') in ('owner', 'manager') and not read_only_profile %}
                                 <form method="post" class="inline" onsubmit="return confirm('Delete this department?');">
                                     <input type="hidden" name="delete_department_id" value="{{ department.id }}">
                                     <button type="submit" class="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700">Delete</button>
                                 </form>
+                                {% endif %}
                             </td>
-                            {% endif %}
                         </tr>
                         {% else %}
-                        <tr><td colspan="{% if read_only_profile %}3{% else %}4{% endif %}" class="p-8 text-center text-slate-500">No departments added yet.</td></tr>
+                        <tr><td colspan="4" class="p-8 text-center text-slate-500">No departments added yet.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>

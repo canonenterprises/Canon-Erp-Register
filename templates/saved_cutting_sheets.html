@@ -27,9 +27,7 @@
                         <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Transferred</th>
                         <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Transfer Origin</th>
                         <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Created At</th>
-                        {% if not read_only_profile %}
                         <th class="border-b border-slate-200 px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
-                        {% endif %}
                     </tr>
                 </thead>
                 <tbody>
@@ -59,9 +57,11 @@
                             {% else %}-{% endif %}
                         </td>
                         <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ sheet.created_at.strftime('%Y-%m-%d %H:%M') if sheet.created_at else '-' }}</td>
-                        {% if not read_only_profile %}
                         <td class="border-b border-slate-100 px-4 py-3">
                             <div class="flex justify-end gap-2">
+                                {% if read_only_profile %}
+                                <a href="{{ url_for('cutting_sheet', job_no=selected_job, edit_id=sheet.id) }}" class="inline-flex items-center rounded-lg border border-green-800 bg-green-800 px-3 py-1.5 text-xs font-bold text-white transition hover:border-green-300 hover:bg-green-300 hover:text-black">View</a>
+                                {% else %}
                                 {% if session.get('role') in ('owner', 'manager') and transfer_state.remaining_transferable > 0 %}
                                 <button type="button" class="transfer-excess-button rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-800"
                                     data-source-sheet-id="{{ sheet.id }}"
@@ -80,9 +80,9 @@
                                     <input type="hidden" name="job_no" value="{{ selected_job }}">
                                     <button type="submit" class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-700 opacity-0 translate-y-1 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:translate-y-0 group-focus-within:pointer-events-auto">Delete</button>
                                 </form>
+                                {% endif %}
                             </div>
                         </td>
-                        {% endif %}
                     </tr>
                     {% endfor %}
                 </tbody>

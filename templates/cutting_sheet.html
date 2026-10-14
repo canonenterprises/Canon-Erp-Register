@@ -69,7 +69,7 @@
                     <div>
                         <div class="cut-size-inputs">
                             <div class="flex flex-wrap items-center gap-1.5">
-                                <input type="number" id="calc_cut_size" name="calc_cut_size" step="0.01" value="{{ cutting_size_factor }}" class="w-24 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder=" " required oninput="updateCalculation()" />
+                                <input type="number" id="calc_cut_size" name="calc_cut_size" step="0.01" value="{{ cutting_size_factor }}" class="w-24 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder=" " readonly required oninput="updateCalculation()" />
                                 <span class="text-[15px] font-bold">×</span>
                                 <input type="number" id="calc_factor_1" name="calc_factor_1" step="0.01" value="{{ cutting_factor_1 }}" class="w-24 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder=" " required oninput="updateCalculation()" />
                             </div>
@@ -232,7 +232,7 @@
                                         <td class="w-1/3 p-2"><input type="text" name="mini_cp_22" value="{{ cutting_sheet.mini_cp_22 if cutting_sheet and cutting_sheet.mini_cp_22 is not none else (cutting_sheet_row_map[20].cp if 20 in cutting_sheet_row_map else '') }}" class="w-full border border-black rounded px-2 py-1 text-s text-black-800 font-bold text-center" placeholder="" oninput="updateTotals()"></td>
                                     </tr>
                                     <tr class="border-b border-black text-center">
-                                        <td class="p-2 font-bold" colspan="3">SHORT FABRIC</td>
+                                        <td class="p-2 font-bold" colspan="3">WASTAGE</td>
                                     </tr>
                                     <tr class="border-b border-black bg-slate-100">
                                         <td class="border-r border-black w-1/3 p-2"><input type="text" id="mini_palla_22_grey" name="mini_palla_22_grey" value="{{ cutting_sheet.mini_palla_22_grey if cutting_sheet and cutting_sheet.mini_palla_22_grey is not none else (cutting_sheet_row_map[20].palla if 20 in cutting_sheet_row_map else '') }}" class="w-full border border-black rounded px-2 py-1 text-s text-black-800 font-bold text-center bg-slate-100" oninput="onMiniGreyInput()"></td>
@@ -370,13 +370,30 @@
             <p class="text-[30px] text-black-950 text-right mt-0 pt-0">Printed on: <span id="print-time"></span></p>
         </div>
         <div class="no-print mt-6 flex flex-wrap gap-3 justify-end">
+                    {% if not (read_only_profile and cutting_sheet) %}
                     <button type="submit" class="px-4 py-2 rounded-lg bg-emerald-600 text-white font-bold">Save Cutting Sheet</button>
+                    {% endif %}
             <a href="{{ url_for('saved_cutting_sheets', job_no=selected_job) }}" class="px-4 py-2 rounded-lg bg-slate-700 text-white font-bold">View Saved Sheets</a>
             <button type="button" onclick="printCuttingSheet()" class="px-4 py-2 rounded-lg bg-slate-950 text-white font-bold">Print Cutting Sheet</button>
         </div>
     </div>
     
     </form>
+    {% if read_only_profile and cutting_sheet %}
+    <script>
+        const cuttingSheetForm = document.getElementById('cutting-sheet-form');
+        if (cuttingSheetForm) {
+            cuttingSheetForm.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(function (control) {
+                control.disabled = true;
+            });
+            cuttingSheetForm.querySelectorAll('button').forEach(function (button) {
+                if (button.getAttribute('onclick') !== 'printCuttingSheet()') {
+                    button.disabled = true;
+                }
+            });
+        }
+    </script>
+    {% endif %}
     {% if session.get('role') in ('owner', 'manager') and transfer_destination_orders %}
     <section class="no-print mx-auto mt-6 max-w-7xl rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700">Excess cutting PCS</p>

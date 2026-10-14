@@ -1,0 +1,928 @@
+
+{% extends 'base.html' %}
+{% block content %}
+
+<main class="payment-page mx-auto max-w-6xl px-4 py-6 print:p-0">
+
+  <!-- SCREEN ACTIONS -->
+  <div class="payment-actions mb-5 flex justify-between print:hidden">
+    <a href="{{ invoice_back_url if invoice_back_url is defined else url_for('accounts_utility_bill_summary', summary_id=summary.id, view='invoice') }}"
+       class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">
+      Back to Bill Summary
+    </a>
+
+    <button type="button" onclick="window.print()"
+      class="rounded-md bg-slate-900 px-5 py-2 text-sm font-bold text-white">
+      Print Payment Voucher
+    </button>
+  </div>
+
+  <article class="payment-voucher">
+
+    <!-- PROFESSIONAL HEADER -->
+    <header class="voucher-header">
+
+      <div class="company-block">
+        <div class="company-logo-wrap">
+          {% if company_logo_screen %}
+            <img src="{{ url_for('static', filename=company_logo_screen) }}"
+                 alt="{{ company_name or 'Company' }} logo"
+                 class="company-logo company-logo-screen">
+          {% endif %}
+
+          {% if company_logo_print %}
+            <img src="{{ url_for('static', filename=company_logo_print) }}"
+                 alt="{{ company_name or 'Company' }} logo"
+                 class="company-logo company-logo-print">
+          {% endif %}
+        </div>
+
+        <div class="company-name">{{ company_name or 'COMPANY' }}</div>
+        <div class="voucher-title">
+          {{ invoice_title if invoice_title is defined else 'BANK PAYMENT VOUCHER' }}
+        </div>
+      </div>
+
+      <div class="voucher-meta">
+
+        <div class="meta-item">
+          <span class="meta-label">VOUCHER NO.</span>
+          <span class="meta-value voucher-number">{{ summary.invoice_no or '—' }}</span>
+        </div>
+
+        <div class="meta-item">
+          <span class="meta-label">VOUCHER DATE</span>
+          <span class="meta-value">{{ summary.invoice_date or '—' }}</span>
+        </div>
+
+        <div class="meta-item">
+          <span class="meta-label">
+            {{ payment_reference_label if payment_reference_label is defined else 'CHEQUE NO.' }}
+          </span>
+          <span class="meta-value">{{ cheque_no if cheque_no is defined and cheque_no else '—' }}</span>
+        </div>
+
+        <div class="meta-item">
+          <span class="meta-label">PAYMENT DATE</span>
+          <span class="meta-value">{{ payment_date if payment_date is defined and payment_date else '—' }}</span>
+        </div>
+
+        <div class="meta-item meta-bank">
+          <span class="meta-label">BANK</span>
+          <span class="meta-value">{{ summary.bank_name or '—' }}</span>
+        </div>
+
+      </div>
+    </header>
+
+    <!-- ACCOUNTING TABLE -->
+    <section class="accounts-section">
+      <table class="accounts-table">
+        <colgroup>
+          <col class="account-col">
+          <col class="ref-col">
+          <col class="debit-col">
+          <col class="credit-col">
+        </colgroup>
+
+        <thead>
+          <tr>
+            <th>HEAD OF ACCOUNTS</th>
+            <th>REFERENCE</th>
+            <th>DEBIT (PKR)</th>
+            <th>CREDIT (PKR)</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for item in summary_rows %}
+          <tr class="account-row">
+            <td class="account-name">
+              <span class="account-main">
+                ELECTRICITY BILL{% if item.location %} — {{ item.location }}{% endif %}
+              </span>
+              {% if item.meter_no %}
+                <span class="account-detail">METER NO: {{ item.meter_no }}</span>
+              {% endif %}
+            </td>
+
+            <td class="ref-number">{{ item.bill_no or item.meter_no or '—' }}</td>
+
+            <td class="amount-cell">
+              {{ '{:,.0f}'.format(item.total or 0) }}
+            </td>
+
+            <td class="amount-cell"></td>
+          </tr>
+          {% endfor %}
+
+          <tr class="bank-account-row">
+            <td class="account-name">BANK — {{ summary.bank_name or '' }}</td>
+            <td></td>
+            <td></td>
+            <td></td>
+          </tr>
+
+          <tr class="period-row">
+            <td class="account-name">
+              BILLING PERIOD — {{ bill.billing_period or '—' }}
+            </td>
+            <td></td>
+            <td></td>
+            <td></td>
+          </tr>
+
+          <tr class="payee-row">
+            <td class="account-name">
+              PAYEE / ACCOUNT — {{ summary.invoice_to or company_name or '' }}
+            </td>
+            <td></td>
+            <td></td>
+            <td class="amount-cell">
+              {{ '{:,.0f}'.format(summary.total_amount or 0) }}
+            </td>
+          </tr>
+
+          <!-- CHEQUE IMAGE -->
+          <tr class="cheque-row">
+            <td class="cheque-image-cell" rowspan="3">
+              {% if cheque_image_url is defined and cheque_image_url %}
+                <img class="cheque-image"
+                     src="{{ cheque_image_url }}"
+                     alt="Uploaded bank cheque">
+              {% else %}
+                <div class="cheque-placeholder print:hidden">
+                  <strong>CHEQUE IMAGE</strong>
+                  <small>Upload from Bill Summary</small>
+                </div>
+              {% endif %}
+            </td>
+            <td class="blank-cell"></td>
+            <td class="blank-cell"></td>
+            <td class="blank-cell"></td>
+          </tr>
+
+          <tr class="writing-row">
+            <td></td><td></td><td></td>
+          </tr>
+
+          <tr class="writing-row">
+            <td></td><td></td><td></td>
+          </tr>
+        </tbody>
+
+        <tfoot>
+          <tr>
+            <td colspan="2" class="total-label">TOTAL AMOUNT</td>
+            <td class="amount-cell final-total">
+              {{ '{:,.0f}'.format(summary.total_amount or 0) }}
+            </td>
+            <td class="amount-cell final-total">
+              {{ '{:,.0f}'.format(summary.total_amount or 0) }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <!-- AMOUNT IN WORDS -->
+    <section class="voucher-details">
+      <div class="detail-row amount-words-row">
+        <div class="detail-label">AMOUNT IN WORDS</div>
+        <div class="detail-colon">:</div>
+        <div class="detail-value">{{ amount_words or '' }}</div>
+      </div>
+
+      <div class="detail-row narration-row">
+        <div class="detail-label">NARRATION</div>
+        <div class="detail-colon">:</div>
+        <div class="detail-value">
+          {{ summary.notes or ('ISSUED CHEQUE FOR ELECTRICITY BILL — M/O ' ~ (bill.billing_period or '')) }}
+        </div>
+      </div>
+    </section>
+
+    <!-- SIGNATURES -->
+    <footer class="voucher-footer">
+      <div class="signature">
+        <span class="signature-line"></span>
+        <span>PREPARED BY</span>
+      </div>
+
+      <div class="signature">
+        <span class="signature-line"></span>
+        <span>CHECKED BY</span>
+      </div>
+
+      <div class="signature">
+        <span class="signature-line"></span>
+        <span>AUTHORIZED BY</span>
+      </div>
+
+      <div class="signature">
+        <span class="signature-line"></span>
+        <span>RECEIVED BY</span>
+      </div>
+    </footer>
+
+    <div class="voucher-print-meta">
+      <span>{{ company_name or '' }}</span>
+      <span>{{ print_timestamp or '' }}</span>
+    </div>
+
+  </article>
+</main>
+
+<style>
+/* =========================================
+   PROFESSIONAL BANK PAYMENT VOUCHER
+   A5 LANDSCAPE: 210mm x 148mm
+   ========================================= */
+
+.payment-page {
+  color: #111;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.payment-voucher,
+.payment-voucher * {
+  box-sizing: border-box;
+}
+
+.payment-voucher {
+  position: relative;
+  width: 100%;
+  min-height: 650px;
+  padding: 22px;
+  background: #fff;
+  color: #111;
+  border: 1px solid #cbd0d6;
+  border-radius: 5px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 5px 20px rgba(0, 0, 0, .06);
+}
+
+/* HEADER */
+
+.voucher-header {
+  display: grid;
+  grid-template-columns: 42% 58%;
+  min-height: 112px;
+  border: 1.5px solid #222;
+}
+
+.company-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  border-right: 1.5px solid #222;
+  text-align: center;
+}
+
+.company-logo-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  max-width: 100%;
+  margin-bottom: 4px;
+}
+
+.company-logo {
+  display: block;
+  max-width: 155px;
+  max-height: 45px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.company-logo-print {
+  display: none;
+}
+
+.company-name {
+  font-size: 15px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: .045em;
+  overflow-wrap: anywhere;
+}
+
+.voucher-title {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+/* META GRID */
+
+.voucher-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(2, minmax(36px, auto)) minmax(28px, auto);
+  min-width: 0;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 5px 9px;
+  border-right: 1px solid #c4c4c4;
+  border-bottom: 1px solid #c4c4c4;
+}
+
+.meta-item:nth-child(even) {
+  border-right: 0;
+}
+
+.meta-label {
+  display: block;
+  margin-bottom: 3px;
+  color: #454545;
+  font-size: 9px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: .07em;
+}
+
+.meta-value {
+  display: block;
+  font-size: 12px;
+  line-height: 1.2;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.voucher-number {
+  font-size: 15px;
+}
+
+.meta-bank {
+  grid-column: 1 / -1;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+/* ACCOUNTS TABLE */
+
+.accounts-section {
+  margin-top: 10px;
+}
+
+.accounts-table {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  table-layout: fixed;
+  border: 1.5px solid #222;
+}
+
+.account-col { width: 46%; }
+.ref-col { width: 16%; }
+.debit-col { width: 19%; }
+.credit-col { width: 19%; }
+
+.accounts-table th,
+.accounts-table td {
+  border: 1px solid #b8b8b8;
+  padding: 5px 7px;
+  vertical-align: middle;
+}
+
+.accounts-table thead th {
+  height: 30px;
+  background: #f0f2f4;
+  color: #111;
+  border-bottom: 1.5px solid #222;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .045em;
+}
+
+.accounts-table tbody td {
+  height: 27px;
+  font-size: 10.5px;
+}
+
+.accounts-table .account-name {
+  text-align: left;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.account-main {
+  display: block;
+  font-weight: 700;
+}
+
+.account-detail {
+  display: block;
+  margin-top: 2px;
+  font-size: 8px;
+  font-weight: 400;
+  color: #333;
+}
+
+.accounts-table .ref-number {
+  text-align: center;
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.accounts-table .amount-cell {
+  text-align: right;
+  padding-right: 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.accounts-table .bank-account-row td,
+.accounts-table .period-row td,
+.accounts-table .payee-row td {
+  height: 25px;
+}
+
+.accounts-table .bank-account-row .account-name,
+.accounts-table .period-row .account-name,
+.accounts-table .payee-row .account-name {
+  font-weight: 700;
+}
+
+.accounts-table .writing-row td {
+  height: 21px;
+}
+
+.accounts-table .cheque-image-cell {
+  height: 63px;
+  padding: 3px;
+  text-align: center;
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+.cheque-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+.cheque-placeholder {
+  display: flex;
+  height: 100%;
+  min-height: 45px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border: 1px dashed #b8b8b8;
+  color: #666;
+  background: #fafafa;
+}
+
+.cheque-placeholder strong {
+  font-size: 10px;
+}
+
+.cheque-placeholder small {
+  font-size: 9px;
+}
+
+.accounts-table tfoot td {
+  height: 30px;
+  border-top: 1.5px solid #222;
+  background: #f0f2f4;
+}
+
+.accounts-table .total-label {
+  padding-left: 10px;
+  text-align: right;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+.accounts-table .final-total {
+  text-align: right;
+  padding-right: 10px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* AMOUNT AND NARRATION */
+
+.voucher-details {
+  margin-top: 9px;
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: 112px 12px minmax(0, 1fr);
+  align-items: start;
+  gap: 5px;
+  margin-top: 7px;
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+.detail-label {
+  padding-top: 2px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .045em;
+}
+
+.detail-colon {
+  padding-top: 1px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.detail-value {
+  min-width: 0;
+  min-height: 19px;
+  padding: 2px 4px 3px;
+  border-bottom: 1px dotted #777;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+}
+
+.narration-row {
+  margin-top: 7px;
+}
+
+/* SIGNATURE FOOTER */
+
+.voucher-footer {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  margin: 20px 5px 0;
+}
+
+.signature {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .05em;
+}
+
+.signature-line {
+  display: block;
+  width: 100%;
+  height: 13px;
+  border-bottom: 1px solid #333;
+}
+
+.voucher-print-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  color: #444;
+  font-size: 8px;
+}
+
+.voucher-print-meta span {
+  overflow-wrap: anywhere;
+}
+
+/* MOBILE PREVIEW */
+
+@media screen and (max-width: 700px) {
+  .payment-voucher {
+    min-height: 0;
+    padding: 10px;
+    overflow: hidden;
+  }
+
+  .voucher-header {
+    grid-template-columns: 1fr;
+  }
+
+  .company-block {
+    border-right: 0;
+    border-bottom: 1px solid #222;
+  }
+
+  .voucher-meta {
+    grid-template-rows: repeat(2, minmax(36px, auto)) minmax(28px, auto);
+  }
+
+  .accounts-section {
+    overflow-x: auto;
+  }
+
+  .accounts-table {
+    min-width: 570px;
+  }
+
+  .voucher-footer {
+    gap: 10px;
+  }
+
+  .signature {
+    font-size: 7px;
+  }
+}
+
+/* =========================================
+   A5 LANDSCAPE PRINT
+   ========================================= */
+
+@media print {
+  @page {
+    size: A5 landscape;
+    margin: 5mm;
+  }
+
+  html,
+  body {
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .payment-page,
+  .payment-page * {
+    visibility: visible !important;
+  }
+
+  .payment-page {
+    position: static !important;
+    display: block !important;
+    width: 200mm !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .payment-voucher {
+    position: relative !important;
+    display: block !important;
+    width: calc(200mm / var(--voucher-print-scale, 1)) !important;
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 3mm !important;
+    overflow: visible !important;
+    border: 1px solid #222 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    font-size: 12px !important;
+    zoom: var(--voucher-print-scale, 1) !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .voucher-header {
+    grid-template-columns: 42% 58% !important;
+    min-height: 25mm !important;
+    height: 25mm !important;
+  }
+
+  .company-block {
+    padding: 1.5mm 2mm !important;
+    border-right: 1px solid #222 !important;
+    border-bottom: 0 !important;
+  }
+
+  .company-logo-wrap {
+    min-height: 8mm !important;
+    margin-bottom: 1mm !important;
+  }
+
+  .company-logo {
+    max-width: 33mm !important;
+    max-height: 10mm !important;
+  }
+
+  .company-logo-screen {
+    display: none !important;
+  }
+
+  .company-logo-print {
+    display: block !important;
+  }
+
+  .company-name {
+    font-size: 13px !important;
+  }
+
+  .voucher-title {
+    margin-top: 1mm !important;
+    font-size: 13px !important;
+  }
+
+  .voucher-meta {
+    grid-template-rows: 8mm 8mm 8mm !important;
+  }
+
+  .meta-item {
+    padding: 1mm 2mm !important;
+    border-color: #999 !important;
+  }
+
+  .meta-label {
+    margin-bottom: 0.5mm !important;
+    color: #222 !important;
+    font-size: 9px !important;
+  }
+
+  .meta-value {
+    font-size: 11px !important;
+  }
+
+  .voucher-number {
+    font-size: 13px !important;
+  }
+
+  .accounts-section {
+    margin-top: 2mm !important;
+  }
+
+  .accounts-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    table-layout: fixed !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .accounts-table th,
+  .accounts-table td {
+    padding: 1mm 1.5mm !important;
+    border: 1px solid #999 !important;
+    color: #000 !important;
+    text-align: center !important;
+  }
+
+  .accounts-table thead th {
+    height: 7mm !important;
+    background: #f0f2f4 !important;
+    border-bottom: 1.5px solid #222 !important;
+    font-size: 11px !important;
+  }
+
+  .accounts-table tbody td {
+    height: 7mm !important;
+    font-size: 11px !important;
+  }
+
+  .accounts-table .account-detail {
+    font-size: 9px !important;
+  }
+
+  .accounts-table .ref-number {
+    font-size: 10px !important;
+  }
+
+  .accounts-table .amount-cell {
+    padding: 1mm 1.5mm !important;
+    font-size: 11px !important;
+    text-align: center !important;
+  }
+
+  .accounts-table .bank-account-row td,
+  .accounts-table .period-row td,
+  .accounts-table .payee-row td {
+    height: 5.5mm !important;
+  }
+
+  .accounts-table .writing-row td {
+    height: 4mm !important;
+  }
+
+  .accounts-table .cheque-image-cell {
+    height: 17mm !important;
+    padding: 0.5mm !important;
+  }
+
+  .cheque-image {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+  }
+
+  .cheque-placeholder {
+    display: none !important;
+  }
+
+  .accounts-table tfoot td {
+    height: 7mm !important;
+    background: #f0f2f4 !important;
+    border-top: 1.5px solid #222 !important;
+  }
+
+  .accounts-table .total-label {
+    padding: 1mm 1.5mm !important;
+    font-size: 10px !important;
+    text-align: center !important;
+  }
+
+  .accounts-table .final-total {
+    font-size: 12px !important;
+  }
+
+  .voucher-details {
+    margin-top: 2mm !important;
+  }
+
+  .detail-row {
+    grid-template-columns: 29mm 3mm minmax(0, 1fr) !important;
+    gap: 1mm !important;
+    margin-top: 1.5mm !important;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+    break-inside: avoid !important;
+  }
+
+  .detail-label {
+    font-size: 9px !important;
+  }
+
+  .detail-value {
+    min-height: 5mm !important;
+    padding: 0.5mm 1mm !important;
+  }
+
+  .voucher-footer {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 7mm !important;
+    margin: 6mm 2mm 0 !important;
+    break-inside: avoid !important;
+  }
+
+  .signature {
+    gap: 1mm !important;
+    font-size: 8px !important;
+  }
+
+  .signature-line {
+    height: 5mm !important;
+  }
+
+  .voucher-print-meta {
+    margin-top: 2mm !important;
+    color: #222 !important;
+    font-size: 8px !important;
+  }
+
+  .payment-actions {
+    display: none !important;
+  }
+}
+</style>
+
+<script>
+(() => {
+  const voucher = document.querySelector('.payment-voucher');
+  if (!voucher) return;
+
+  const fitVoucherToPage = () => {
+    const availableHeight = 138 * 96 / 25.4;
+    let scale = 1;
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      voucher.style.setProperty('--voucher-print-scale', String(scale));
+      const nextScale = Math.min(1, availableHeight / voucher.scrollHeight);
+      if (Math.abs(nextScale - scale) < 0.005) break;
+      scale = nextScale;
+    }
+
+    voucher.style.setProperty('--voucher-print-scale', String(scale));
+  };
+
+  window.addEventListener('beforeprint', fitVoucherToPage);
+  window.addEventListener('afterprint', () => {
+    voucher.style.removeProperty('--voucher-print-scale');
+  });
+})();
+</script>
+
+{% endblock %}
