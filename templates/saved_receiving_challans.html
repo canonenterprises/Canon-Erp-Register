@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-6xl mx-auto p-6">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-800">Saved Receiving Challans</h2>
+                <p class="text-sm text-slate-500">View, edit, or delete previous receiving challans.</p>
+            </div>
+            <a href="{{ url_for('receiving_challan', job_no=order_id) }}" class="px-4 py-2 rounded-lg bg-slate-950 text-white text-sm font-bold">New Challan</a>
+        </div>
+
+        {% if challans %}
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Serial No.</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Order No.</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Date</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Supplier</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Challan No</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Picture</th>
+                        {% if not read_only_profile %}
+                        <th class="border-b border-slate-200 px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for challan in challans %}
+                    <tr class="group transition-colors hover:bg-slate-50">
+                        <td class="border-b border-slate-100 px-4 py-3 font-semibold text-slate-700">{{ challan.serial_no }}</td>
+                        <td class="border-b border-slate-100 px-4 py-3 font-semibold text-slate-700">{{ display_order_number(challan.order_id) }}</td>
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ challan.recv_date|format_ddmmyyyy if challan.recv_date else '' }}</td>
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ challan.suppliers }}</td>
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ challan.challan_no }}</td>
+                        <td class="border-b border-slate-100 px-4 py-3">
+                            {% if challan.image_file %}
+                            <a href="{{ challan.image_file }}" target="_blank" rel="noopener" class="inline-flex rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700">View Image</a>
+                            {% else %}-{% endif %}
+                        </td>
+                        {% if not read_only_profile %}
+                        <td class="border-b border-slate-100 px-4 py-3">
+                            <div class="flex justify-end gap-2">
+                                <a href="{{ url_for('receiving_challan', job_no=challan.order_id, edit_id=challan.id) }}" class="inline-flex items-center rounded-lg border border-slate-400 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:border-slate-700 hover:bg-slate-50">View/Edit</a>
+                                <form method="POST" action="{{ url_for('delete_receiving_challan') }}" class="inline">
+                                    <input type="hidden" name="challan_id" value="{{ challan.id }}">
+                                    <input type="hidden" name="job_no" value="{{ challan.order_id }}">
+                                    <button type="submit" class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-700 opacity-0 translate-y-1 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:translate-y-0 group-focus-within:pointer-events-auto">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-slate-500">No receiving challans saved yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

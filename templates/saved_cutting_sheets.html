@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="max-w-6xl mx-auto p-6">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-800">Saved Cutting Sheets</h2>
+                <p class="text-sm text-slate-500">Order ID: {{ order.job_no if order else selected_job }}</p>
+            </div>
+            <a href="{{ url_for('cutting_sheet', job_no=selected_job) }}" class="px-4 py-2 rounded-lg bg-slate-950 text-white text-sm font-bold">New Cutting Sheet</a>
+        </div>
+
+        {% if cutting_sheets %}
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Party Name</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Article Name</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Color</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Cutting Serial No.</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">File No.</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Cut No.</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Cutting PCS</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Excess PCS</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Transferred</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Transfer Origin</th>
+                        <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Created At</th>
+                        {% if not read_only_profile %}
+                        <th class="border-b border-slate-200 px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">Actions</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sheet in cutting_sheets %}
+                    <tr class="group transition-colors hover:bg-slate-50">
+                        <td class="border-b border-slate-100 px-4 py-3 font-semibold text-slate-700">{{ order.name or '-' }}</td>
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ order.article_name or '-' }}</td>
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ order.color or '-' }}</td>
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ sheet.serial_no or '-' }}</td>
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ order.file_no or '-' }}</td>
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ sheet.cut_no or '-' }}</td>
+                        {% set transfer_state = transfer_states.get(sheet.id) %}
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600"><span id="cutting-pcs-{{ sheet.id }}">{{ transfer_state.cutting_pcs }}</span> PCS</td>
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600"><span id="excess-pcs-{{ sheet.id }}">{{ transfer_state.excess_pcs }}</span> PCS</td>
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600">
+                            <div><span id="transferred-pcs-{{ sheet.id }}">{{ transfer_state.transferred_pcs }}</span> PCS</div>
+                            <ol id="transfer-history-{{ sheet.id }}" class="mt-2 space-y-1 text-xs text-slate-500">
+                                {% for transfer in transfer_state.transfers %}
+                                <li>{{ transfer.created_at.strftime('%Y-%m-%d %H:%M') if transfer.created_at else '-' }}, {{ transfer.created_by or 'unknown user' }}</li>
+                                {% endfor %}
+                            </ol>
+                        </td>
+                        {% set transfer_origin = transfer_origins.get(sheet.id) %}
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600">
+                            {% if transfer_origin %}
+                            {{ transfer_origin.destination_job_no }} / Cut #{{ transfer_origin.destination_cut_no }}
+                            {% else %}-{% endif %}
+                        </td>
+                        <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ sheet.created_at.strftime('%Y-%m-%d %H:%M') if sheet.created_at else '-' }}</td>
+                        {% if not read_only_profile %}
+                        <td class="border-b border-slate-100 px-4 py-3">
+                            <div class="flex justify-end gap-2">
+                                {% if session.get('role') in ('owner', 'manager') and transfer_state.remaining_transferable > 0 %}
+                                <button type="button" class="transfer-excess-button rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-800"
+                                    data-source-sheet-id="{{ sheet.id }}"
+                                    data-source-order-id="{{ order.job_no }}"
+                                    data-source-cut-no="{{ sheet.cut_no }}"
+                                    data-cutting-pcs="{{ transfer_state.cutting_pcs }}"
+                                    data-required-pcs="{{ transfer_state.required_portion }}"
+                                    data-excess-pcs="{{ transfer_state.excess_pcs }}"
+                                    data-transferred-pcs="{{ transfer_state.transferred_pcs }}"
+                                    data-available-pcs="{{ transfer_state.remaining_transferable }}">Transfer Excess PCS</button>
+                                {% endif %}
+                                <a href="{{ url_for('bundle_stickers', cutting_sheet_id=sheet.id) }}" class="inline-flex items-center rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-700">Bundle Stickers</a>
+                                <a href="{{ url_for('cutting_sheet', job_no=selected_job, edit_id=sheet.id) }}" class="inline-flex items-center rounded-lg border border-slate-400 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:border-slate-700 hover:bg-slate-50">View/Edit</a>
+                                <form method="POST" action="{{ url_for('delete_cutting_sheet') }}" class="inline" onsubmit="return confirm('Delete this cutting sheet?');">
+                                    <input type="hidden" name="cutting_sheet_id" value="{{ sheet.id }}">
+                                    <input type="hidden" name="job_no" value="{{ selected_job }}">
+                                    <button type="submit" class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-700 opacity-0 translate-y-1 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:translate-y-0 group-focus-within:pointer-events-auto">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                        {% endif %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-slate-500">No cutting sheets saved yet for this order.</p>
+        {% endif %}
+    </div>
+</div>
+{% if session.get('role') in ('owner', 'manager') %}
+<div id="cutting-transfer-modal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="transfer-modal-title">
+    <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl">
+        <div class="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+            <div>
+                <p class="text-xs font-bold uppercase text-emerald-700">Cutting-only transfer</p>
+                <h2 id="transfer-modal-title" class="mt-1 text-xl font-black text-slate-900">Transfer Excess Cutting PCS</h2>
+            </div>
+            <button type="button" id="close-transfer-modal" class="flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100" title="Close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <form id="cutting-transfer-form" class="space-y-5 px-6 py-5">
+            <input type="hidden" id="transfer-source-sheet-id">
+            <div class="grid gap-3 sm:grid-cols-2">
+                <div class="rounded-lg bg-slate-50 p-3"><span class="block text-xs font-bold uppercase text-slate-500">Source Order</span><span id="transfer-source-order" class="font-semibold text-slate-900"></span></div>
+                <div class="rounded-lg bg-slate-50 p-3"><span class="block text-xs font-bold uppercase text-slate-500">Source Cut</span><span id="transfer-source-cut" class="font-semibold text-slate-900"></span></div>
+                <div class="rounded-lg bg-slate-50 p-3"><span class="block text-xs font-bold uppercase text-slate-500">Cutting PCS</span><span id="transfer-cutting-pcs" class="font-semibold text-slate-900"></span></div>
+                <div class="rounded-lg bg-slate-50 p-3"><span class="block text-xs font-bold uppercase text-slate-500">Required Portion</span><span id="transfer-required-pcs" class="font-semibold text-slate-900"></span></div>
+                <div class="rounded-lg bg-amber-50 p-3"><span class="block text-xs font-bold uppercase text-amber-700">Excess PCS</span><span id="transfer-excess-pcs" class="font-semibold text-amber-900"></span></div>
+                <div class="rounded-lg bg-emerald-50 p-3"><span class="block text-xs font-bold uppercase text-emerald-700">Already Transferred</span><span id="transfer-transferred-pcs" class="font-semibold text-emerald-900"></span></div>
+            </div>
+            <div>
+                <label for="destination-order-search" class="mb-1 block text-xs font-bold uppercase text-slate-500">Search Destination Order</label>
+                <input id="destination-order-search" type="search" autocomplete="off" placeholder="Search job number, party, or article" class="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2">
+                <label for="destination-order-select" class="mb-1 block text-xs font-bold uppercase text-slate-500">Destination Order</label>
+                <select id="destination-order-select" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2">
+                    <option value="">Select an order</option>
+                    {% for destination_order in destination_orders if destination_order.job_no %}
+                    <option value="{{ destination_order.id }}">Order #{{ destination_order.job_no }} | {{ destination_order.name or 'Unnamed party' }} | {{ destination_order.article_name or destination_order.article or 'No article' }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="destination-order-info" class="hidden rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"></div>
+            <div class="grid gap-3 sm:grid-cols-2">
+                <div><label for="transfer-quantity" class="mb-1 block text-xs font-bold uppercase text-slate-500">Transfer PCS</label><input id="transfer-quantity" type="number" min="1" step="1" required class="w-full rounded-lg border border-slate-300 px-3 py-2 font-semibold"></div>
+                <div class="rounded-lg bg-slate-50 p-3"><span class="block text-xs font-bold uppercase text-slate-500">Available to Transfer</span><span id="transfer-available-pcs" class="font-semibold text-slate-900"></span><span class="mt-1 block text-xs text-slate-500">New Cut: <span id="transfer-new-cut">Select a destination order</span></span></div>
+            </div>
+            <p id="cutting-transfer-error" class="hidden rounded-lg bg-rose-50 p-3 text-sm font-medium text-rose-800" role="alert"></p>
+            <div class="flex justify-end gap-3 border-t border-slate-200 pt-4">
+                <button type="button" id="cancel-transfer-modal" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Cancel</button>
+                <button id="submit-cutting-transfer" type="submit" class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800">Transfer PCS</button>
+            </div>
+        </form>
+    </div>
+</div>
+<div id="cutting-transfer-toast" class="fixed left-1/2 top-5 z-[80] hidden -translate-x-1/2 rounded-lg bg-emerald-800 px-5 py-3 text-sm font-semibold text-white shadow-xl" role="status"></div>
+<script>
+    (() => {
+        const modal = document.getElementById('cutting-transfer-modal');
+        const form = document.getElementById('cutting-transfer-form');
+        const destinationSelect = document.getElementById('destination-order-select');
+        const destinationSearch = document.getElementById('destination-order-search');
+        const errorBox = document.getElementById('cutting-transfer-error');
+        const submitButton = document.getElementById('submit-cutting-transfer');
+        const destinationInfo = document.getElementById('destination-order-info');
+        let activeButton = null;
+
+        function closeModal() {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            activeButton = null;
+        }
+
+        function showError(message) {
+            errorBox.textContent = message;
+            errorBox.classList.remove('hidden');
+        }
+
+        function clearError() {
+            errorBox.textContent = '';
+            errorBox.classList.add('hidden');
+        }
+
+        function openModal(button) {
+            activeButton = button;
+            document.getElementById('transfer-source-sheet-id').value = button.dataset.sourceSheetId;
+            document.getElementById('transfer-source-order').textContent = `Order #${button.dataset.sourceOrderId}`;
+            document.getElementById('transfer-source-cut').textContent = `Cut #${button.dataset.sourceCutNo}`;
+            document.getElementById('transfer-cutting-pcs').textContent = `${button.dataset.cuttingPcs} PCS`;
+            document.getElementById('transfer-required-pcs').textContent = `${button.dataset.requiredPcs} PCS`;
+            document.getElementById('transfer-excess-pcs').textContent = `${button.dataset.excessPcs} PCS`;
+            document.getElementById('transfer-transferred-pcs').textContent = `${button.dataset.transferredPcs} PCS`;
+            document.getElementById('transfer-available-pcs').textContent = `${button.dataset.availablePcs} PCS`;
+            const quantity = document.getElementById('transfer-quantity');
+            quantity.max = button.dataset.availablePcs;
+            quantity.value = button.dataset.availablePcs;
+            destinationSearch.value = '';
+            destinationSelect.value = '';
+            destinationInfo.classList.add('hidden');
+            document.getElementById('transfer-new-cut').textContent = 'Select a destination order';
+            clearError();
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            quantity.focus();
+        }
+
+        document.querySelectorAll('.transfer-excess-button').forEach(button => {
+            button.addEventListener('click', () => openModal(button));
+        });
+        destinationSearch.addEventListener('input', () => {
+            const search = destinationSearch.value.trim().toLowerCase();
+            Array.from(destinationSelect.options).forEach(option => {
+                option.hidden = Boolean(option.value) && !option.textContent.toLowerCase().includes(search);
+            });
+        });
+        destinationSelect.addEventListener('change', async () => {
+            clearError();
+            destinationInfo.classList.add('hidden');
+            document.getElementById('transfer-new-cut').textContent = 'Loading...';
+            if (!destinationSelect.value || !activeButton) {
+                document.getElementById('transfer-new-cut').textContent = 'Select a destination order';
+                return;
+            }
+            const query = new URLSearchParams({
+                source_sheet_id: activeButton.dataset.sourceSheetId,
+                destination_order_id: destinationSelect.value,
+            });
+            try {
+                const response = await fetch(`{{ url_for('cutting_transfer_destination_info') }}?${query}`);
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Unable to load destination order.');
+                destinationInfo.textContent = `Order #${data.job_no} | Current cuts: ${data.cut_count} | Current cutting PCS: ${data.cutting_pcs} | New cut number: ${data.new_cut_no}`;
+                destinationInfo.classList.remove('hidden');
+                document.getElementById('transfer-new-cut').textContent = `Cut #${data.new_cut_no}`;
+            } catch (error) {
+                document.getElementById('transfer-new-cut').textContent = 'Unavailable';
+                showError(error.message);
+            }
+        });
+
+        form.addEventListener('submit', async event => {
+            event.preventDefault();
+            clearError();
+            if (!activeButton) return;
+            if (!destinationSelect.value) {
+                showError('Please select a destination order.');
+                return;
+            }
+            const quantity = Number(document.getElementById('transfer-quantity').value);
+            const available = Number(activeButton.dataset.availablePcs);
+            if (!Number.isInteger(quantity) || quantity <= 0) {
+                showError('Transfer PCS must be a positive whole number.');
+                return;
+            }
+            if (quantity > available) {
+                showError(`You can transfer a maximum of ${available} PCS from this cut.`);
+                return;
+            }
+            submitButton.disabled = true;
+            submitButton.textContent = 'Transferring...';
+            try {
+                const response = await fetch(`/manager/cutting-sheet/${activeButton.dataset.sourceSheetId}/transfer-excess`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    body: JSON.stringify({ destination_order_id: destinationSelect.value, quantity: String(quantity) }),
+                });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'The transfer could not be completed.');
+
+                const sheetId = activeButton.dataset.sourceSheetId;
+                document.getElementById(`cutting-pcs-${sheetId}`).textContent = data.state.cutting_pcs;
+                document.getElementById(`excess-pcs-${sheetId}`).textContent = data.state.excess_pcs;
+                document.getElementById(`transferred-pcs-${sheetId}`).textContent = data.state.transferred_pcs;
+                document.getElementById(`available-pcs-${sheetId}`).textContent = data.state.remaining_transferable;
+                activeButton.dataset.transferredPcs = data.state.transferred_pcs;
+                activeButton.dataset.availablePcs = data.state.remaining_transferable;
+                document.getElementById('transfer-history-' + sheetId).replaceChildren(...data.state.transfers.map(item => {
+                    const entry = document.createElement('li');
+                    entry.textContent = `${item.quantity} PCS -> Order #${item.destination_order_id} / Cut #${item.destination_cut_no} (${item.created_at}, ${item.created_by || 'unknown user'})`;
+                    return entry;
+                }));
+                if (data.state.remaining_transferable <= 0) activeButton.remove();
+                closeModal();
+                const toast = document.getElementById('cutting-transfer-toast');
+                toast.textContent = `${data.quantity} PCS transferred successfully. Order #${data.source_order_id} / Cut #${data.source_cut_no} -> Order #${data.destination_order_id} / Cut #${data.destination_cut_no}`;
+                toast.classList.remove('hidden');
+                window.setTimeout(() => toast.classList.add('hidden'), 5000);
+            } catch (error) {
+                showError(error.message);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Transfer PCS';
+            }
+        });
+        document.getElementById('close-transfer-modal').addEventListener('click', closeModal);
+        document.getElementById('cancel-transfer-modal').addEventListener('click', closeModal);
+        modal.addEventListener('click', event => { if (event.target === modal) closeModal(); });
+        document.addEventListener('keydown', event => { if (event.key === 'Escape') closeModal(); });
+    })();
+</script>
+{% endif %}
+{% endblock %}

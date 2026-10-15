@@ -1,0 +1,404 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
+  <div class="mx-auto max-w-6xl space-y-6 rounded-2xl border border-slate-500 bg-white p-8 shadow-sm">
+    <header class="flex flex-col gap-4 border-b border-slate-200 pb-5 md:flex-row md:items-center md:justify-between">
+      <div>
+        <p class="text-xs font-bold uppercase text-emerald-700">Global · Customer records</p>
+        <h1 class="mt-1 text-3xl font-black text-slate-900">Party Directory</h1>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <nav class="flex rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Party directory portals">
+          <a href="{{ url_for('billing_party_directory', shipper='Canon') }}" {% if selected_shipper == 'Canon' %}aria-current="page"{% endif %} class="rounded-md px-4 py-2.5 text-sm font-black {% if selected_shipper == 'Canon' %}bg-white text-emerald-800 shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Canon</a>
+          <a href="{{ url_for('billing_party_directory', shipper='Haram') }}" {% if selected_shipper == 'Haram' %}aria-current="page"{% endif %} class="rounded-md px-4 py-2.5 text-sm font-black {% if selected_shipper == 'Haram' %}bg-slate-900 text-white shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Haram</a>
+        </nav>
+        <a href="{{ url_for('billing_portal', shipper=selected_shipper) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100">
+          <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+          Billing
+        </a>
+      </div>
+    </header>
+
+    <div class="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+      <form method="post" class="space-y-3">
+        <input type="hidden" name="action" value="save_party">
+        <input type="hidden" name="shipper" value="{{ selected_shipper }}">
+        <input type="hidden" name="party_id" value="{{ selected_party.id if selected_party else '' }}">
+        <h2 class="text-xl font-black text-slate-900">{{ 'Update party' if selected_party else 'Add party' }}</h2>
+
+        <label class="block text-xs font-bold uppercase text-slate-500">
+          Party name
+          <select name="party_name" required class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+            {% if selected_party %}
+            <option value="{{ selected_party.party_name }}" selected>{{ selected_party.party_name }}</option>
+            {% else %}
+            <option value="">Select an existing party</option>
+            {% endif %}
+            {% for party_name in party_name_options %}
+            {% if not selected_party or party_name != selected_party.party_name %}
+            <option value="{{ party_name }}">{{ party_name }}</option>
+            {% endif %}
+            {% endfor %}
+          </select>
+        </label>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="block text-xs font-bold uppercase text-slate-500">
+            Contact person
+            <input name="contact_person" value="{{ selected_party.contact_person if selected_party else '' }}" maxlength="150" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+          </label>
+          <label class="block text-xs font-bold uppercase text-slate-500">
+            Phone
+            <input name="party_phone" value="{{ selected_party.phone if selected_party else '' }}" maxlength="50" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+          </label>
+          <label class="block text-xs font-bold uppercase text-slate-500">
+            Email
+            <input type="email" name="party_email" value="{{ selected_party.email if selected_party else '' }}" maxlength="150" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+          </label>
+          <label class="block text-xs font-bold uppercase text-slate-500">
+            City
+            <input name="party_city" value="{{ selected_party.city if selected_party else '' }}" maxlength="100" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+          </label>
+        </div>
+
+        <label class="block text-xs font-bold uppercase text-slate-500">
+          Address
+          <input name="party_address" value="{{ selected_party.address if selected_party else '' }}" maxlength="255" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+        </label>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+          <label class="block text-xs font-bold uppercase text-slate-500">
+            NTN
+            <input name="party_ntn" value="{{ selected_party.ntn if selected_party else '' }}" type="text" inputmode="numeric" pattern="[0-9]{7}-[0-9]" placeholder="1234567-8" title="Enter 7 digits, a hyphen, then 1 digit" maxlength="9" data-ntn-input class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+          </label>
+          <label class="block text-xs font-bold uppercase text-slate-500">
+            Sales tax number
+            <input name="sales_tax_no" value="{{ selected_party.sales_tax_no if selected_party else '' }}" type="text" inputmode="numeric" pattern="[0-9]{13}" title="Enter exactly 13 digits" maxlength="13" data-sales-tax-input class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
+          </label>
+        </div>
+
+        <label class="block text-xs font-bold uppercase text-slate-500">
+          Notes
+          <textarea name="party_notes" maxlength="500" rows="2" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">{{ selected_party.notes if selected_party else '' }}</textarea>
+        </label>
+
+        <div class="flex flex-wrap gap-2">
+          <button class="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800">
+            <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>
+            {{ 'Save changes' if selected_party else 'Save party' }}
+          </button>
+          {% if selected_party %}
+          <a href="{{ url_for('billing_party_directory', shipper=selected_shipper) }}" class="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</a>
+          {% endif %}
+        </div>
+      </form>
+
+      <div class="min-w-0">
+        <h2 class="text-xl font-black text-slate-900">Saved parties <span class="ml-1 text-sm font-semibold text-slate-500">{{ party_records|length }}</span></h2>
+        <div class="mt-2 overflow-x-auto border-y border-slate-200">
+          <table class="w-full min-w-[620px] text-left text-sm">
+            <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500">
+              <tr>
+                <th class="px-3 py-2">Party</th>
+                <th class="px-3 py-2">Phone</th>
+                <th class="px-3 py-2">Address</th>
+                <th class="px-3 py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for party in party_records %}
+              <tr>
+                <td class="px-3 py-3 font-bold text-slate-900">
+                  {{ party.party_name }}
+                  {% if party.ntn %}<span class="block text-xs font-normal text-slate-500">NTN {{ party.ntn }}</span>{% endif %}
+                </td>
+                <td class="px-3 py-3">{{ party.phone or '—' }}</td>
+                <td class="max-w-48 truncate px-3 py-3" title="{{ party.address }}">{{ party.address or '—' }}</td>
+                <td class="px-3 py-3">
+                  <div class="flex flex-wrap gap-1.5">
+                    <a href="{{ url_for('billing_party_directory', party_id=party.id, shipper=selected_shipper) }}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-bold hover:bg-slate-100">
+                      <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                      Edit
+                    </a>
+                    <button type="button" data-print-envelope="{{ party.id }}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-bold hover:bg-slate-100">
+                      <i class="fa-solid fa-envelope" aria-hidden="true"></i>
+                      Print envelope
+                    </button>
+                  </div>
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">No parties saved yet.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="party-envelope-print-root" aria-hidden="true">
+  {% for party in party_records %}
+  <section id="party-envelope-{{ party.id }}" class="party-envelope">
+    <header class="party-envelope-sender">
+      <img src="{{ url_for('static', filename='haram-black.png' if party.shipper == 'Haram' else 'canon logo black.webp') }}" alt="{{ party.shipper }} logo">
+      <div>
+        {% if party.shipper != 'Haram' %}
+        <p>Akhter &amp; Iqbal Compound, Block-C, Ground Floor, L/3,<br>Block-22, F.B. Industrial Area, Opp. Edhi Home, Karachi.</p>
+        <p>Phone: 36342557</p>
+        {% endif %}
+      </div>
+    </header>
+    <div class="party-envelope-recipient">
+      <p class="party-envelope-label">TO</p>
+      <h2>{{ party.party_name }}</h2>
+      {% if party.contact_person %}<p>Attn: {{ party.contact_person }}</p>{% endif %}
+      {% if party.address %}<p>{{ party.address }}</p>{% endif %}
+      {% if party.city %}<p>{{ party.city }}</p>{% endif %}
+      {% if party.phone %}<p>Phone: {{ party.phone }}</p>{% endif %}
+    </div>
+    <div class="party-envelope-rule"></div>
+  </section>
+  {% endfor %}
+</div>
+<div id="party-envelope-preview" class="envelope-preview" hidden role="dialog" aria-modal="true" aria-labelledby="party-envelope-preview-title">
+  <div class="envelope-preview-panel">
+    <header class="envelope-preview-header">
+      <h2 id="party-envelope-preview-title">Envelope preview</h2>
+      <button type="button" data-envelope-preview-close>Close</button>
+    </header>
+    <div id="party-envelope-preview-canvas" class="envelope-preview-canvas"></div>
+    <footer class="envelope-preview-actions">
+      <span>Printed orientation: 180°</span>
+      <button type="button" data-envelope-preview-print>Print envelope</button>
+    </footer>
+  </div>
+</div>
+<style>
+  #party-envelope-print-root,
+  .party-envelope { display: none; }
+
+  .envelope-preview {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: rgb(15 23 42 / 65%);
+  }
+  .envelope-preview[hidden] { display: none; }
+  .envelope-preview-panel {
+    width: min(100%, 900px);
+    padding: 20px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #f8fafc;
+    box-shadow: 0 20px 50px rgb(15 23 42 / 25%);
+  }
+  .envelope-preview-header,
+  .envelope-preview-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .envelope-preview-header { margin-bottom: 16px; }
+  .envelope-preview-header h2 { margin: 0; font-size: 18px; font-weight: 700; }
+  .envelope-preview-header button,
+  .envelope-preview-actions button {
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: white;
+    color: #0f172a;
+    font-weight: 700;
+  }
+  .envelope-preview-actions button { border-color: #047857; background: #047857; color: white; }
+  .envelope-preview-canvas { display: grid; place-items: center; overflow: auto; padding: 12px 0 20px; }
+  .party-envelope-preview-sheet {
+    position: relative;
+    flex: 0 0 auto;
+    width: min(100%, 8in);
+    aspect-ratio: 8 / 3.8;
+    box-sizing: border-box;
+    overflow: hidden;
+    padding: 10mm 13mm;
+    background: white;
+    color: #111;
+    font-family: Arial, sans-serif;
+    box-shadow: 0 2px 12px rgb(15 23 42 / 18%);
+  }
+  .party-envelope-preview-sheet .party-envelope-sender,
+  .party-envelope-preview-sheet .party-envelope-recipient,
+  .party-envelope-preview-sheet .party-envelope-rule { position: absolute; }
+  .party-envelope-preview-sheet .party-envelope-sender {
+    top: 10mm;
+    right: 13mm;
+    left: 13mm;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8mm;
+    min-height: 26mm;
+  }
+  .party-envelope-preview-sheet .party-envelope-sender img { display: block; width: 42mm; max-height: 20mm; object-fit: contain; }
+  .party-envelope-preview-sheet .party-envelope-sender > div { max-width: 115mm; text-align: right; color: #000; }
+  .party-envelope-preview-sheet .party-envelope-sender p { margin: 0.7mm 0; font-size: 9.5pt; line-height: 1.25; color: #000; }
+  .party-envelope-preview-sheet .party-envelope-recipient { top: 43mm; left: 82mm; width: 122mm; overflow-wrap: anywhere; color: #000; }
+  .party-envelope-preview-sheet .party-envelope-label { margin: 0 0 2mm; font-size: 9pt; font-weight: 700; text-transform: uppercase; color: #000; }
+  .party-envelope-preview-sheet .party-envelope-recipient h2 { margin: 0 0 2mm; font-size: 16pt; line-height: 1.2; font-weight: 700; color: #000; }
+  .party-envelope-preview-sheet .party-envelope-recipient p:not(.party-envelope-label) { margin: 1mm 0; font-size: 10pt; line-height: 1.3; color: #000; }
+  .party-envelope-preview-sheet .party-envelope-rule { right: 13mm; bottom: 10mm; left: 13mm; border-top: 0.4mm solid #111; }
+
+  @media (max-width: 640px) {
+    .envelope-preview-panel { padding: 14px; }
+    .envelope-preview-actions { align-items: stretch; flex-direction: column; }
+    .party-envelope-preview-sheet { width: calc(100vw - 60px); padding: 4mm 5mm; }
+  }
+
+  @media print {
+    @page { size: 8in 3.8in; margin: 0; }
+    body * { visibility: hidden !important; }
+    main > :not(#party-envelope-print-root) { display: none !important; }
+    #party-envelope-print-root { display: block !important; }
+    .party-envelope { display: none !important; }
+    .party-envelope.is-printing,
+    .party-envelope.is-printing * { visibility: visible !important; }
+    .party-envelope.is-printing {
+      position: fixed;
+      inset: 0;
+      display: block !important;
+      width: 8in;
+      height: 3.8in;
+      box-sizing: border-box;
+      overflow: hidden;
+      padding: 10mm 13mm;
+      background: #fff;
+      color: #111;
+      font-family: Arial, sans-serif;
+      transform: rotate(180deg) !important;
+      transform-origin: center center !important;
+    }
+    .party-envelope-sender {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8mm;
+      min-height: 26mm;
+    }
+    .party-envelope-sender img {
+      display: block;
+      width: 42mm;
+      max-height: 20mm;
+      object-fit: contain;
+    }
+    .party-envelope-sender > div {
+      max-width: 115mm;
+      text-align: right;
+      color: #000;
+    }
+    .party-envelope-sender h1 {
+      margin: 0 0 1.5mm;
+      font-size: 12pt;
+      font-weight: 700;
+      color: #000;
+    }
+    .party-envelope-sender p {
+      margin: 0.7mm 0;
+      font-size: 9.5pt;
+      line-height: 1.25;
+      color: #000;
+    }
+    .party-envelope-recipient {
+      position: absolute;
+      top: 43mm;
+      left: 82mm;
+      width: 122mm;
+      overflow-wrap: anywhere;
+      color: #000;
+    }
+    .party-envelope-label {
+      margin: 0 0 2mm;
+      font-size: 9pt;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #000;
+    }
+    .party-envelope-recipient h2 {
+      margin: 0 0 2mm;
+      font-size: 16pt;
+      line-height: 1.2;
+      font-weight: 700;
+      color: #000;
+    }
+    .party-envelope-recipient p:not(.party-envelope-label) {
+      margin: 1mm 0;
+      font-size: 10pt;
+      line-height: 1.3;
+      color: #000;
+    }
+    .party-envelope-rule {
+      position: absolute;
+      right: 13mm;
+      bottom: 10mm;
+      left: 13mm;
+      border-top: 0.4mm solid #111;
+    }
+  }
+</style>
+<script>
+document.querySelectorAll('[data-ntn-input]').forEach(input => {
+  input.addEventListener('input', () => {
+    const digits = input.value.replace(/\D/g, '').slice(0, 8);
+    input.value = digits.length > 7 ? `${digits.slice(0, 7)}-${digits.slice(7)}` : digits;
+  });
+});
+document.querySelectorAll('[data-sales-tax-input]').forEach(input => {
+  input.addEventListener('input', () => {
+    input.value = input.value.replace(/\D/g, '').slice(0, 13);
+  });
+});
+const envelopePreview = document.getElementById('party-envelope-preview');
+const envelopePreviewCanvas = document.getElementById('party-envelope-preview-canvas');
+let selectedEnvelope = null;
+
+document.querySelectorAll('[data-print-envelope]').forEach(button => {
+  button.addEventListener('click', () => {
+    selectedEnvelope = document.getElementById(`party-envelope-${button.dataset.printEnvelope}`);
+    if (!selectedEnvelope || !envelopePreview || !envelopePreviewCanvas) return;
+    const previewSheet = selectedEnvelope.cloneNode(true);
+    previewSheet.removeAttribute('id');
+    previewSheet.className = 'party-envelope-preview-sheet';
+    envelopePreviewCanvas.replaceChildren(previewSheet);
+    envelopePreview.hidden = false;
+  });
+});
+
+document.querySelector('[data-envelope-preview-close]')?.addEventListener('click', () => {
+  envelopePreview.hidden = true;
+  envelopePreviewCanvas.replaceChildren();
+  selectedEnvelope = null;
+});
+
+document.querySelector('[data-envelope-preview-print]')?.addEventListener('click', () => {
+  if (!selectedEnvelope) return;
+  document.querySelectorAll('.party-envelope.is-printing').forEach(envelope => {
+    envelope.classList.remove('is-printing');
+  });
+  selectedEnvelope.classList.add('is-printing');
+  window.print();
+});
+
+window.addEventListener('afterprint', () => {
+  document.querySelectorAll('.party-envelope.is-printing').forEach(envelope => {
+    envelope.classList.remove('is-printing');
+  });
+  envelopePreview.hidden = true;
+  envelopePreviewCanvas.replaceChildren();
+  selectedEnvelope = null;
+});
+</script>
+{% endblock %}

@@ -1,0 +1,170 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-8 p-4">
+    
+    <!-- Header -->
+    <div class="flex flex-col gap-6 bg-slate-950 p-8 text-white rounded-3xl shadow-xl sm:flex-row sm:items-center sm:justify-between">
+        <div class="min-w-0">
+            <h1 class="text-6xl font-black uppercase tracking-tighter">{{ order.name }}</h1>
+            <p class="mt-1 text-2xl font-bold text-indigo-400">{{ order.job_no }}      |       {{ order.file_no }}      |       ART-{{ order.article }}      |       {{ order.article_name }}</p>
+        </div>
+        <a href="{{ url_for('article_orders', article=order.article) }}" class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 hover:text-slate-900 sm:self-center">← Back to Orders List</a>
+    </div>
+
+    <!-- Navigation Bar -->
+    {% set workflow_pages = ['receiving_challan', 'inventory', 'requirements', 'cutting', 'production_entry', 'production_log'] %}
+    {% if session.get('role') != 'assistant_manager' %}
+    {% set workflow_pages = workflow_pages + ['summary', 'job_sheet', 'payout'] %}
+    {% endif %}
+    {% set workflow_count = namespace(value=0) %}
+    {% for page_key in workflow_pages %}
+        {% if page_key in page_access_keys %}{% set workflow_count.value = workflow_count.value + 1 %}{% endif %}
+    {% endfor %}
+    {% if 'requirements' in page_access_keys %}{% set workflow_count.value = workflow_count.value + 1 %}{% endif %}
+    {% set workflow_columns_sm = 1 if workflow_count.value < 2 else 2 %}
+    {% set workflow_columns_lg = 2 if workflow_count.value == 4 else (3 if workflow_count.value >= 3 else workflow_columns_sm) %}
+    <div class="workflow-grid grid gap-4" style="--workflow-columns-sm: {{ workflow_columns_sm }}; --workflow-columns-lg: {{ workflow_columns_lg }};">
+        {% if 'receiving_challan' in page_access_keys %}
+        <a href="{{ url_for('receiving_challan', job_no=order.job_no) }}" class="workflow-card workflow-glow-blue border-blue-600 hover:border-blue-700">
+            <span class="workflow-icon bg-blue-100 text-blue-700"><i class="fa-solid fa-cube"></i></span>
+            <span class="workflow-copy"><span class="workflow-number text-blue-600">01</span><strong>Receiving Challan</strong></span><i class="fa-solid fa-arrow-right workflow-arrow"></i>
+        </a>
+        {% endif %}
+        {% if 'inventory' in page_access_keys %}
+        <a href="{{ url_for('inventory', job_no=order.job_no) }}" class="workflow-card workflow-glow-emerald border-emerald-600 hover:border-emerald-700">
+            <span class="workflow-icon bg-emerald-100 text-emerald-700"><i class="fa-solid fa-warehouse"></i></span>
+            <span class="workflow-copy"><span class="workflow-number text-emerald-600">02</span><strong>Inventory</strong></span><i class="fa-solid fa-arrow-right workflow-arrow"></i>
+        </a>
+        {% endif %}
+        {% if 'requirements' in page_access_keys %}
+        <a href="{{ url_for('req_slip', job_no=order.job_no) }}" class="workflow-card workflow-glow-amber border-amber-500 hover:border-amber-600">
+            <span class="workflow-icon bg-amber-100 text-amber-700"><i class="fa-solid fa-clipboard-list"></i></span>
+            <span class="workflow-copy"><span class="workflow-number text-amber-600">03</span><strong>Requirement Slip</strong></span><i class="fa-solid fa-arrow-right workflow-arrow"></i>
+        </a>
+        <a href="{{ url_for('order_accessories', job_no=order.job_no) }}" class="workflow-card workflow-glow-emerald border-emerald-500 hover:border-emerald-600">
+            <span class="workflow-icon bg-emerald-100 text-emerald-700"><i class="fa-solid fa-boxes-stacked"></i></span>
+            <span class="workflow-copy"><span class="workflow-number text-emerald-600">03A</span><strong>Order Accessories</strong></span><i class="fa-solid fa-arrow-right workflow-arrow"></i>
+        </a>
+        {% endif %}
+        {% if 'cutting' in page_access_keys %}
+        <a href="{{ url_for('cutting_sheet', job_no=order.job_no) }}" class="workflow-card workflow-glow-violet border-violet-600 hover:border-violet-700">
+            <span class="workflow-icon bg-violet-100 text-violet-700"><i class="fa-solid fa-scissors"></i></span>
+            <span class="workflow-copy"><span class="workflow-number text-violet-600">04</span><strong>Cutting Sheet</strong></span><i class="fa-solid fa-arrow-right workflow-arrow"></i>
+        </a>
+        {% endif %}
+        {% if 'production_entry' in page_access_keys %}
+        <a href="{{ url_for('production_entry', auto_job=order.job_no) }}" class="workflow-card workflow-glow-red border-red-500 hover:border-red-600">
+            <span class="workflow-icon bg-red-100 text-red-600"><i class="fa-solid fa-industry"></i></span>
+            <span class="workflow-copy"><span class="workflow-number text-red-600">05</span><strong>Production Entry</strong></span><i class="fa-solid fa-arrow-right workflow-arrow"></i>
+        </a>
+        {% endif %}
+        {% if 'production_log' in page_access_keys %}
+        <a href="{{ url_for('production_log', job_no=order.job_no) }}" class="workflow-card workflow-glow-cyan border-cyan-600 hover:border-cyan-700">
+            <span class="workflow-icon bg-cyan-100 text-cyan-700"><i class="fa-solid fa-file-lines"></i></span>
+            <span class="workflow-copy"><span class="workflow-number text-cyan-600">06</span><strong>Production Log</strong></span><i class="fa-solid fa-arrow-right workflow-arrow"></i>
+        </a>
+        {% endif %}
+        {% if session.get('role') != 'assistant_manager' %}
+        {% if 'summary' in page_access_keys %}
+        <a href="{{ url_for('summary') }}" class="workflow-card workflow-glow-indigo border-indigo-600 hover:border-indigo-700">
+            <span class="workflow-icon bg-indigo-100 text-indigo-700"><i class="fa-solid fa-chart-column"></i></span>
+            <span class="workflow-copy"><span class="workflow-number text-indigo-600">07</span><strong>Summary Sheet</strong></span><i class="fa-solid fa-arrow-right workflow-arrow"></i>
+        </a>
+        {% endif %}
+        {% if 'job_sheet' in page_access_keys %}
+        <a href="{{ url_for('job_sheet') }}" class="workflow-card workflow-glow-slate border-slate-600 hover:border-slate-700">
+            <span class="workflow-icon bg-slate-200 text-slate-700"><i class="fa-solid fa-helmet-safety"></i></span>
+            <span class="workflow-copy"><span class="workflow-number text-slate-600">08</span><strong>Worker Job Sheet</strong></span><i class="fa-solid fa-arrow-right workflow-arrow"></i>
+        </a>
+        {% endif %}
+        {% if 'payout' in page_access_keys %}
+        <a href="{{ url_for('payout') }}" class="workflow-card workflow-glow-emerald border-emerald-600 hover:border-emerald-700">
+            <span class="workflow-icon bg-emerald-100 text-emerald-700"><i class="fa-solid fa-file-invoice-dollar"></i></span>
+            <span class="workflow-copy"><span class="workflow-number text-emerald-600">09</span><strong>Final Payout Sheet</strong></span><i class="fa-solid fa-arrow-right workflow-arrow"></i>
+        </a>
+        {% endif %}
+        {% endif %}
+    </div>
+
+</div>
+
+<style>
+    .workflow-grid { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+
+    @media (min-width: 640px) {
+        .workflow-grid { grid-template-columns: repeat(var(--workflow-columns-sm), minmax(0, 1fr)); }
+    }
+
+    @media (min-width: 1024px) {
+        .workflow-grid { grid-template-columns: repeat(var(--workflow-columns-lg), minmax(0, 1fr)); }
+    }
+
+    .workflow-card {
+        display: flex;
+        min-height: 8rem;
+        align-items: center;
+        gap: 1rem;
+        border-width: 0.15rem 0.15rem 0.15rem 0.35rem;
+        border-radius: 0.85rem;
+        background: #fff;
+        padding: 0.9rem;
+        color: #0f172a;
+        box-shadow: 0 8px 20px -16px rgba(15, 23, 42, 0.55);
+        transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+    }
+
+    .workflow-card:hover {
+        background: #f8fafc;
+        transform: translateY(-2px);
+    }
+
+    .workflow-glow-blue:hover { box-shadow: 0 0 0.9rem rgba(37, 99, 235, 0.5), 0 16px 26px -18px rgba(15, 23, 42, 0.6); }
+    .workflow-glow-emerald:hover { box-shadow: 0 0 0.9rem rgba(5, 150, 105, 0.5), 0 16px 26px -18px rgba(15, 23, 42, 0.6); }
+    .workflow-glow-amber:hover { box-shadow: 0 0 0.9rem rgba(245, 158, 11, 0.5), 0 16px 26px -18px rgba(15, 23, 42, 0.6); }
+    .workflow-glow-violet:hover { box-shadow: 0 0 0.9rem rgba(124, 58, 237, 0.5), 0 16px 26px -18px rgba(15, 23, 42, 0.6); }
+    .workflow-glow-red:hover { box-shadow: 0 0 0.9rem rgba(239, 68, 68, 0.5), 0 16px 26px -18px rgba(15, 23, 42, 0.6); }
+    .workflow-glow-cyan:hover { box-shadow: 0 0 0.9rem rgba(8, 145, 178, 0.5), 0 16px 26px -18px rgba(15, 23, 42, 0.6); }
+    .workflow-glow-indigo:hover { box-shadow: 0 0 0.9rem rgba(79, 70, 229, 0.5), 0 16px 26px -18px rgba(15, 23, 42, 0.6); }
+    .workflow-glow-slate:hover { box-shadow: 0 0 0.9rem rgba(71, 85, 105, 0.5), 0 16px 26px -18px rgba(15, 23, 42, 0.6); }
+
+    .workflow-icon {
+        display: flex;
+        flex: 0 0 3rem;
+        height: 3rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 9999px;
+        font-size: 1.45rem;
+    }
+
+    .workflow-copy {
+        display: flex;
+        min-width: 0;
+        flex: 1;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    .workflow-number {
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+    }
+
+    .workflow-copy strong {
+        font-size: 1rem;
+        line-height: 1.25;
+    }
+
+    .workflow-copy small {
+        color: #64748b;
+        font-size: 0.74rem;
+        line-height: 1.4;
+    }
+
+    .workflow-arrow {
+        color: #475569;
+        font-size: 0.9rem;
+    }
+</style>
+{% endblock %}

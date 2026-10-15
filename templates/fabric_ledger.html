@@ -1,0 +1,385 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+<div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-6 sm:p-8">
+
+    <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+        <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-cyan-300">Stock Portal</p>
+                <h1 class="mt-2 text-3xl font-black">Fabric Ledger</h1>
+                <p class="mt-2 text-sm text-slate-300">Fabric received (Inventory) vs. fabric issued (Cutting Sheets) — live stock position across every lot.</p>
+            </div>
+            <a href="{{ url_for('stock_portal') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Stock Portal</a>
+        </div>
+    </header>
+
+    {% if show_fabric_report_sections %}
+    <!-- KPI CARDS -->
+    <section class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Received</p>
+            <p class="mt-2 text-2xl font-black text-sky-600">{{ '{:,.2f}'.format(totals.received) }}</p>
+            <p class="mt-1 text-xs text-slate-500">meters, all lots</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Issued</p>
+            <p class="mt-2 text-2xl font-black text-orange-600">{{ '{:,.2f}'.format(totals.issued) }}</p>
+            <p class="mt-1 text-xs text-slate-500">used in cutting</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Balance in Stock</p>
+            <p class="mt-2 text-2xl font-black text-emerald-600">{{ '{:,.2f}'.format(totals.balance) }}</p>
+            <p class="mt-1 text-xs text-slate-500">available now</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Rejected</p>
+            <p class="mt-2 text-2xl font-black text-rose-600">{{ '{:,.2f}'.format(totals.rejected) }}</p>
+            <p class="mt-1 text-xs text-slate-500">flagged rejected</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Re-Active</p>
+            <p class="mt-2 text-2xl font-black text-purple-600">{{ '{:,.2f}'.format(totals.recovered) }}</p>
+            <p class="mt-1 text-xs text-slate-500">recovered, unused</p>
+        </div>
+    </section>
+
+
+
+    
+    <!-- FABRIC POSITION SUMMARY -->
+    <section class="grid gap-6 lg:grid-cols-2">
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600">Fabric Position Summary</p>
+            <h2 class="mt-1 text-lg font-black text-slate-900">Generate party article sheet</h2>
+            <form method="get" action="{{ url_for('fabric_position_summary') }}" class="mt-4 grid gap-3 sm:grid-cols-2">
+                <label class="text-xs font-bold text-slate-600 sm:col-span-2">Party
+                    <select name="party_name" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                        <option value="">Select party</option>
+                        {% for party in party_names %}<option value="{{ party }}">{{ party }}</option>{% endfor %}
+                    </select>
+                </label>
+                <label class="text-xs font-bold text-slate-600">Start date
+                    <input type="date" name="start_date" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                </label>
+                <label class="text-xs font-bold text-slate-600">End date
+                    <input type="date" name="end_date" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                </label>
+                <button type="submit" class="rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 sm:col-span-2">Generate Sheet</button>
+            </form>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600">Report Scope</p>
+            <h2 class="mt-1 text-lg font-black text-slate-900">Article fabric &amp; shipment summary</h2>
+            <form method="get" action="{{ url_for('article_fabric_and_shipment_summary') }}" class="mt-4 grid gap-3">
+                <label class="text-xs font-bold text-slate-600">Party
+                    <select name="party_name" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                        <option value="">Select party</option>
+                        {% for party in party_names %}<option value="{{ party }}">{{ party }}</option>{% endfor %}
+                    </select>
+                </label>
+                <button type="submit" class="rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">Open Summary</button>
+            </form>
+            <p class="mt-3 text-sm text-slate-600">This report opens a dedicated sheet showing received fabric, requirement per dozen, bail conversion, and shipment details for the selected party.</p>
+        </div>
+    </section>
+    {% endif %}
+
+
+
+
+    <!-- FILTERS -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <form id="fabric-ledger-top-filter-form" method="get" class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end">
+            <div class="lg:col-span-2">
+                <label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Search</label>
+                <input type="text" name="search" value="{{ search }}" placeholder="Serial no, order, party, article..." class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Supplier</label>
+                <select name="supplier" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    <option value="">All suppliers</option>
+                    {% for s in all_suppliers %}<option value="{{ s }}" {% if supplier_filter == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Fabric Quality</label>
+                <select name="quality" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    <option value="">All qualities</option>
+                    {% for q in all_qualities %}<option value="{{ q }}" {% if quality_filter == q %}selected{% endif %}>{{ q }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</label>
+                <select name="status" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                    <option value="">All statuses</option>
+                    {% for s in status_options %}<option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="lg:col-span-5 flex justify-end">
+                {% if search or quality_filter or supplier_filter or status_filter %}<a href="{{ url_for('fabric_ledger') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Clear</a>{% endif %}
+            </div>
+        </form>
+    </section>
+
+    <!-- STOCK BY QUALITY / SUPPLIER -->
+    <section class="grid gap-6 lg:grid-cols-2">
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600">By Fabric Quality</p>
+            <h2 class="mt-1 text-lg font-black text-slate-900">Stock position</h2>
+            <div class="mt-4 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="border-b border-slate-200 text-left text-[10px] uppercase text-slate-400">
+                        <tr><th class="px-2 py-2">Quality</th><th class="px-2 py-2 text-right">Received</th><th class="px-2 py-2 text-right">Issued</th><th class="px-2 py-2 text-right">Balance</th><th class="px-2 py-2 text-right">INV's</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for quality, data in by_quality %}
+                        <tr class="border-b border-slate-100"><td class="px-2 py-2 font-bold">{{ quality }}</td><td class="px-2 py-2 text-right">{{ '{:,.2f}'.format(data.received) }}</td><td class="px-2 py-2 text-right">{{ '{:,.2f}'.format(data.issued) }}</td><td class="px-2 py-2 text-right font-bold text-emerald-700">{{ '{:,.2f}'.format(data.balance) }}</td><td class="px-2 py-2 text-right">{{ data.lots }}</td></tr>
+                        {% else %}<tr><td colspan="5" class="px-2 py-6 text-center text-slate-500">No records.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-600">By Supplier</p>
+            <h2 class="mt-1 text-lg font-black text-slate-900">Stock position</h2>
+            <div class="mt-4 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="border-b border-slate-200 text-left text-[10px] uppercase text-slate-400">
+                        <tr><th class="px-2 py-2">Supplier</th><th class="px-2 py-2 text-right">Received</th><th class="px-2 py-2 text-right">Issued</th><th class="px-2 py-2 text-right">Balance</th><th class="px-2 py-2 text-right">INV's</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for supplier, data in by_supplier %}
+                        <tr class="border-b border-slate-100"><td class="px-2 py-2 font-bold">{{ supplier }}</td><td class="px-2 py-2 text-right">{{ '{:,.2f}'.format(data.received) }}</td><td class="px-2 py-2 text-right">{{ '{:,.2f}'.format(data.issued) }}</td><td class="px-2 py-2 text-right font-bold text-emerald-700">{{ '{:,.2f}'.format(data.balance) }}</td><td class="px-2 py-2 text-right">{{ data.lots }}</td></tr>
+                        {% else %}<tr><td colspan="5" class="px-2 py-6 text-center text-slate-500">No records.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- PER-LOT DETAIL -->
+    <section id="inventory-table-section" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600">Every Fabric Lot</p>
+                <h2 class="mt-1 text-lg font-black text-slate-900">Inventory serial-by-serial</h2>
+            </div>
+            <form id="inventory-filter-form" method="get" class="flex flex-col gap-2 sm:flex-row sm:items-end">
+                {% if search %}<input type="hidden" name="search" value="{{ search }}">{% endif %}
+                {% if quality_filter %}<input type="hidden" name="quality" value="{{ quality_filter }}">{% endif %}
+                {% if supplier_filter %}<input type="hidden" name="supplier" value="{{ supplier_filter }}">{% endif %}
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Sort
+                    <select name="sort_order" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700">
+                        <option value="asc" {% if sort_order == 'asc' %}selected{% endif %}>Ascending</option>
+                        <option value="desc" {% if sort_order == 'desc' %}selected{% endif %}>Descending</option>
+                    </select>
+                </label>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    Status
+                    <select name="status" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700">
+                        <option value="" {% if not status_filter %}selected{% endif %}>All statuses</option>
+                        {% for s in status_options %}
+                            <option value="{{ s }}" {% if status_filter == s %}selected{% endif %}>{{ s }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                {% if search or quality_filter or supplier_filter or status_filter or sort_order != 'asc' %}
+                    <a href="{{ url_for('fabric_ledger') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Reset</a>
+                {% endif %}
+            </form>
+        </div>
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-sm min-w-[900px]">
+                <thead class="border-b border-slate-200 text-left text-[10px] uppercase text-slate-400">
+                    <tr><th class="px-2 py-2">Serial</th><th class="px-2 py-2">Order</th><th class="px-2 py-2">Supplier</th><th class="px-2 py-2">Width</th><th class="px-2 py-2">Quality</th><th class="px-2 py-2">Recv Date</th><th class="px-2 py-2 text-right">Received</th><th class="px-2 py-2 text-right">Issued</th><th class="px-2 py-2 text-right">Balance</th><th class="px-2 py-2 text-right">Rejected</th><th class="px-2 py-2 text-center">Status</th></tr>
+                </thead>
+                <tbody>
+                    {% for row in stock_rows %}
+                    <tr class="border-b border-slate-100 hover:bg-slate-50">
+                        <td class="px-2 py-2 font-bold">{{ row.serial_no }}</td>
+                        <td class="px-2 py-2 text-indigo-600">{% if row.order_id %}<a href="{{ url_for('inventory', job_no=row.order_id) }}" class="hover:underline">{{ row.order_id }}</a>{% else %}—{% endif %}</td>
+                        <td class="px-2 py-2">{{ row.supplier }}</td>
+                        <td class="px-2 py-2">{{ row.width }}</td>
+                        <td class="px-2 py-2">{{ row.quality }}</td>
+                        <td class="px-2 py-2">{{ row.recv_date|format_ddmmyyyy if row.recv_date else '-' }}</td>
+                        <td class="px-2 py-2 text-right">{{ '{:,.2f}'.format(row.received) }}</td>
+                        <td class="px-2 py-2 text-right">{{ '{:,.2f}'.format(row.used) }}</td>
+                        <td class="px-2 py-2 text-right font-bold text-emerald-700">{{ '{:,.2f}'.format(row.balance) }}</td>
+                        <td class="px-2 py-2 text-right {% if row.rejected > 0 %}text-rose-600 font-bold{% endif %}">{{ '{:,.2f}'.format(row.rejected) }}</td>
+                        <td class="px-2 py-2 text-center">
+                            <span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase
+                                {% if 'Rejected' in row.status_label %}bg-rose-100 text-rose-700
+                                {% elif 'Re-active' in row.status_label %}bg-purple-100 text-purple-700
+                                {% elif row.status_label.startswith('Finished') %}bg-emerald-100 text-emerald-700
+                                {% elif row.status_label.startswith('Active') %}bg-sky-100 text-sky-700
+                                {% elif row.status_label.startswith('Partially Used') %}bg-amber-100 text-amber-700
+                                {% else %}bg-slate-100 text-slate-700{% endif %}">{{ row.status_label }}</span>
+                        </td>
+                    </tr>
+                    {% else %}<tr><td colspan="10" class="px-2 py-8 text-center text-slate-500">No fabric lots match these filters.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+
+    <!-- STOCK BY ORDER -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600">By Order</p>
+        <h2 class="mt-1 text-lg font-black text-slate-900">Fabric position per order</h2>
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="border-b border-slate-200 text-left text-[10px] uppercase text-slate-400">
+                    <tr><th class="px-2 py-2">Order</th><th class="px-2 py-2">Party</th><th class="px-2 py-2">Article</th><th class="px-2 py-2 text-right">Received</th><th class="px-2 py-2 text-right">Issued</th><th class="px-2 py-2 text-right">Balance</th><th class="px-2 py-2 text-right">INV's</th></tr>
+                </thead>
+                <tbody>
+                    {% for order_id, data in by_order %}
+                    <tr class="border-b border-slate-100">
+                        <td class="px-2 py-2 font-bold text-indigo-600">{% if order_id != '-' %}<a href="{{ url_for('order_details', job_no=order_id) }}" class="hover:underline">{{ order_id }}</a>{% else %}—{% endif %}</td>
+                        <td class="px-2 py-2">{{ data.order.name if data.order else '-' }}</td>
+                        <td class="px-2 py-2">{{ data.order.article_name if data.order else '-' }}</td>
+                        <td class="px-2 py-2 text-right">{{ '{:,.2f}'.format(data.received) }}</td>
+                        <td class="px-2 py-2 text-right">{{ '{:,.2f}'.format(data.issued) }}</td>
+                        <td class="px-2 py-2 text-right font-bold text-emerald-700">{{ '{:,.2f}'.format(data.balance) }}</td>
+                        <td class="px-2 py-2 text-right">{{ data.lots }}</td>
+                    </tr>
+                    {% else %}<tr><td colspan="7" class="px-2 py-6 text-center text-slate-500">No records.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+
+    <!-- MOVEMENT LEDGER -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Recent Movements</p>
+        <h2 class="mt-1 text-lg font-black text-slate-900">Received &amp; Issued Ledger (latest 50)</h2>
+        <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="border-b border-slate-200 text-left text-[10px] uppercase text-slate-400">
+                    <tr><th class="px-2 py-2">Date &amp; Time</th><th class="px-2 py-2">Type</th><th class="px-2 py-2">Serial</th><th class="px-2 py-2">Order</th><th class="px-2 py-2">Reference</th><th class="px-2 py-2 text-right">Used (m)</th><th class="px-2 py-2 text-right">Balance (m)</th><th class="px-2 py-2 text-right">Issued (m)</th></tr>
+                </thead>
+                <tbody id="fabric-movement-list" data-load-more-list data-page-size="50">
+                    {% for m in movements %}
+                    <tr data-load-more-row class="border-b border-slate-100">
+                        <td class="px-2 py-2">{{ m.date|format_ddmmyyyy if m.date else '-' }}{% if m.time %}<span class="block text-xs text-slate-500">{{ m.time }}</span>{% endif %}</td>
+                        <td class="px-2 py-2"><span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {% if m.type == 'RECEIVED' %}bg-sky-100 text-sky-700{% else %}bg-orange-100 text-orange-700{% endif %}">{{ m.type }}</span></td>
+                        <td class="px-2 py-2 font-bold">{{ m.serial_no or '-' }}</td>
+                        <td class="px-2 py-2">{{ m.order_id or '-' }}</td>
+                        <td class="px-2 py-2">{{ m.reference }}</td>
+                        <td class="px-2 py-2 text-right">{{ '{:,.2f}'.format(m.used) }}</td>
+                        <td class="px-2 py-2 text-right">{{ '{:,.2f}'.format(m.balance) }}</td>
+                        <td class="px-2 py-2 text-right font-bold {% if m.type == 'RECEIVED' %}text-sky-700{% else %}text-orange-700{% endif %}">{{ '{:,.2f}'.format(m.qty) }}</td>
+                    </tr>
+                    {% else %}<tr><td colspan="8" class="px-2 py-8 text-center text-slate-500">No movements recorded yet.</td></tr>{% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="flex justify-center border-t border-slate-100 p-3"><button type="button" data-load-more-button="fabric-movement-list" class="rounded border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">See more</button></div>
+    </section>
+
+</div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const movementList = document.getElementById('fabric-movement-list');
+        if (movementList) {
+            const movementRows = Array.from(movementList.querySelectorAll('[data-load-more-row]'));
+            const loadMoreButton = document.querySelector('[data-load-more-button="fabric-movement-list"]');
+            let visibleMovementCount = 50;
+
+            const updateMovementRows = function () {
+                movementRows.forEach(function (row, index) {
+                    row.hidden = index >= visibleMovementCount;
+                });
+                if (loadMoreButton) {
+                    loadMoreButton.hidden = visibleMovementCount >= movementRows.length;
+                }
+            };
+
+            updateMovementRows();
+            if (loadMoreButton) {
+                loadMoreButton.addEventListener('click', function () {
+                    visibleMovementCount = Math.min(visibleMovementCount + 50, movementRows.length);
+                    updateMovementRows();
+                });
+            }
+        }
+
+        const topFilterForm = document.getElementById('fabric-ledger-top-filter-form');
+        if (topFilterForm) {
+            const searchInput = topFilterForm.querySelector('input[name="search"]');
+            const otherControls = topFilterForm.querySelectorAll('select');
+
+            const triggerTopFilters = function () {
+                const params = new URLSearchParams(new FormData(topFilterForm));
+                const url = `${window.location.pathname}?${params.toString()}`;
+                window.location.href = url;
+            };
+
+            if (searchInput) {
+                searchInput.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        triggerTopFilters();
+                    }
+                });
+                searchInput.addEventListener('blur', function () {
+                    if (searchInput.value.trim() !== '') {
+                        triggerTopFilters();
+                    }
+                });
+            }
+
+            otherControls.forEach(function (control) {
+                control.addEventListener('change', triggerTopFilters);
+            });
+        }
+
+        const section = document.getElementById('inventory-table-section');
+        if (!section) return;
+
+        let isLoading = false;
+
+        const refreshInventory = function () {
+            const form = document.getElementById('inventory-filter-form');
+            if (!form || isLoading) return;
+
+            isLoading = true;
+            const params = new URLSearchParams(new FormData(form));
+            const url = `${window.location.pathname}?${params.toString()}`;
+
+            fetch(url, {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.text())
+            .then(html => {
+                const parsed = new DOMParser().parseFromString(html, 'text/html');
+                const incoming = parsed.getElementById('inventory-table-section');
+                if (!incoming) return;
+                section.innerHTML = incoming.innerHTML;
+            })
+            .catch(() => {
+                window.location.reload();
+            })
+            .finally(() => {
+                isLoading = false;
+            });
+        };
+
+        section.addEventListener('change', function (event) {
+            if (event.target && (event.target.name === 'sort_order' || event.target.name === 'status')) {
+                refreshInventory();
+            }
+        });
+    });
+</script>
+
+{% endblock %}

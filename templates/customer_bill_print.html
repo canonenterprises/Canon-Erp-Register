@@ -1,0 +1,231 @@
+{% extends 'base.html' %}
+{% block content %}
+{% set challans_by_id = challans_by_id|default({}) %}
+
+<!-- Print Styles to Remove Paper Margins -->
+<style>
+  @page {
+    margin: 8mm;
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-right: 0;
+    size: A4;
+  }
+  @media print {
+    .bill-total-label { font-size: 14pt !important; line-height: 1.2 !important; }
+    .bill-total-value { font-size: 18pt !important; line-height: 1.2 !important; }
+    .bill-article-note-print {
+      font-size: 14px;
+      display: block !important;
+      width: 100%;
+      white-space: pre-wrap !important;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+  }
+</style>
+
+<!-- Action Buttons -->
+<div class="max-w-4xl mx-auto mb-4 flex justify-between items-center px-4 pt-4 print:hidden">
+  <a href="{{ url_for('billing_portal', invoice_id=sales_invoice.id, shipper=selected_shipper) if sales_invoice else url_for('billing_portal', shipper=selected_shipper) }}" 
+     class="inline-flex items-center gap-2 rounded-md border border-black bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+    <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Billing
+  </a>
+  <button type="button" onclick="window.print()" 
+          class="inline-flex items-center gap-2 rounded-md bg-[#b7955c] px-4 py-2 text-xs font-bold text-white hover:bg-[#9b7e4e] transition-colors">
+    <i class="fa-solid fa-print" aria-hidden="true"></i> Print Bill
+  </button>
+</div>
+
+<!-- Main Bill Card (Full Bleed on Print) -->
+<article class="max-w-4xl mx-auto bg-white border-none shadow-lg overflow-hidden font-sans print:max-w-none print:w-full print:min-h-[297mm] print:flex print:flex-col print:overflow-visible print:border-none print:shadow-none print:m-0 print:rounded-none">
+  
+  <!-- Bill Header -->
+  <header class="bg-white text-black px-6 pt-6 pb-2 sm:px-8 sm:pt-8 sm:pb-3 print:bg-white print:text-black print:px-8 print:pt-8 print:pb-3">
+    <div class="flex flex-col items-start gap-4 sm:flex-row sm:justify-between">
+      <!-- Logo stays on the top left; company identity aligns to the top right. -->
+      {% if company_logo_screen or company_logo_print %}
+      <div class="flex h-16 w-40 flex-none items-center justify-center rounded bg-transparent">
+        {% if company_logo_screen %}
+        <img src="{{ url_for('static', filename=company_logo_screen) }}" alt="{{ company_name }} logo" class="max-h-full max-w-full object-contain print:hidden">
+        {% endif %}
+        {% if company_logo_print %}
+        <img src="{{ url_for('static', filename=company_logo_print) }}" alt="{{ company_name }} logo" class="hidden max-h-full max-w-full object-contain print:block">
+        {% endif %}
+      </div>
+      {% endif %}
+      <div class="grid w-full min-w-0 grid-cols-[minmax(0,1.25fr)_minmax(0,3.75fr)] gap-2 text-right sm:w-[calc(100%-11rem)] print:w-[calc(100%-11rem)]">
+        <div class="col-start-2 min-w-0 break-words text-right text-[12px] leading-snug text-black print:text-base">
+          {% if company_location %}<p>{{ company_location }}</p>{% endif %}
+          {% if company_phone %}<p>{{ company_phone }}</p>{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Meta Data Grid Bar -->
+    <div class="grid grid-cols-[repeat(3,minmax(0,1fr))] print:grid-cols-[repeat(3,minmax(0,1fr))] gap-2 sm:gap-4 mt-2 p-4 rounded-lg border-b border-black bg-[#b7955c] text-center print:border-black print:bg-[#b7955c]" style="-webkit-print-color-adjust: exact; print-color-adjust: exact;">
+      <div>
+        <span class="block text-[12px] font-semibold text-black uppercase leading-tight print:text-[11px]">Bill No.</span>
+        <span class="font-bold text-[16px] mt-0.5 block break-words print:text-[14px]">{{ bill.bill_no }}</span>
+      </div>
+      <div>
+        <span class="block text-[12px] font-semibold text-black uppercase leading-tight print:text-[11px]">Invoice No.</span>
+        <span class="font-bold text-[16px] mt-0.5 block break-words print:text-[14px]">{{ sales_invoice.invoice_no if sales_invoice else '—' }}</span>
+      </div>
+      <div>
+        <span class="block text-[12px] font-semibold text-black uppercase leading-tight print:text-[11px]">Bill Date</span>
+        <span class="font-bold text-[16px] mt-0.5 block break-words print:text-[14px]">{{ bill.invoice_date[8:10] }}-{{ bill.invoice_date[5:7] }}-{{ bill.invoice_date[0:4] }}</span>
+      </div>
+    </div>
+
+    <!-- Billed-to details follow the metadata and remain right aligned. -->
+    <div class="mt-6 grid w-full min-w-0 grid-cols-[minmax(0,2fr)_minmax(0,3fr)] print:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] items-start gap-2 text-left">
+      <div class="min-w-0 text-left">
+        <p class="text-xs font-semibold uppercase tracking-wider text-black print:text-sm">M/S</p>
+        <h1 class="text-2xl font-extrabold uppercase tracking-tight print:text-3xl">{{ bill.party_name }}</h1>
+      </div>
+      <div class="min-w-0 break-words text-right text-[12px] leading-snug text-black print:text-base">
+        {% if bill.customer_address %}<p>{{ bill.customer_address }}</p>{% endif %}
+        {% if bill.customer_phone %}<p>{{ bill.customer_phone }}</p>{% endif %}
+        </div>
+    </div>
+  </header>
+
+  <!-- Bill Body -->
+  <div class="flex flex-col px-6 pt-2 pb-6 sm:px-8 sm:pt-3 sm:pb-8 print:flex-1 print:px-8 print:pt-3 print:pb-8">
+    
+    <!-- Table -->
+    <div class="overflow-x-auto">
+      <table class="w-full text-left border-collapse text-xs">
+        <thead class="bg-[#b7955c]/15 text-black uppercase font-bold text-[14px] tracking-wider" style="-webkit-print-color-adjust: exact; print-color-adjust: exact;">
+          <tr>
+            <th class="p-2 border-b border-[black]">S.No.</th>
+            <th class="p-2 border-b border-[black]">Particulars</th>
+            <th class="p-2 border-b border-[black] text-center">Ch No.</th>
+            <th class="p-2 border-b border-[black] text-center">Qty.</th>
+            <th class="p-2 border-b border-[black] text-center">Rate</th>
+            <th class="p-2 border-b border-[black] text-center">Amount</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-black text-black text-[14px]">
+          {% for line in print_lines %}
+          <tr>
+            <td class="p-2 align-top font-medium">{{ '%02d'|format(loop.index) }}</td>
+            <td class="p-2 align-top">
+              <strong class="text-black block font-bold">{{ line.description }}</strong>
+            </td>
+            {% set line_challan = challans_by_id.get(line.challan_id, bill.challan) %}
+            <td class="p-2 align-top font-bold text-center text-black">{{ format_challan_number(line_challan.challan_no) }}</td>
+            <td class="p-2 align-top text-center font-bold whitespace-nowrap">{{ line.quantity_display }} {{ line.unit }}</td>
+            <td class="p-2 align-top text-center font-bold whitespace-nowrap">{{ bill.currency }} {{ '{:,.2f}'.format(line.unit_rate) }}</td>
+            <td class="p-2 align-top text-center whitespace-nowrap font-bold text-black">{{ bill.currency }} {{ '{:,.0f}'.format(line.amount) }}</td>
+          </tr>
+          {% if line.detail_lines %}
+          <tr class="bg-[#b7955c]/10">
+            <td colspan="6" class="px-3 pb-3 pt-1">
+              <div class="space-y-2 border-l-2 border-[black] pl-3">
+                {% for detail_line in line.detail_lines %}
+                <div class="flex items-start justify-between gap-4 text-[16px] text-black">
+                  <span class="font-medium">{{ detail_line.line }}</span>
+                  <strong class="shrink-0 font-bold text-black">{{ detail_line.quantity }}</strong>
+                </div>
+                {% endfor %}
+                {% if line.unit_note %}<p class="pl-1 text-[12px] font-bold italic text-black">{{ line.unit_note }}</p>{% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endif %}
+          <tr>
+            <td colspan="6" class="px-3 pb-3 pt-1">
+              <form method="post" class="grid grid-cols-[auto_minmax(0,1fr)_auto] items-end gap-2 print:hidden">
+                <input type="hidden" name="action" value="save_article_note">
+                <input type="hidden" name="article_key" value="{{ line.note_key }}">
+                <label for="article-note-{{ loop.index }}" class="text-xs font-bold text-black">NOTES:</label>
+                <textarea id="article-note-{{ loop.index }}" name="article_note" maxlength="500" rows="2" class="min-w-0 w-full resize-y border-b border-black bg-transparent px-1 py-1 text-sm text-black focus:outline-none">{{ line.saved_note }}</textarea>
+                <button type="submit" class="rounded bg-black px-3 py-1.5 text-xs font-bold text-white">Save</button>
+              </form>
+              {% if line.saved_note %}<div class="bill-article-note-print hidden w-full py-1 text-[14px] text-black print:block">{{ line.saved_note }}</div>{% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" class="p-8 text-center text-black italic">No bill lines recorded.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Bottom Section -->
+    <div class="mt-auto grid grid-cols-1 md:grid-cols-12 gap-8 pt-8">
+      
+      <!-- Left Column -->
+      <div class="md:col-span-7 -ml-6 space-y-6 rounded-xl border-2 border-black py-4 pr-4 pl-6 sm:-ml-8 sm:pl-8 print:-ml-8 print:pl-8">
+        <div>
+          <p class="text-[14px] font-extrabold uppercase tracking-widest text-black mb-2">Amount in Words</p>
+          <p class="text-[18px] font-bold uppercase leading-relaxed text-black">{{ amount_words }}</p>
+        </div>
+
+        {% if bill.notes %}
+        <div>
+          <h3 class="text-[10px] font-extrabold uppercase tracking-widest text-black mb-1">Additional Notes</h3>
+          <p class="text-sm text-black leading-relaxed whitespace-pre-line">{{ bill.notes }}</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Right Column (Totals) -->
+      <div class="md:col-span-5 space-y-2 text-xs text-black">
+        <!-- Total Bill Amount -->
+        <div class="bg-[#b7955c] text-black p-3.5 flex justify-between items-center font-bold text-sm mt-3" style="-webkit-print-color-adjust: exact; print-color-adjust: exact;">
+          <span class="bill-total-label text-[16px]">Total Amount</span>
+          <span class="bill-total-value text-[20px]">{{ bill.currency }} {{ '{:,.0f}'.format(bill.subtotal) }}</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Signatures -->
+    <footer class="mt-8 pt-10">
+      <div class="flex justify-end text-right text-[12px] font-bold uppercase text-black">
+        <div class="w-64 text-center text-black">
+          <img src="{{ url_for('static', filename='signature.jpeg') }}" alt="Authorized signature" class="mx-auto block h-20 w-full object-contain">
+          <div class="border-t border-black pt-2">Authorized Signature</div>
+        </div>
+      </div>
+      <div class="mt-6 border-t border-black pt-3 text-center text-[11px] font-bold uppercase tracking-wide text-black">
+        THIS BILL IS SYSTEM GENERATED, IT DOES NOT REQUIRE ANY PHYSICAL SIGNATURE OR STAMP.
+      </div>
+    </footer>
+
+    <div class="mt-2 pt-2 text-right text-[11px] text-black">
+      Printed on: <span id="customer-bill-print-timestamp"></span>
+    </div>
+
+  </div>
+</article>
+
+<script>
+(function () {
+  const timestamp = document.getElementById('customer-bill-print-timestamp');
+  if (!timestamp) return;
+
+  function updatePrintTimestamp() {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const time = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+    timestamp.textContent = `${day}-${month}-${year}, ${time}`;
+  }
+
+  updatePrintTimestamp();
+  window.addEventListener('beforeprint', updatePrintTimestamp);
+}());
+</script>
+
+{% endblock %}

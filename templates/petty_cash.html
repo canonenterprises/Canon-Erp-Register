@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
+  <div class="mx-auto max-w-7xl space-y-6 rounded-2xl border border-slate-500 bg-white p-8 shadow-sm">
+    <header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
+      <div>
+        <p class="text-xs font-bold uppercase text-rose-700">Canon Registry · Accounts</p>
+        <h1 class="mt-1 text-3xl font-black text-slate-950">Petty Cash</h1>
+        <p class="mt-2 text-sm text-slate-500">{{ current_month_label }} · Factory cash and daily expenses</p>
+      </div>
+      <a href="{{ url_for('accounts_portal') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Accounts</a>
+    </header>
+
+    <section class="grid gap-0 border-y border-slate-200 sm:grid-cols-3">
+      <div class="border-b border-slate-200 px-4 py-4 sm:border-b-0 sm:border-r"><p class="text-xs font-bold uppercase text-indigo-700">Canon cash</p><p class="mt-1 text-2xl font-black text-slate-950">PKR {{ '{:,.2f}'.format(balances.Canon) }}</p></div>
+      <div class="border-b border-slate-200 px-4 py-4 sm:border-b-0 sm:border-r"><p class="text-xs font-bold uppercase text-emerald-700">Haram cash</p><p class="mt-1 text-2xl font-black text-slate-950">PKR {{ '{:,.2f}'.format(balances.Haram) }}</p></div>
+      <div class="px-4 py-4"><p class="text-xs font-bold uppercase text-rose-700">Total petty cash</p><p class="mt-1 text-2xl font-black text-slate-950">PKR {{ '{:,.2f}'.format(total_balance) }}</p></div>
+    </section>
+
+    <p class="border-l-4 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-slate-700">Unused monthly cash is credited back to its funding company automatically when Petty Cash is opened in a later month.</p>
+
+    <section class="grid gap-6 lg:grid-cols-2">
+      <form method="post" class="space-y-4 border-t-4 border-indigo-600 bg-slate-50 p-5">
+        <input type="hidden" name="transaction_type" value="ALLOCATION">
+        <h2 class="text-lg font-black text-slate-900">Add cash</h2>
+        <label class="block text-xs font-bold text-slate-600">Funding company<select name="company" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="Canon">Canon</option><option value="Haram">Haram</option></select></label>
+        <label class="block text-xs font-bold text-slate-600">Date<input type="date" name="date" value="{{ today }}" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+        <label class="block text-xs font-bold text-slate-600">Amount (PKR)<input type="number" name="amount" min="0.01" step="0.01" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+        <label class="block text-xs font-bold text-slate-600">Description<input name="description" maxlength="255" placeholder="Monthly petty cash allocation" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+        <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-900"><i class="fa-solid fa-plus" aria-hidden="true"></i> Allocate cash</button>
+      </form>
+
+      <form method="post" class="space-y-4 border-t-4 border-rose-600 bg-slate-50 p-5">
+        <input type="hidden" name="transaction_type" value="EXPENSE">
+        <h2 class="text-lg font-black text-slate-900">Record expense</h2>
+        <label class="block text-xs font-bold text-slate-600">Cash source<select name="company" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="Canon">Canon · PKR {{ '{:,.2f}'.format(balances.Canon) }}</option><option value="Haram">Haram · PKR {{ '{:,.2f}'.format(balances.Haram) }}</option></select></label>
+        <label class="block text-xs font-bold text-slate-600">Date<input type="date" name="date" value="{{ today }}" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+        <label class="block text-xs font-bold text-slate-600">Amount (PKR)<input type="number" name="amount" min="0.01" step="0.01" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+        <label class="block text-xs font-bold text-slate-600">Expense description<input name="description" maxlength="255" placeholder="Tea bags, lunch, or factory essentials" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+        <button class="inline-flex items-center gap-2 rounded-lg bg-rose-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-rose-800"><i class="fa-solid fa-receipt" aria-hidden="true"></i> Record expense</button>
+      </form>
+    </section>
+
+    <section class="space-y-3">
+      <div class="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-3">
+        <div><h2 class="text-xl font-black text-slate-900">Petty cash history</h2><p class="mt-1 text-sm text-slate-500">Latest 200 transactions</p></div>
+      </div>
+      <div class="overflow-x-auto border-y border-slate-200">
+        <table class="w-full min-w-[760px] text-left text-sm">
+          <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-3 py-3">Date</th><th class="px-3 py-3">Month</th><th class="px-3 py-3">Company</th><th class="px-3 py-3">Activity</th><th class="px-3 py-3">Description</th><th class="px-3 py-3 text-right">Amount (PKR)</th></tr></thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for entry in entries %}
+            <tr class="hover:bg-slate-50">
+              <td class="whitespace-nowrap px-3 py-3">{{ entry.date }}</td>
+              <td class="whitespace-nowrap px-3 py-3">{{ entry.month_key }}</td>
+              <td class="px-3 py-3">{{ entry.company }}</td>
+              <td class="px-3 py-3 font-bold {% if entry.transaction_type == 'ALLOCATION' %}text-indigo-800{% elif entry.transaction_type == 'RETURN' %}text-emerald-800{% else %}text-rose-800{% endif %}">{% if entry.transaction_type == 'ALLOCATION' %}Cash added{% elif entry.transaction_type == 'RETURN' %}Month-end return{% else %}Expense{% endif %}</td>
+              <td class="px-3 py-3">{{ entry.description }}</td>
+              <td class="px-3 py-3 text-right font-bold">{{ '{:,.2f}'.format(entry.amount) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="px-3 py-12 text-center text-slate-500">No petty cash transactions have been recorded.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+{% endblock %}

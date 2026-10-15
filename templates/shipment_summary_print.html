@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shipment Summary - {{ order.job_no }}</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 20mm;
+    }
+
+    :root {
+      --bg: #ffffff;
+      --ink: #0f172a;
+      --muted: #475569;
+      --line: #dfe7f1;
+      --soft: #f8fafc;
+      --emerald: #047857;
+      --sky: #0369a1;
+      --amber: #b45309;
+      --red: #b91c1c;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      margin: 0;
+      padding: 0;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 12mm 12mm 10mm;
+      background: #fff;
+    }
+
+    .header {
+      border-bottom: 2px solid var(--line);
+      padding-bottom: 8mm;
+      margin-bottom: 8mm;
+    }
+
+    .title {
+      font-size: 24px;
+      font-weight: 700;
+      margin: 0 0 4mm;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 4mm;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .meta-box {
+      background: var(--soft);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 4mm 5mm;
+    }
+
+    .meta-box strong {
+      display: block;
+      color: var(--ink);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 2mm;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 4mm;
+      margin-bottom: 8mm;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      padding: 5mm 4mm;
+    }
+
+    .card .label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 2mm;
+      color: var(--muted);
+    }
+
+    .card .value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .card.sky .label { color: var(--sky); }
+    .card.sky { background: #f0f9ff; border-color: #bae6fd; }
+    .card.emerald .label { color: var(--emerald); }
+    .card.emerald { background: #ecfdf5; border-color: #a7f3d0; }
+    .card.amber .label { color: var(--amber); }
+    .card.amber { background: #fffbeb; border-color: #fcd34d; }
+    .card.red .label { color: var(--red); }
+    .card.red { background: #fef2f2; border-color: #fecaca; }
+
+    .section {
+      margin-top: 6mm;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .section-title {
+      background: var(--soft);
+      border-bottom: 1px solid var(--line);
+      padding: 4mm 5mm;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink);
+    }
+
+    .table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .table th,
+    .table td {
+      border-bottom: 1px solid var(--line);
+      padding: 4mm 5mm;
+      text-align: left;
+    }
+
+    .table th {
+      background: #f8fafc;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .footer-note {
+      margin-top: 10mm;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: right;
+    }
+
+    @media print {
+      body {
+        margin: 0;
+      }
+      .page {
+        box-shadow: none;
+      }
+      a, button {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <h1 class="title">Shipment Summary</h1>
+      <div class="meta">
+        <div class="meta-box">
+          <strong>Job No</strong>
+          {{ order.job_no }}
+        </div>
+        <div class="meta-box">
+          <strong>Party</strong>
+          {{ order.name or 'Unnamed party' }}
+        </div>
+        <div class="meta-box">
+          <strong>Article</strong>
+          {{ order.article_name or 'Unnamed article' }}
+        </div>
+      </div>
+    </div>
+
+    <div class="summary-grid">
+      <div class="card sky">
+        <span class="label">Total Order</span>
+        <div class="value">{{ '{:,.0f}'.format(shipping['total_order_pcs']) }}</div>
+      </div>
+      <div class="card emerald">
+        <span class="label">Produced</span>
+        <div class="value">{{ '{:,.0f}'.format(shipping.completed_pcs) }}</div>
+      </div>
+      <div class="card amber">
+        <span class="label">Shipped</span>
+        <div class="value">{{ '{:,.0f}'.format(shipping.shipped_pcs) }}</div>
+      </div>
+      <div class="card red">
+        <span class="label">Balance</span>
+        <div class="value">{{ '{:,.0f}'.format(shipping.available_pcs) }}</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Dispatch Details</div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Quality</th>
+            <th>Produced</th>
+            <th>Shipped</th>
+            <th>Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>A/Q</td>
+            <td>{{ '{:,.0f}'.format(shipping.total_aq_pcs) }}</td>
+            <td>{{ '{:,.0f}'.format(shipping.shipped_aq_pcs) }}</td>
+            <td>{{ '{:,.0f}'.format(shipping.balance_aq_pcs) }}</td>
+          </tr>
+          <tr>
+            <td>B/Q</td>
+            <td>{{ '{:,.0f}'.format(shipping.total_bq_pcs) }}</td>
+            <td>{{ '{:,.0f}'.format(shipping.shipped_bq_pcs) }}</td>
+            <td>{{ '{:,.0f}'.format(shipping.balance_bq_pcs) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Packaging Summary</div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Packets</th>
+            <th>Cartons</th>
+            <th>Bails</th>
+            <th>CTN / Bail</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>{{ '{:,.2f}'.format(shipping.shipped_pcs / (order.pcs_poly|float or 1)) }}</td>
+            <td>{{ '{:,.2f}'.format(order.shipped_ctn|float) }}</td>
+            <td>{{ '{:,.2f}'.format(order.shipped_bails|float) }}</td>
+            <td>{{ '{:,.2f}'.format(order.qty_ctn|float or 0) }} / {{ '{:,.2f}'.format(order.qty_bail|float or 0) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footer-note">
+      Printed on {{ now.strftime('%d-%m-%Y') }}
+    </div>
+  </div>
+</body>
+</html>

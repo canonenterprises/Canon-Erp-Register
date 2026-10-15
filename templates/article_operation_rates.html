@@ -1,0 +1,247 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-6">
+    <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-6 sm:p-8">
+        <div>
+            <h2 class="text-2xl font-bold">{{ article.article_no }} Operation Rates</h2>
+            <p class="text-sm text-slate-500 mt-1">{{ article.article_name or 'Unnamed article' }}{% if article.style %} | Style: {{ article.style }}{% endif %}{% if article.color %} | Color: {{ article.color }}{% endif %}</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <button type="button" onclick="window.print()" class="no-print inline-flex items-center gap-2 rounded-lg bg-slate-800 px-3 py-2 text-sm font-bold text-white hover:bg-slate-700"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Rates</button>
+            <a href="{{ url_for('operation_rates') }}" class="no-print inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Articles</a>
+        </div>
+    </div>
+
+    <form method="POST" class="space-y-4">
+        <div class="bg-white rounded-xl shadow overflow-hidden">
+            <div class="p-4 border-b">
+                <h3 class="font-bold">Select Operations</h3>
+                <p class="text-sm text-slate-500 mt-1">Choose regular operations, mark cut-only operations as Special, and leave an override blank to use its general rate.</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[820px]">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-500 text-sm uppercase">
+                            <th class="px-4 py-3">S.No</th>
+                            <th class="px-4 py-3">Move</th>
+                            <th class="px-4 py-3">Use</th>
+                            <th class="px-4 py-3">Operation</th>
+                            <th class="px-4 py-3">General Rate</th>
+                            <th class="px-4 py-3">Article Rate Override</th>
+                            <th class="px-4 py-3">Special</th>
+                            <th class="px-4 py-3">History</th>
+                        </tr>
+                    </thead>
+                    <tbody id="operation-list">
+                        {% for rate in rates %}
+                        {% set assignment = assignments.get(rate.id) %}
+                        <tr class="operation-row border-t" draggable="{{ 'false' if read_only_profile and assignments else 'true' }}">
+                            <td class="row-number px-4 py-3 font-bold text-slate-500"></td>
+                            <td class="px-4 py-3">{% if not read_only_profile or not assignments %}<button type="button" class="drag-handle cursor-grab text-slate-400 hover:text-indigo-600" title="Drag to reorder" aria-label="Drag {{ rate.operation }} to reorder"><i class="fa-solid fa-grip-vertical"></i></button>{% endif %}<input type="hidden" name="operation_order" value="{{ rate.id }}" {% if read_only_profile and assignments %}disabled{% endif %}></td>
+                            <td class="px-4 py-3"><input type="checkbox" name="operation_{{ rate.id }}" {% if assignment and assignment.is_enabled %}checked{% endif %} class="h-4 w-4" {% if read_only_profile and assignments %}disabled{% endif %}></td>
+                            <td class="px-4 py-3 font-bold">{{ rate.operation }}</td>
+                            <td class="px-4 py-3">Rs. {{ '%.2f'|format(rate.rate) }}</td>
+                            <td class="px-4 py-3"><input type="number" step="0.01" min="0" name="override_{{ rate.id }}" value="{{ '%.2f'|format(assignment.override_rate) if assignment and assignment.override_rate is not none else '' }}" placeholder="Use general" class="w-36 border rounded px-2 py-1" {% if read_only_profile and assignments %}disabled{% endif %}></td>
+                            <td class="px-4 py-3"><label class="inline-flex items-center gap-2 text-sm font-semibold text-amber-800"><input type="checkbox" name="special_operation_{{ rate.id }}" {% if assignment and assignment.is_special_operation %}checked{% endif %} class="h-4 w-4" {% if read_only_profile and assignments %}disabled{% endif %}>Special</label></td>
+                            <td class="px-4 py-3"><a href="{{ url_for('article_operation_rate_history', article_id=article.id, rate_id=rate.id) }}" class="text-cyan-700 font-bold hover:underline">View history</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="flex gap-3">
+            {% if not read_only_profile or not assignments %}
+            <button type="submit" class="bg-slate-800 text-white px-4 py-2 rounded-lg font-bold hover:bg-slate-700">Save Article Rates</button>
+            {% else %}<span class="text-sm font-semibold text-slate-500">Saved operation assignments are read-only.</span>{% endif %}
+            <a href="{{ url_for('operation_rates') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 font-bold text-slate-700 hover:bg-slate-100">Cancel</a>
+        </div>
+    </form>
+</div>
+<section id="operation-rate-print" class="hidden" aria-hidden="true">
+    <p class="print-party">{{ article.party_name or 'Party Name' }}</p>
+    <header class="print-header">
+        <h1>{{ article.article_no }} Operation Rates</h1>
+        <p>{{ article.article_name or 'Unnamed article' }}{% if article.style %} | Style: {{ article.style }}{% endif %}{% if article.color %} | Color: {{ article.color }}{% endif %}</p>
+    </header>
+    <p class="print-period">Year: {{ current_year }} | Period: Active from - Present</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Operation</th>
+                <th>Latest Rate</th>
+                <th>Rate Basis</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for rate in rates %}
+            {% set assignment = assignments.get(rate.id) %}
+            {% if assignment and (assignment.is_enabled or assignment.is_special_operation) %}
+            {% set latest_history = article_rate_history_map.get(rate.id) %}
+            {% set updated_on = (latest_history.created_at or latest_history.effective_date) if latest_history else (assignment.created_at if assignment.created_at else none) %}
+            <tr>
+                <td>{{ rate.operation }}</td>
+                <td>Rs. {{ '%.2f'|format(assignment.override_rate if assignment.override_rate is not none else rate.rate) }}</td>
+                <td>{% if updated_on %}Updated on {{ updated_on.strftime('%Y-%m-%d %H:%M') }}{% else %}Updated on -{% endif %}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    <footer class="print-footer">
+        <span>Prepared by: {{ prepared_by }}</span>
+        <span>Printed on: <span id="operation-rate-print-timestamp"></span></span>
+    </footer>
+</section>
+<style>
+    @media print {
+        @page { size: A5 portrait; margin: 0; }
+        body * { visibility: hidden !important; }
+        html,
+        body {
+            width: 148mm !important;
+            height: 210mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
+        body > div.min-h-screen.flex.flex-col {
+            display: block !important;
+            width: 148mm !important;
+            height: 210mm !important;
+            min-height: 0 !important;
+            overflow: hidden !important;
+        }
+        main {
+            display: block !important;
+            width: 148mm !important;
+            height: 210mm !important;
+            max-width: none !important;
+            min-height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+        }
+        main > :not(#operation-rate-print) { display: none !important; }
+        #operation-rate-print,
+        #operation-rate-print * { visibility: visible !important; }
+        #operation-rate-print {
+            display: flex !important;
+            flex-direction: column;
+            position: absolute;
+            top: 0;
+            left: 6mm;
+            width: calc(148mm - 6mm);
+            height: 210mm;
+            box-sizing: border-box;
+            overflow: hidden;
+            break-inside: avoid;
+            page-break-inside: avoid;
+            padding: 10mm 10mm 2mm 6mm;
+            color: #111827;
+            font-family: Arial, sans-serif;
+        }
+        #operation-rate-print .print-party { margin: 0 0 6px; font-size: 14px; font-weight: 700; text-align: left; }
+        #operation-rate-print .print-header { margin-bottom: 10px; text-align: center; }
+        #operation-rate-print h1 { margin: 0 0 6px; font-size: 24px; }
+        #operation-rate-print p { margin: 0; font-size: 14px; }
+        #operation-rate-print .print-period { margin-bottom: 10px; font-weight: 700; font-size: 15px; }
+        #operation-rate-print table {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            flex-direction: column;
+            width: 100%;
+            border-collapse: collapse;
+            font-size: calc(12px * var(--rate-print-scale, 1));
+        }
+        #operation-rate-print thead { display: block; flex: 0 0 auto; }
+        #operation-rate-print thead tr,
+        #operation-rate-print tbody tr { display: grid; grid-template-columns: 1.3fr 1fr 1.2fr; }
+        #operation-rate-print tbody { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+        #operation-rate-print tbody tr { flex: 1 1 0; min-height: 0; break-inside: avoid; page-break-inside: avoid; }
+        #operation-rate-print th,
+        #operation-rate-print td {
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+            white-space: normal;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+            border: 1px solid #64748b;
+            padding: calc(7px * var(--rate-print-scale, 1)) calc(8px * var(--rate-print-scale, 1));
+            text-align: left;
+            vertical-align: top;
+        }
+        #operation-rate-print th { background: #e2e8f0 !important; print-color-adjust: exact; font-size: calc(13px * var(--rate-print-scale, 1)); }
+        #operation-rate-print th:nth-child(1),
+        #operation-rate-print td:nth-child(1),
+        #operation-rate-print th:nth-child(2),
+        #operation-rate-print td:nth-child(2) {
+            text-align: center;
+            vertical-align: middle;
+        }
+        #operation-rate-print .print-footer { display: flex; justify-content: space-between; gap: 8px; margin-top: auto; border-top: 1px solid #94a3b8; padding-top: 8px; font-size: 12px; }
+    }
+</style>
+<script>
+    const operationList = document.getElementById('operation-list');
+    let draggedRow = null;
+
+    function updateOperationNumbers() {
+        operationList.querySelectorAll('.operation-row').forEach(function (row, index) {
+            row.querySelector('.row-number').textContent = index + 1;
+        });
+    }
+
+    operationList.querySelectorAll('.operation-row').forEach(function (row) {
+        row.addEventListener('dragstart', function () {
+            draggedRow = row;
+            row.classList.add('opacity-50');
+        });
+        row.addEventListener('dragend', function () {
+            row.classList.remove('opacity-50');
+            draggedRow = null;
+            updateOperationNumbers();
+        });
+        row.addEventListener('dragover', function (event) {
+            event.preventDefault();
+            if (!draggedRow || draggedRow === row) return;
+            const bounds = row.getBoundingClientRect();
+            row.parentNode.insertBefore(draggedRow, event.clientY < bounds.top + bounds.height / 2 ? row : row.nextSibling);
+        });
+    });
+    updateOperationNumbers();
+    window.addEventListener('beforeprint', function () {
+        const printRoot = document.getElementById('operation-rate-print');
+        if (printRoot) {
+            const rows = Array.from(printRoot.querySelectorAll('tbody tr'));
+            let printScale = Math.min(1, 18 / Math.max(rows.length, 1));
+            printRoot.style.setProperty('--rate-print-scale', printScale);
+            for (let attempt = 0; attempt < 8; attempt += 1) {
+                const overflowingCell = rows.some(function (row) {
+                    return Array.from(row.cells).some(function (cell) {
+                        return cell.scrollHeight > cell.clientHeight + 1;
+                    });
+                });
+                if (!overflowingCell) break;
+                printScale *= 0.85;
+                printRoot.style.setProperty('--rate-print-scale', printScale);
+            }
+        }
+        const timestamp = document.getElementById('operation-rate-print-timestamp');
+        if (timestamp) {
+            const printedAt = new Date();
+            const date = new Intl.DateTimeFormat('en-US', {
+                weekday: 'long', month: 'long', day: '2-digit', year: 'numeric'
+            }).format(printedAt);
+            const time = new Intl.DateTimeFormat('en-US', {
+                hour: '2-digit', minute: '2-digit', hour12: true
+            }).format(printedAt);
+            timestamp.textContent = date + ' at ' + time;
+        }
+    });
+</script>
+{% endblock %}

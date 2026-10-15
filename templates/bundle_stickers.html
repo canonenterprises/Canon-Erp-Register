@@ -1,0 +1,239 @@
+{% extends 'base.html' %}
+{% block content %}
+<main id="bundle-sticker-print-area" class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-8 min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+  <header class="no-print flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
+    <div>
+      <p class="text-xs font-bold uppercase text-emerald-700">Cutting Sheet / {{ cutting_sheet.serial_no or 'Saved Cut' }}</p>
+      <h1 class="mt-1 text-3xl font-black text-slate-950">Bundle Stickers</h1>
+      <p class="mt-2 text-sm text-slate-600">{{ order.name if order else 'Order' }} · {{ order.article_name or order.article or 'Article' if order else 'Article' }} · Cut {{ cutting_sheet.cut_no or '-' }}</p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <a href="{{ url_for('cutting_sheet', job_no=cutting_sheet.order_id, edit_id=cutting_sheet.id) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Cutting Sheet</a>
+      <a href="{{ url_for('saved_cutting_sheets', job_no=cutting_sheet.order_id) }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Saved Sheets</a>
+    </div>
+  </header>
+
+  {% if bundle_count <= 0 %}
+  <section class="rounded-lg border border-amber-300 bg-amber-50 p-5">
+    <h2 class="font-bold text-amber-950">No bundle count on this cutting sheet</h2>
+    <p class="mt-1 text-sm text-amber-900">Enter a whole-number bundle count on the cutting sheet, save it, then return here to create the stickers.</p>
+  </section>
+  {% else %}
+  <section class="no-print border-b border-slate-200 pb-5">
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-black text-slate-900">PCS per bundle</h2>
+        <p class="mt-1 text-sm text-slate-500">{{ bundle_count }} bundle{{ '' if bundle_count == 1 else 's' }} from this cutting sheet</p>
+      </div>
+      <div class="flex gap-2">
+        {% if not read_only_profile %}
+        <button type="submit" form="bundle-pcs-form" class="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save PCS</button>
+        {% endif %}
+        <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Stickers</button>
+      </div>
+    </div>
+    <form id="bundle-pcs-form" method="post" class="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+      {% for bundle_number in range(1, bundle_count + 1) %}
+      {% set existing_entry = entries_by_number.get(bundle_number) %}
+      {% set pcs_value = submitted_pcs.get(bundle_number, existing_entry.pcs if existing_entry else '') %}
+      <label class="flex items-center justify-between gap-3 border-b border-slate-200 py-2 text-sm font-semibold text-slate-700">
+        <span>Bundle {{ bundle_number }}</span>
+        <span class="flex items-center gap-2">
+          <input type="number" name="pcs_{{ bundle_number }}" value="{{ pcs_value }}" min="1" step="1" required {% if read_only_profile %}disabled{% endif %} data-pcs-input="{{ bundle_number }}" class="w-24 rounded border border-slate-300 px-3 py-2 text-center text-sm font-bold text-slate-950 disabled:bg-slate-100">
+          <span class="text-xs font-bold text-slate-500">PCS</span>
+        </span>
+      </label>
+      {% endfor %}
+    </form>
+  </section>
+
+  <div class="bundle-sticker-pages" aria-label="Bundle sticker preview">
+    {% for page_start in range(1, bundle_count + 1, 6) %}
+    <section class="bundle-sticker-page">
+      <div class="bundle-sticker-grid">
+      {% for bundle_number in range(page_start, page_start + 6) %}
+      {% if bundle_number <= bundle_count %}
+      {% set existing_entry = entries_by_number.get(bundle_number) %}
+      {% set pcs_value = submitted_pcs.get(bundle_number, existing_entry.pcs if existing_entry else '') %}
+      <article class="bundle-sticker">
+        <div class="flex items-center justify-between gap-2 border-b border-slate-300 pb-2">
+          <img src="{{ url_for('static', filename='canon logo black.webp') }}" alt="Canon Enterprises" class="bundle-sticker-logo">
+          <span class="text-right text-[10px] font-black uppercase text-slate-500">Bundle Sticker</span>
+        </div>
+        <p class="bundle-sticker-order mt-2 text-sm font-black uppercase text-slate-900">{{ order.name if order else 'Order' }}</p>
+        <div class="bundle-sticker-information">
+          <p><strong>Article:</strong> {{ order.article_name or '—' if order else '—' }}</p>
+          <p><strong>Style:</strong> {{ order.style or '—' if order else '—' }}</p>
+          <p><strong>Color:</strong> {{ order.color or '—' if order else '—' }}</p>
+          <p><strong>Article No.:</strong> {{ order.article or '—' if order else '—' }}</p>
+        </div>
+        <div class="mt-2 flex items-end justify-between gap-2">
+          <div>
+            <p class="bundle-sticker-cut text-[10px] font-bold uppercase text-slate-500">Cut {{ cutting_sheet.cut_no or '-' }} · Bundle {{ bundle_number }} of {{ bundle_count }}</p>
+            <p class="bundle-sticker-serial text-[10px] text-slate-500">{{ cutting_sheet.serial_no or '' }}</p>
+          </div>
+          <p class="bundle-sticker-pcs whitespace-nowrap text-right text-lg font-black text-slate-950"><span data-pcs-output="{{ bundle_number }}">{{ pcs_value or '___' }}</span> <span class="text-xs">PCS</span></p>
+        </div>
+      </article>
+      {% endif %}
+      {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+  {% endif %}
+</main>
+
+<style>
+  .bundle-sticker-pages { display: grid; gap: 16px; }
+  .bundle-sticker-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .bundle-sticker { min-width: 0; min-height: 150px; border: 1px solid #111827; border-radius: 4px; padding: 12px; background: #fff; }
+  .bundle-sticker-logo { display: block; width: 76px; max-height: 28px; object-fit: contain; }
+  .bundle-sticker-information { margin-top: 4px; font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
+  .bundle-sticker-information p { margin: 0; }
+
+  @media print {
+    @page { size: A4 portrait; margin: 5mm; }
+    html, body { width: 100%; height: 100%; margin: 0; }
+    body * { visibility: hidden !important; }
+    #bundle-sticker-print-area, #bundle-sticker-print-area * { visibility: visible !important; }
+    #bundle-sticker-print-area {
+      position: static !important;
+      width: 100%;
+      height: auto;
+      min-height: 0;
+      max-width: none;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+      box-sizing: border-box;
+    }
+    #bundle-sticker-print-area > :not([hidden]) ~ :not([hidden]) { margin-top: 0 !important; }
+    .no-print { display: none !important; }
+    .bundle-sticker-pages {
+      display: block;
+      width: 100%;
+      margin: 0;
+    }
+    .bundle-sticker-page {
+      display: block;
+      width: 100%;
+      height: 270mm;
+      margin: 0;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      page-break-after: always;
+    }
+    .bundle-sticker-page:last-child { page-break-after: auto; }
+    .bundle-sticker-grid {
+      display: grid;
+      width: 100%;
+      height: 100%;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(3, 88mm);
+      gap: 3mm;
+      align-items: stretch;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .bundle-sticker {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      box-sizing: border-box;
+      padding: 3.5mm 4mm;
+      border: 1.4px solid #000;
+      border-radius: 0;
+      background: #fff;
+      text-align: center;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      overflow: hidden;
+    }
+    .bundle-sticker, .bundle-sticker * { color: #000 !important; }
+    .bundle-sticker * { text-align: center !important; }
+    .bundle-sticker > div:first-child {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2mm;
+      padding-bottom: 1.5mm;
+      border-bottom: 1px solid #111827;
+    }
+    .bundle-sticker-logo {
+      width: 28mm;
+      max-height: 10mm;
+      margin: 0;
+      display: block;
+      object-fit: contain;
+    }
+    .bundle-sticker > div:first-child > span {
+      font-size: 8pt;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #374151;
+      white-space: nowrap;
+    }
+    .bundle-sticker-order {
+      margin: 2mm 0 0;
+      font-size: 15pt;
+      line-height: 1.15;
+      font-weight: 900;
+      text-transform: uppercase;
+      overflow-wrap: anywhere;
+    }
+    .bundle-sticker-information {
+      margin: 2mm 0 0;
+      font-size: 11pt;
+      line-height: 1.35;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+    .bundle-sticker-information p {
+      margin: 1.1mm 0;
+    }
+    .bundle-sticker > div:last-child {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5mm;
+      margin: 0;
+    }
+    .bundle-sticker-cut {
+      font-size: 13pt;
+      line-height: 1.3;
+      font-weight: 800;
+    }
+    .bundle-sticker-serial {
+      margin-top: 0.5mm;
+      font-size: 12pt;
+      line-height: 1.25;
+      font-weight: 700;
+    }
+    .bundle-sticker-pcs {
+      margin: 0;
+      font-size: 22pt;
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+    }
+    .bundle-sticker-pcs > span:last-child { font-size: 12pt; }
+  }
+</style>
+
+<script>
+  document.querySelectorAll('[data-pcs-input]').forEach(input => {
+    input.addEventListener('input', () => {
+      const output = document.querySelector(`[data-pcs-output="${input.dataset.pcsInput}"]`);
+      if (output) output.textContent = input.value || '___';
+    });
+  });
+</script>
+{% endblock %}

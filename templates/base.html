@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canon ERP Register</title>
+    <link rel="icon" type="image/webp" href="{{ url_for('static', filename='favicon.webp') }}">
+    <link rel="shortcut icon" type="image/webp" href="{{ url_for('static', filename='favicon.webp') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            overflow-x: hidden;
+            /* if you want to remove the background image, remove the 5 lines below */
+            background-image: url("{{ url_for('static', filename='bg7.png') }}");
+            background-position: center;
+            background-attachment: fixed;
+            background-size: cover;
+            background-repeat: no-repeat;
+        }
+        @media (max-width: 767px) {
+            body { font-size: 12px; }
+            main {
+                padding: 4rem 0.35rem 0.5rem !important;
+                width: 100% !important;
+                max-width: 100% !important;
+            }
+            main > * { max-width: 100% !important; }
+            .grid.grid-cols-2,
+            .grid.grid-cols-3,
+            .grid.grid-cols-4,
+            .grid.grid-cols-5,
+            .grid.grid-cols-6,
+            .grid[class*="md:grid-cols-"] {
+                grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+            }
+            .grid.grid-cols-1:not([class*="md:grid-cols-"]) {
+                grid-template-columns: minmax(0, 1fr) !important;
+            }
+            .flex-row { flex-direction: column !important; }
+            .flex-wrap { row-gap: 0.5rem; }
+            main > .p-6,
+            main > .space-y-6,
+            main > div > .p-6 { padding: 0.45rem !important; }
+            main .p-5 { padding: 0.55rem !important; }
+            main .p-4 { padding: 0.45rem !important; }
+            main .gap-6 { gap: 0.45rem !important; }
+            main .gap-4 { gap: 0.35rem !important; }
+            main .mb-6 { margin-bottom: 0.45rem !important; }
+            main .mb-5 { margin-bottom: 0.4rem !important; }
+            main #print-area {
+                margin: 0 !important;
+                padding: 0 !important;
+                max-width: none !important;
+            }
+            main #print-area > div {
+                border-radius: 0.75rem !important;
+                padding: 0.45rem !important;
+            }
+            main #print-area > .bg-white {
+                border-color: transparent !important;
+                box-shadow: none !important;
+                padding: 0.45rem !important;
+            }
+            main #print-area > div.bg-white.p-8 {
+                padding: 0.45rem !important;
+            }
+            .overflow-x-auto {
+                min-width: 0;
+                max-width: 100%;
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: thin;
+            }
+            main > *,
+            main > * > *,
+            .flex > *,
+            .grid > * {
+                min-width: 0;
+            }
+            main img,
+            main canvas {
+                max-width: 100%;
+            }
+            table { max-width: none; }
+            input, select, textarea, button { max-width: 100%; min-width: 0; }
+            input, select, textarea { font-size: 13px !important; }
+            button, a { -webkit-tap-highlight-color: transparent; }
+            button:not(.h-9):not(.h-10):not(.h-14),
+            form a { min-height: 2.25rem; }
+            h1 { font-size: 1.35rem !important; line-height: 1.15 !important; }
+            h2 { font-size: 1.15rem !important; line-height: 1.2 !important; }
+            h3 { font-size: 0.95rem !important; line-height: 1.25 !important; }
+            main .text-6xl { font-size: 1.75rem !important; }
+            main .text-5xl { font-size: 1.5rem !important; }
+            main .text-4xl { font-size: 1.25rem !important; }
+            main .text-3xl { font-size: 1.1rem !important; }
+            .fixed.bottom-4.left-4 { left: 0.75rem; bottom: 0.75rem; max-width: calc(100vw - 5.5rem); }
+            .fixed.bottom-4.left-4 > div {
+                gap: 0.4rem;
+                padding: 0.35rem 0.5rem;
+            }
+            .fixed.bottom-4.left-4 > div p.text-sm { font-size: 0.7rem; }
+            .fixed.bottom-4.left-4 > div > a {
+                width: 2rem;
+                height: 2rem;
+            }
+            .fixed.bottom-5.right-5 { right: 0.75rem; bottom: 0.75rem; }
+            #fab {
+                width: 2.75rem !important;
+                height: 2.75rem !important;
+                border-radius: 0.75rem;
+            }
+            #fab i { font-size: 0.85rem; }
+            #fab-menu {
+                bottom: 3.5rem;
+                width: min(15rem, calc(100vw - 1.5rem));
+                padding: 0.35rem;
+            }
+            #fab-menu a {
+                gap: 0.5rem;
+                padding: 0.4rem 0.5rem;
+                font-size: 0.75rem;
+            }
+            #fab-menu a > span:first-child {
+                width: 2rem;
+                height: 2rem;
+            }
+            .max-w-4xl, .max-w-5xl, .max-w-6xl, .max-w-7xl { width: 100%; }
+            [class*="min-w-"] { max-width: none; }
+        }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; color: black !important; }
+            main { padding: 0 !important; width: 100% !important; }
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen overflow-x-hidden">
+    {% set is_accounts_area = request.path.startswith('/accounts') or request.path.startswith('/stock-portal/billing') or request.endpoint in ('annual_reports', 'annual_report', 'annual_report_print') %}
+    {% if session.get('user') %}
+    <div class="fixed bottom-4 left-4 z-50 no-print">
+        <div class="flex items-center gap-3 rounded-2xl border-[2px] border-yellow-400 bg-yellow-400 px-4 py-3 shadow-xl backdrop-blur">
+            <div class="min-w-0">
+                <p class="text-[10px] font-semibold uppercase tracking-wider text-black">Logged In As</p>
+                <p class="text-sm font-medium text-black truncate">{{ session.get('name') }}</p>
+            </div>
+            <a href="{{ url_for('logout') }}" class="flex h-9 w-9 items-center justify-center rounded-lg bg-red-950 text-white transition hover:bg-black" title="Logout">
+                <i class="fa-solid fa-arrow-right-from-bracket text-sm"></i>
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="min-h-screen flex flex-col">
+        <main class="flex-grow p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto pt-24 md:pt-8">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <div id="flash-container" class="no-print mb-6 pt-2 md:pt-4">
+                        <div class="max-w-7xl mx-auto space-y-3">
+                            {% for category, message in messages %}
+                                <div class="flash-message relative z-50 p-4 rounded-xl {% if category == 'success' %} bg-emerald-50 border border-emerald-200 text-emerald-800 {% else %} bg-rose-50 border border-rose-200 text-rose-800 {% endif %} flex items-center shadow-sm">
+                                    <span class="font-medium text-sm">{{ message }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const flashContainer = document.getElementById('flash-container');
+            if (!flashContainer) return;
+
+            setTimeout(function () {
+                flashContainer.classList.add('fade-out');
+                setTimeout(function () {
+                    flashContainer.remove();
+                }, 400);
+            }, 4000);
+        });
+    </script>
+
+        <!-- Floating action menu -->
+        {% set current_role = session.get('role') %}
+        {% set is_costing_page = request.endpoint == 'costing_sheet' %}
+        {% if (current_role in ('owner', 'manager') and is_costing_page) or (current_role in ('owner', 'manager', 'assistant_manager') and not is_costing_page) %}
+        <div class="fixed bottom-5 right-5 z-50 no-print sm:bottom-7 sm:right-7">
+            <div id="fab-menu" class="hidden absolute bottom-[4.5rem] right-0 w-64 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-2xl shadow-slate-900/15 backdrop-blur-xl">
+                <div class="px-3 pb-2 pt-1">
+                    <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Quick Access</p>
+                </div>
+                <div id="fab-menu-links" class="space-y-1">
+                    {% if current_role == 'owner' %}
+                    {% if 'costing' in page_access_keys %}
+                    <a href="{{ url_for('costing_sheet') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-amber-50 hover:text-amber-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><i class="fa-solid fa-calculator text-sm"></i></span>
+                        <span>Costing</span>
+                    </a>
+                    {% endif %}
+                    {% endif %}
+                    {% if current_role == 'assistant_manager' %}
+                    {% if 'factory_ledger' in page_access_keys %}<a href="{{ url_for('factory_in_out_ledger', next=request.full_path) }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-teal-50 hover:text-teal-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-50 text-teal-700"><i class="fa-solid fa-arrow-right-arrow-left text-sm"></i></span>
+                        <span>Factory Incoming/Outgoing Ledger</span>
+                    </a>{% endif %}
+                    {% if 'worker_management' in page_access_keys %}
+                    <a href="{{ url_for('workers') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-users text-sm"></i></span>
+                        <span>Worker Management</span>
+                    </a>
+                    {% endif %}
+                    {% if 'vendors' in page_access_keys %}
+                    <a href="{{ url_for('vendors') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 hover:text-sky-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600"><i class="fa-solid fa-truck-field text-sm"></i></span>
+                        <span>Vendors</span>
+                    </a>
+                    {% endif %}
+                    {% if 'stock_home' in page_access_keys %}<a href="{{ url_for('stock_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-warehouse text-sm"></i></span>
+                        <span>Stocks</span>
+                    </a>{% endif %}
+                    {% if 'stock_challan' in page_access_keys %}<a href="{{ url_for('challan_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-cyan-50 hover:text-cyan-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><i class="fa-solid fa-file-invoice text-sm"></i></span>
+                        <span>Delivery Challan</span>
+                    </a>{% endif %}
+                    {% if 'departments' in page_access_keys %}<a href="{{ url_for('departments') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-indigo-50 hover:text-indigo-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600"><i class="fa-solid fa-building text-sm"></i></span>
+                        <span>Departments</span>
+                    </a>{% endif %}
+                    {% if 'orders' in page_access_keys %}<a href="{{ url_for('manager_dashboard') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><i class="fa-solid fa-table-cells-large text-sm"></i></span>
+                        <span>Dashboard</span>
+                    </a>{% endif %}
+                    {% elif is_accounts_area %}
+                    {% if 'accounts_home' in page_access_keys %}<a href="{{ url_for('accounts_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-house text-sm"></i></span>
+                        <span>Accounts Home</span>
+                    </a>{% endif %}
+                    {% if 'customer_billing' in page_access_keys %}<a href="{{ url_for('billing_portal', shipper=request.args.get('shipper') or 'Canon') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-file-invoice-dollar text-sm"></i></span>
+                        <span>Customer Billing</span>
+                    </a>{% endif %}
+                    {% if 'accessories_billing' in page_access_keys %}<a href="{{ url_for('accounts_accessories_billing') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-amber-50 hover:text-amber-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><i class="fa-solid fa-boxes-stacked text-sm"></i></span>
+                        <span>Accessories Billing</span>
+                    </a>{% endif %}
+                    {% if 'utility_bills' in page_access_keys %}<a href="{{ url_for('accounts_utility_bills') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 hover:text-sky-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600"><i class="fa-solid fa-bolt text-sm"></i></span>
+                        <span>Utility Bills</span>
+                    </a>{% endif %}
+                    {% if 'credit_debit' in page_access_keys %}<a href="{{ url_for('accounts_credit_debit_ledger') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-cyan-50 hover:text-cyan-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><i class="fa-solid fa-arrow-right-arrow-left text-sm"></i></span>
+                        <span>Credit/Debit Ledger</span>
+                    </a>{% endif %}
+                    {% if current_role == 'owner' %}
+                    <a href="{{ url_for('annual_reports') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><i class="fa-solid fa-calendar-check text-sm"></i></span>
+                        <span>Annual Reports</span>
+                    </a>
+                    {% endif %}
+                    {% else %}
+                    {% if current_role in ('owner', 'manager', 'assistant_manager') %}
+                    {% if 'factory_ledger' in page_access_keys %}<a href="{{ url_for('factory_in_out_ledger', next=request.full_path) }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-teal-50 hover:text-teal-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-50 text-teal-700 transition group-hover:bg-teal-100"><i class="fa-solid fa-arrow-right-arrow-left text-sm"></i></span>
+                        <span>Factory In/Out Ledger</span>
+                    </a>{% endif %}
+                    {% endif %}
+                    {% if current_role in ('owner', 'manager') %}
+                    {% if 'accounts_home' in page_access_keys %}<a href="{{ url_for('accounts_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 transition group-hover:bg-emerald-100"><i class="fa-solid fa-file-invoice-dollar text-sm"></i></span>
+                        <span>Accounts</span>
+                    </a>{% endif %}
+                    {% endif %}
+                    {% if not is_costing_page and current_role in ('owner', 'manager', 'assistant_manager') %}
+                    {% if 'worker_attendance' in page_access_keys %}<a href="{{ url_for('worker_attendance') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600 transition group-hover:bg-cyan-100"><i class="fa-solid fa-calendar-check text-sm"></i></span>
+                        <span>Worker Attendance</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
+                    </a>{% endif %}
+                    {% endif %}
+                    {% if not is_costing_page and current_role in ('owner', 'manager', 'assistant_manager') %}
+                    {% if 'worker_management' in page_access_keys %}<a href="{{ url_for('workers') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 transition group-hover:bg-emerald-100"><i class="fa-solid fa-users text-sm"></i></span>
+                        <span>Workers Management</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
+                    </a>{% endif %}
+                    {% if 'worker_advance' in page_access_keys %}<a href="{{ url_for('worker_advance') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600 transition group-hover:bg-amber-100"><i class="fa-solid fa-hand-holding-dollar text-sm"></i></span>
+                        <span>Worker Advance Management</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
+                    </a>{% endif %}
+                    {% endif %}
+                    {% if current_role in ('owner', 'manager') %}
+                    {% if 'stock_home' in page_access_keys %}<a href="{{ url_for('stock_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 transition group-hover:bg-emerald-100"><i class="fa-solid fa-warehouse text-sm"></i></span>
+                        <span>Stocks</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
+                    </a>{% endif %}
+                    {% endif %}
+                    {% if current_role in ('owner', 'manager', 'assistant_manager') %}
+                    {% if 'vendors' in page_access_keys %}<a href="{{ url_for('vendors') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 transition group-hover:bg-sky-100"><i class="fa-solid fa-truck-field text-sm"></i></span>
+                        <span>Vendors</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
+                    </a>{% endif %}
+                    {% endif %}
+                    {% if current_role in ('owner', 'manager') %}
+                    {% if 'departments' in page_access_keys %}<a href="{{ url_for('departments') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition group-hover:bg-indigo-100"><i class="fa-solid fa-building text-sm"></i></span>
+                        <span>Departments</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
+                    </a>{% endif %}
+                    {% if 'operation_rates' in page_access_keys %}
+                    <a href="{{ url_for('operation_rates') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600 transition group-hover:bg-blue-100"><i class="fa-solid fa-sliders text-sm"></i></span>
+                        <span>Operation Rates</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
+                    </a>
+                    {% endif %}
+                    {% endif %}
+                    {% if (is_costing_page and 'costing' in page_access_keys) or (not is_costing_page and 'orders' in page_access_keys) %}
+                    <a href="{{ url_for('costing_sheet', party_name=selected_party_name, article_id=selected_article_id) if is_costing_page else url_for('owner_dashboard' if current_role == 'owner' else 'manager_dashboard') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600 transition group-hover:bg-violet-100"><i class="fa-solid fa-table-cells-large text-sm"></i></span>
+                        <span>Dashboard</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
+                    </a>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            <button id="fab" type="button" aria-label="Open quick access" aria-expanded="false" class="flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-400 text-slate-950 shadow-xl shadow-yellow-900/25 transition duration-200 hover:-translate-y-0.5 hover:bg-yellow-500 focus:outline-none focus:ring-4 focus:ring-yellow-200 active:scale-95">
+                <i class="fa-solid fa-bars-staggered text-lg transition-transform duration-200" aria-hidden="true"></i>
+            </button>
+        </div>
+        {% endif %}
+
+        <script>
+            const fab = document.getElementById('fab');
+            const fabMenu = document.getElementById('fab-menu');
+            const fabMenuLinks = document.getElementById('fab-menu-links');
+            if (fabMenu && fabMenuLinks && fabMenuLinks.querySelectorAll('a').length > 6) {
+                fabMenu.classList.add('fab-menu-wide');
+                fabMenuLinks.classList.remove('space-y-1');
+                fabMenuLinks.classList.add('fab-menu-grid');
+            }
+            if (fab) {
+                fab.addEventListener('click', function () {
+                    if (fabMenu.classList.contains('hidden')) {
+                        fabMenu.classList.remove('hidden');
+                        fab.setAttribute('aria-expanded', 'true');
+                        fab.querySelector('i').classList.replace('fa-bars-staggered', 'fa-xmark');
+                    } else {
+                        fabMenu.classList.add('hidden');
+                        fab.setAttribute('aria-expanded', 'false');
+                        fab.querySelector('i').classList.replace('fa-xmark', 'fa-bars-staggered');
+                    }
+                });
+                document.addEventListener('click', function (e) {
+                    if (!fab.contains(e.target) && !fabMenu.contains(e.target)) {
+                        fabMenu.classList.add('hidden');
+                        fab.setAttribute('aria-expanded', 'false');
+                        fab.querySelector('i').classList.replace('fa-xmark', 'fa-bars-staggered');
+                    }
+                });
+            }
+        </script>
+
+        <script>
+            document.addEventListener('wheel', function (event) {
+                if (event.target.matches('input[type="number"]')) {
+                    event.target.blur();
+                }
+            });
+        </script>
+
+    <style>
+        #fab-menu.fab-menu-wide { width: min(36rem, calc(100vw - 2rem)); }
+        #fab-menu-links.fab-menu-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; }
+        #fab-menu-links.fab-menu-grid > a { min-width: 0; }
+        .fade-out {
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+    </style>
+</body>
+</html>

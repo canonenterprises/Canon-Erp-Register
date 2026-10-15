@@ -1,0 +1,365 @@
+﻿{% extends 'base.html' %}
+
+{% block content %}
+
+<!-- MAIN CONTAINER -->
+<div class="min-h-screen bg-slate-100 rounded-xl py-6 px-2 flex flex-col items-center text-slate-800 print:bg-white print:p-0 print:min-h-0" style="font-family: 'Poppins', sans-serif;">
+
+    <!-- SCREEN ACTION TOOLBAR (No-Print) -->
+    <div class="w-[148mm] max-w-full flex flex-wrap items-center justify-between gap-2 mb-4 no-print print:hidden">
+        <a href="{{ url_for('challan_portal') }}" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[10px] font-bold text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition shadow-sm">
+            ← Back
+        </a>
+
+        <div class="flex items-center gap-2">
+            <a href="{{ url_for('print_challan', challan_id=challan.id, mode='canon_customer') }}" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[10px] font-bold text-white bg-slate-900 hover:bg-slate-800 transition shadow-sm">
+                🖨️ CANON/CUSTOMER
+            </a>
+
+            <a href="{{ url_for('print_challan', challan_id=challan.id, mode='billing') }}" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[10px] font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 transition shadow-sm">
+                🧾 BILLING
+            </a>
+        </div>
+    </div>
+
+
+    <!-- =====================================================
+         A5 SHEET LOOP
+         ===================================================== -->
+    {% for copy_label in copy_labels %}
+
+    <article class="challan-sheet relative w-[148mm] h-[210mm] bg-white border border-slate-300 shadow-xl p-[6mm] flex flex-col mb-6 print:mb-0 print:border-none print:shadow-none print:w-[148mm] print:h-[210mm] print:p-[5mm] print:box-border" style="font-family: 'Poppins', sans-serif;">
+
+        <!-- TOP ACCENT BAR -->
+        <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-slate-900 via-amber-600 to-slate-900"></div>
+
+        <!-- COMPANY HEADER -->
+        <header class="flex justify-between items-center pb-1.5 border-b border-slate-200 mt-1 gap-2 shrink-0">
+            <!-- Brand / Logo Area -->
+            <div class="flex items-center gap-2">
+                <div class="pr-3 border-r border-slate-200 flex items-center justify-center">
+                    <img
+                        src="{{ url_for('static', filename=challan_logo) }}"
+                        alt="{{ 'Haram Enterprises' if challan.shipped_by_party == 'Haram' else 'Canon Enterprises' }}"
+                        class="w-[90px] max-h-[35px] object-contain print:w-[100px] print:max-h-[60px]"
+                    >
+                </div>
+            </div>
+
+            <!-- Company Details -->
+            <div class="text-right text-[12px] leading-tight text-slate-600 max-w-[300px]">
+                <p class="m-0 text-black print:text-[10px]">
+                    Akhter &amp; Iqbal Compound, Block-C, Ground Floor,
+                    L/3, Block-22 F.B. Industrial Area, Opp. Edhi Home Karachi.
+                </p>
+                <p class="m-0 mt-0.5 text-black print:text-[10px]">
+                    Ph. 36342557
+                </p>
+            </div>
+        </header>
+
+        <!-- DOCUMENT TITLE & NOTICE -->
+        <section class="mt-1.5 text-center pb-1.5 border-b border-slate-200 shrink-0">
+            <div class="flex items-center justify-center gap-1.5 mb-1">
+                <h1 class="text-sm font-black tracking-widest text-slate-900 uppercase m-0 print:text-[13px]">
+                    DELIVERY CHALLAN
+                </h1>
+                <span class="inline-block px-1.5 py-0.5 bg-slate-900 text-amber-400 text-[9px] font-black tracking-wider uppercase rounded-full shadow-sm">
+                    {{ copy_label }}
+                </span>
+            </div>
+            <p class="m-0 text-[10px] font-bold text-black uppercase tracking-wide print:text-[10px]">
+                Please check your products at receiving. Company is not responsible after delivery.
+            </p>
+        </section>
+
+        {% if customer_bill %}
+        <div class="no-print mt-1.5 text-center text-[11px] font-bold text-slate-800">
+            {{ customer_bill.bill_no }}
+        </div>
+        {% endif %}
+
+        <!-- =================================================
+             SHIPMENT TYPE LOGIC
+             ================================================= -->
+        {% set shipment_label = namespace(value='') %}
+
+        {% if is_inventory_return %}
+            {% set shipment_label.value = return_quality_label ~ ' FABRIC RETURN' %}
+        {% else %}
+            {% set direct_pcs_for_label =
+                (challan.shipped_aq_direct_pcs|default(0, true)|float) +
+                (challan.shipped_bq_direct_pcs|default(0, true)|float)
+            %}
+            {% set packets_for_label =
+                (challan.shipped_aq_packets|default(0, true)|float) +
+                (challan.shipped_bq_packets|default(0, true)|float)
+            %}
+            {% set ctn_for_label = challan.shipped_ctn|default(0, true)|float %}
+            {% set bails_for_label = challan.shipped_bails|default(0, true)|float %}
+
+            {% if direct_pcs_for_label > 0 %}
+                {% set shipment_label.value = shipment_label.value + 'PCS' %}
+            {% endif %}
+
+            {% if packets_for_label > 0 %}
+                {% set shipment_label.value = shipment_label.value + (' + ' if shipment_label.value else '') + 'PACKETS' %}
+            {% endif %}
+
+            {% if ctn_for_label > 0 %}
+                {% set shipment_label.value = shipment_label.value + (' + ' if shipment_label.value else '') + 'CTNS' %}
+            {% endif %}
+
+            {% if bails_for_label > 0 %}
+                {% set shipment_label.value = shipment_label.value + (' + ' if shipment_label.value else '') + 'BAILS' %}
+            {% endif %}
+        {% endif %}
+
+        <!-- DOCUMENT METADATA STRIP (FIXED: Forced 3-column horizontal layout for print engines) -->
+        <section class="mt-1.5 shrink-0 w-full" style="display: grid !important; grid-template-columns: 1fr 1.2fr 1fr !important; gap: 4px !important;">
+            <div class="p-1 bg-white text-white rounded border-[4px] border-black flex flex-col justify-center text-center shadow-sm">
+                <span class="text-[11px] font-bold tracking-widest text-black uppercase truncate">Challan No.</span>
+                <strong class="text-[13px] text-black font-extrabold tracking-wide truncate">{{ display_challan_no }}</strong>
+            </div>
+
+            <div class="p-1 bg-slate-50 border border-slate-200 rounded flex flex-col justify-center text-center shadow-sm ring-1 ring-slate-200">
+                <span class="text-[11px] font-bold tracking-widest text-black uppercase truncate">Shipment Type</span>
+                <strong class="text-[13px] font-extrabold text-black uppercase leading-tight [overflow-wrap:anywhere]">
+                    {{ shipment_label.value or 'GOODS SHIPMENT' }}
+                </strong>
+            </div>
+
+            <div class="p-1 bg-slate-50 border border-slate-200 rounded flex flex-col justify-center text-center shadow-sm">
+                <span class="text-[11px] font-bold tracking-widest text-black uppercase truncate">Date</span>
+                <strong class="text-[13px] font-extrabold text-black truncate">
+                    {{ challan.challan_date|format_ddmmyyyy or '—' }}
+                </strong>
+            </div>
+        </section>
+
+        <!-- SHIPMENT INFORMATION CARD -->
+        <section class="mt-1.5 shrink-0">
+            <div class="grid grid-cols-1 gap-1">
+                <div class="p-1.5 bg-slate-50 border border-slate-200 rounded flex items-center justify-start gap-2 text-left">
+                    <span class="text-[11px] font-bold tracking-widest text-black uppercase">Messers:</span>
+                    <span class="text-[14px] font-extrabold text-black">{{ challan.party_name or '—' }}</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- QUANTITY LOGIC PREPARATION -->
+        {% set direct_pcs_total =
+            (challan.shipped_aq_direct_pcs|default(0, true)|float) +
+            (challan.shipped_bq_direct_pcs|default(0, true)|float)
+        %}
+        {% set packet_total =
+            (challan.shipped_aq_packets|default(0, true)|float) +
+            (challan.shipped_bq_packets|default(0, true)|float)
+        %}
+        {% set ctn_total = challan.shipped_ctn|default(0, true)|float %}
+        {% set bail_total = challan.shipped_bails|default(0, true)|float %}
+
+        {% if not is_inventory_return
+            and direct_pcs_total == 0
+            and packet_total == 0
+            and ctn_total == 0
+            and bail_total == 0
+            and (challan.shipped_pcs|default(0, true)|float) > 0
+        %}
+            {% set direct_pcs_total = challan.shipped_pcs|default(0, true)|float %}
+        {% endif %}
+
+        <!-- SHIPMENT DETAILS TABLE (Flex Grow) -->
+        <section class="mt-1.5 flex-grow flex flex-col min-h-0">
+            <div class="flex items-center gap-1 mb-1 shrink-0">
+                <span class="w-0.5 h-2.5 bg-amber-500 rounded-full"></span>
+                <h2 class="text-[14px] font-black tracking-widest text-slate-900 uppercase m-0">Shipment Details</h2>
+            </div>
+
+            <!-- Table Container -->
+            <div class="border border-slate-600 rounded flex flex-col overflow-hidden bg-white h-full">
+                <!-- TABLE HEADER -->
+                <div class="bg-slate-600 px-2 py-1 flex justify-between items-center text-white text-[11px] font-black tracking-widest uppercase shrink-0">
+                    <span>Description</span>
+                    <span>QTY</span>
+                </div>
+
+                <!-- TABLE CONTENT ROW (Tight fit for A5) -->
+                <div class="p-1.5 flex-grow font-semibold text-slate-800 text-[11px]">
+                    {% set article_line = (challan.article_name or '—') ~ ' - ' ~ (article_style or '—') ~ ' - ' ~ (article_color or '—') %}
+
+                    {% if is_inventory_return %}
+
+                        <div class="flex justify-between items-start gap-2">
+                            <div class="min-w-0 pr-1">
+                                <div class="break-words text-[15px] leading-snug font-bold text-slate-900 print:text-[14px]">{{ article_line }}</div>
+                                <div class="mt-1 text-[12px] font-bold text-amber-700 uppercase print:text-[11px]">{{ return_quality_label }} FABRIC RETURN</div>
+                            </div>
+                            <div class="shrink-0 text-right font-black text-[16px] leading-tight text-slate-900 print:text-[14px]">
+                                {{ '{:,.2f}'.format(challan.shipped_meter) }}
+                                <span class="ml-0.5 text-[11px] font-extrabold text-slate-500 print:text-[10px]">MTR</span>
+                            </div>
+                        </div>
+
+                    {% else %}
+
+                        <div class="space-y-1">
+                            {% if shipment_breakdowns %}
+                                {% for item in shipment_breakdowns %}
+                                    <div class="pb-1 border-b border-slate-600 last:border-b-0 last:pb-0">
+                                        <div class="font-extrabold text-slate-900 text-[14px] leading-tight mb-0.5">
+                                            <span>{{ item.article_line }}</span>
+                                        </div>
+
+                                        {% for detail_line in item.detail_lines %}
+                                            <div class="flex justify-between items-center text-[12px] font-medium text-black my-[1px]">
+                                                <span>{{ detail_line.line }}</span>
+                                                <strong class="text-[14px] text-black font-bold">{{ detail_line.quantity }}</strong>
+                                            </div>
+                                        {% endfor %}
+
+                                        {% if item.unit_note %}
+                                            <div class="text-[10px] font-bold text-black italic pl-1">{{ item.unit_note }}</div>
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
+                            {% elif combined_items %}
+                                {% for item in combined_items %}
+                                    <div class="py-0.5 font-bold text-slate-900 text-[12px]">{{ item.article_name }} - {{ item.style }} - {{ item.color }}</div>
+                                {% endfor %}
+                            {% else %}
+                                {% if challan.shipped_aq_pcs|default(0, true)|float > 0 %}
+                                    <div class="py-0.5 font-bold text-slate-900 text-[12px]">{{ article_line }} - (A/Q)</div>
+                                {% endif %}
+                                {% if challan.shipped_bq_pcs|default(0, true)|float > 0 %}
+                                    <div class="py-0.5 font-bold text-slate-900 text-[12px]">{{ article_line }} - (B/Q)</div>
+                                {% endif %}
+                                {% if challan.shipped_aq_pcs|default(0, true)|float == 0 and challan.shipped_bq_pcs|default(0, true)|float == 0 %}
+                                    <div class="py-0.5 font-bold text-slate-900 text-[12px]">{{ article_line }} - (A/Q)</div>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+
+                    {% endif %}
+
+                <!-- TOTAL BANNER (For single orders) -->
+                {% if not is_combined_shipment and (challan.source_type == 'order' or is_inventory_return) %}
+                <div class="bg-slate-600 px-4 py-1 mt-5 flex justify-between items-center text-white border-t border-slate-800 shrink-0">
+                    <span class="text-[10px] font-black tracking-widest uppercase text-amber-400">Total</span>
+                    <strong class="text-[14px] font-black tracking-tight text-white flex items-baseline gap-1">
+                        {% if is_inventory_return %}
+                            {{ '{:,.2f}'.format(challan.shipped_meter) }}
+                            <em class="text-[10px] not-italic font-bold text-amber-400">MTR</em>
+                        {% else %}
+                            {{ '{:,.2f}'.format(shipment_total_pcs) }}
+                            <em class="text-[10px] not-italic font-bold text-amber-400">PCS</em>
+                        {% endif %}
+                    </strong>
+                </div>
+                {% endif %}
+
+            </div>
+        </section>
+
+        <!-- AUTHORIZATION & SIGNATURES SECTION -->
+        <section class="pt-2 shrink-0">
+            <div class="flex items-center justify-between gap-4 text-[10px] font-black tracking-wider text-black uppercase m-0 mb-7">
+                <span class="text-left flex-1">NOTE: "THE ABOVE GOODS HAVE BEEN CHECKED AND RECEIVED"</span>
+                <span class="text-right whitespace-nowrap">FOR {{ company_name }}</span>
+            </div>
+
+            <div class="grid grid-cols-4 gap-3 px-1 mt-6" style="display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)) !important; gap: 4px !important;">
+                <div class="border-t border-slate-800 pt-0.5 text-center">
+                    <span class="text-[10px] font-bold tracking-widest text-black uppercase">Receiver's Sign</span>
+                </div>
+                <div class="border-t border-slate-800 pt-0.5 text-center">
+                    <span class="text-[10px] font-bold tracking-widest text-black uppercase">Vehicle No.</span>
+                </div>
+                <div class="border-t border-slate-800 pt-0.5 text-center">
+                    <span class="text-[10px] font-bold tracking-widest text-black uppercase">Delivered By</span>
+                </div>
+                <div class="border-t border-slate-800 pt-0.5 text-center">
+                    <span class="text-[10px] font-bold tracking-widest text-black uppercase">Container No.</span>
+                </div>
+            </div>
+
+            <!-- FOOTER -->
+            <footer class="mt-2 text-center border-t border-slate-200 pt-1">
+                <p class="text-[10px] font-medium text-black m-0">
+                    This document is system generated against the shipment recorded.
+                </p>
+            </footer>
+        </section>
+
+        <div class="challan-page-number mt-auto pt-1 text-right text-[9px] font-medium text-black">
+            Page {{ loop.index }} OF {{ copy_labels|length }}
+        </div>
+
+    </article>
+
+    {% endfor %}
+
+</div>
+
+<!-- PRINT SPECIFIC CSS STYLES FOR EXACT A5 FIT -->
+<style>
+    .challan-page-number {
+        display: none;
+    }
+
+    @page {
+        size: A5 portrait; /* 148mm x 210mm */
+        margin: 0;
+    }
+
+    @media print {
+        html,
+        body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .no-print {
+            display: none !important;
+        }
+
+        .challan-page-number {
+            display: block !important;
+        }
+
+        .challan-sheet {
+            width: 148mm !important;
+            height: auto !important;
+            min-height: 206mm !important;
+            max-height: none !important;
+            margin: 0 !important;
+            padding: 4mm !important;
+            border: none !important;
+            box-shadow: none !important;
+            page-break-after: auto !important;
+            page-break-inside: avoid !important;
+            break-after: auto !important;
+            break-inside: avoid !important;
+            font-family: 'Poppins', sans-serif !important;
+        }
+
+        .challan-sheet + .challan-sheet {
+            page-break-before: always !important;
+            break-before: page !important;
+            margin-top: 0 !important;
+        }
+    }
+</style>
+
+{% if print_mode in ('canon_customer', 'billing') %}
+<script>
+    window.addEventListener('load', function () {
+        window.print();
+    });
+</script>
+{% endif %}
+
+{% endblock %}

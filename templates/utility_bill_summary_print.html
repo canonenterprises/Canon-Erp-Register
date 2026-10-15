@@ -1,0 +1,728 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="utility-page mx-auto max-w-6xl px-4 py-6 print:p-0">
+
+  <div class="mb-5 flex justify-between print:hidden">
+    <a href="{{ url_for('accounts_utility_bill_summary', summary_id=summary.id) }}"
+       class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">
+      ← Back to Summary
+    </a>
+    <button onclick="window.print()" type="button"
+      class="rounded-lg bg-slate-900 px-5 py-2 text-sm font-bold text-white hover:bg-slate-700">
+      Print {{ 'Invoice' if document_type == 'invoice' else 'Summary' }}
+    </button>
+  </div>
+
+  <article class="utility-document">
+
+    <!-- DOCUMENT HEADING -->
+    <div class="document-heading">
+      <div class="heading-company">
+        {% if company_logo_screen %}
+          <img src="{{ url_for('static', filename=company_logo_screen) }}" alt="{{ company_name }} logo" class="summary-logo summary-logo-screen">
+        {% endif %}
+        {% if company_logo_print %}
+          <img src="{{ url_for('static', filename=company_logo_print) }}" alt="{{ company_name }} logo" class="summary-logo summary-logo-print">
+        {% endif %}
+      </div>
+      <div class="heading-copy">
+        <div class="heading-title">ELECTRIC BILL</div>
+      </div>
+    </div>
+
+    <!-- TWO-ROW BILL HEADER -->
+    <div class="bill-header">
+      <div class="meta-item">
+        <span class="meta-label">PROVIDER</span>
+        <strong class="meta-value">{{ bill.provider or '' }}</strong>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">PRD. DATE</span>
+        <strong class="meta-value meta-date">{{ summary.invoice_date if document_type == 'invoice' else '' }}</strong>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">BILL PERIOD</span>
+        <strong class="meta-value meta-month">{{ bill.billing_period or '' }}</strong>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">DUE DATE</span>
+        <strong class="meta-value meta-date">{{ bill.due_date or '' }}</strong>
+      </div>
+    </div>
+
+    <!-- BILL DETAILS -->
+    <div class="table-wrapper">
+      <table class="billing-table">
+        <colgroup>
+          <col style="width:3%">
+          <col style="width:5%">
+          <col style="width:5%">
+          <col style="width:10%">
+          <col style="width:6%">
+          <col style="width:6%">
+          <col style="width:5%">
+          <col style="width:6%">
+          <col style="width:5%">
+          <col style="width:5%">
+          <col style="width:6%">
+          <col style="width:5%">
+          <col style="width:5%">
+          <col style="width:8%">
+          <col style="width:6%">
+          <col style="width:6%">
+          <col style="width:8%">
+        </colgroup>
+
+        <thead>
+          <tr>
+            <th>S.NO</th>
+            <th>METER<br>NO</th>
+            <th>BILL<br>NO</th>
+            <th>LOCATION</th>
+            <th>PREVIOUS<br>READING</th>
+            <th>PRESENT<br>READING</th>
+            <th>UNITS<br>USED</th>
+            <th>AMOUNT</th>
+            <th>UNIFORM<br>ADJ.</th>
+            <th>FUEL<br>CHARGES</th>
+            <th>ADDL.<br>SURCHARGE</th>
+            <th>TARIFF<br>DIFF.</th>
+            <th>PER UNIT<br>RATE</th>
+            <th>TOTAL ELECTRIC<br>CHARGES</th>
+            <th>MAINT.<br>CHARGES</th>
+            <th>WATER<br>CHARGES</th>
+            <th>TOTAL<br>AMOUNT</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for item in summary_rows %}
+          <tr>
+            <td class="center">{{ loop.index }}</td>
+            <td class="center">{{ item.meter_no }}</td>
+            <td class="center">{{ item.bill_no }}</td>
+            <td class="location">{{ item.location }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(item.previous_reading or 0) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(item.present_reading or 0) }}</td>
+            <td class="numeric units-cell">{{ '{:,.0f}'.format(item.units or 0) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(item.electric_charges or 0) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(item.adjustment or 0) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(item.fuel_charges or 0) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(item.additional_surcharge or 0) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(item.tariff_difference or 0) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(item.rate or 0) }}</td>
+            <td class="numeric electric-total">
+              {{ '{:,.0f}'.format((item.electric_charges or 0) + (item.adjustment or 0) + (item.fuel_charges or 0) + (item.additional_surcharge or 0) + (item.tariff_difference or 0)) }}
+            </td>
+            <td class="numeric">{{ '{:,.0f}'.format(item.maintenance_charges or 0) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(item.water_charges or 0) }}</td>
+            <td class="numeric row-total">{{ '{:,.0f}'.format(item.total or 0) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+
+        <tfoot>
+          <tr>
+            <td colspan="6" class="grand-label">TOTAL BILLING AMOUNT</td>
+            <td class="numeric">{{ '{:,.0f}'.format(summary_rows | sum(attribute='units')) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(summary_rows | sum(attribute='electric_charges')) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(summary_rows | sum(attribute='adjustment')) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(summary_rows | sum(attribute='fuel_charges')) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(summary_rows | sum(attribute='additional_surcharge')) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(summary_rows | sum(attribute='tariff_difference')) }}</td>
+            <td class="numeric">—</td>
+            <td class="numeric">
+              {{ '{:,.0f}'.format((summary_rows | sum(attribute='electric_charges')) + (summary_rows | sum(attribute='adjustment')) + (summary_rows | sum(attribute='fuel_charges')) + (summary_rows | sum(attribute='additional_surcharge')) + (summary_rows | sum(attribute='tariff_difference'))) }}
+            </td>
+            <td class="numeric">{{ '{:,.0f}'.format(summary_rows | sum(attribute='maintenance_charges')) }}</td>
+            <td class="numeric">{{ '{:,.0f}'.format(summary_rows | sum(attribute='water_charges')) }}</td>
+            <td class="numeric grand-amount">{{ '{:,.0f}'.format(summary.total_amount or 0) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <!-- PAYMENT AND RATE DETAILS -->
+    <section class="bottom-section">
+
+      <div class="rate-card">
+        <div class="rate-heading">AT THE RATE PER UNIT @</div>
+
+        <div class="rate-row">
+          <span>TOTAL UNIT</span>
+          <strong>{{ '{:,.0f}'.format(summary_rows | sum(attribute='units')) }}</strong>
+        </div>
+
+        <div class="rate-row">
+          <span>TOTAL AMOUNT</span>
+          <strong>Rs {{ '{:,.0f}'.format(summary_rows | sum(attribute='electric_charges')) }}</strong>
+        </div>
+
+        <div class="rate-row">
+          <span>PER UNIT</span>
+          <strong>
+            {% set total_units = summary_rows | sum(attribute='units') %}
+            {{ '{:,.2f}'.format((summary_rows | sum(attribute='electric_charges')) / total_units if total_units else 0) }}
+          </strong>
+        </div>
+      </div>
+
+      <div class="payment-details">
+        <div class="payment-row">
+          <span class="payment-label">CHEQUE DATE</span>
+          <span class="payment-colon">:</span>
+          <span class="payment-line"></span>
+        </div>
+
+        <div class="payment-row">
+          <span class="payment-label">CHEQUE NO</span>
+          <span class="payment-colon">:</span>
+          <span class="payment-line"></span>
+        </div>
+
+        <div class="payment-row">
+          <span class="payment-label">CHEQUE AMT</span>
+          <span class="payment-colon">:</span>
+          <span class="payment-amount">
+            Rs {{ '{:,.0f}'.format(summary.total_amount or 0) }}
+          </span>
+        </div>
+
+        <div class="payment-row">
+          <span class="payment-label">CHEQUE ISSUE</span>
+          <span class="payment-colon">:</span>
+          <span class="payment-line"></span>
+        </div>
+      </div>
+
+    </section>
+
+    {% if summary.notes %}
+    <div class="notes">
+      <strong>NOTES:</strong> {{ summary.notes }}
+    </div>
+    {% endif %}
+
+
+  </article>
+</div>
+
+<style>
+/* =========================
+   CLEAN PROFESSIONAL DESIGN
+   ========================= */
+
+.utility-document {
+  background: #fff;
+  color: #111;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.document-heading {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 16px;
+  min-height: 66px;
+  margin-bottom: 8px;
+  padding: 0 4px 7px;
+  border-bottom: 2px solid #111;
+}
+
+.heading-company {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.heading-copy {
+  margin-left: auto;
+  min-width: 0;
+  text-align: right;
+}
+
+.heading-title {
+  font-size: 20px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.summary-logo {
+  display: block;
+  max-width: 210px;
+  max-height: 66px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+.summary-logo-print {
+  display: none;
+}
+
+.document-footer-logo-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.document-footer-logo {
+  max-width: 120px;
+  max-height: 28px;
+}
+
+/* Header */
+.bill-header {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1.3fr 1fr;
+  margin-bottom: 8px;
+  border: 1.5px solid #111;
+}
+
+.meta-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  min-height: 50px;
+  padding: 6px 5px;
+  border-right: 1px solid #111;
+  text-align: center;
+}
+
+.meta-item:last-child {
+  border-right: 0;
+}
+
+.meta-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #444;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.meta-value {
+  display: block;
+  min-width: 0;
+  color: #111;
+  font-size: 19px;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.meta-date {
+  color: #a21820;
+}
+
+.meta-month {
+  color: #8d1717;
+  font-style: italic;
+}
+
+/* Main table */
+.table-wrapper {
+  width: 100%;
+}
+
+.billing-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 0;
+}
+
+.billing-table th,
+.billing-table td {
+  border: 1px solid #222;
+  padding: 5px 3px;
+  vertical-align: middle;
+}
+
+.billing-table thead th {
+  height: 48px;
+  background: #f0f0f0;
+  color: #111;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.15;
+  font-weight: 900;
+  overflow-wrap: anywhere;
+}
+
+.billing-table tbody td {
+  height: 61px;
+  background: #fff;
+  font-size: 13px;
+}
+
+.billing-table tbody tr:nth-child(even) td {
+  background: #fafafa;
+}
+
+.billing-table .center {
+  text-align: center;
+}
+
+.billing-table .numeric {
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 700;
+}
+
+.billing-table .location {
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.units-cell {
+  font-weight: 900 !important;
+}
+
+.electric-total {
+  font-weight: 900 !important;
+}
+
+.row-total {
+  font-weight: 900 !important;
+}
+
+.billing-table tfoot td {
+  height: 48px;
+  background: #f0f0f0;
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.billing-table .grand-label {
+  text-align: center;
+  font-size: 15px;
+  letter-spacing: .2px;
+}
+
+.billing-table .grand-amount {
+  color: #fff;
+  background: #111;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+/* Lower sections */
+.bottom-section {
+  display: grid;
+  grid-template-columns: 33% minmax(0, 1fr);
+  gap: 7%;
+  margin-top: 12px;
+  align-items: stretch;
+}
+
+.rate-card {
+  display: grid;
+  grid-template-rows: 59px repeat(3, 59px);
+  border: 1px solid #222;
+}
+
+.rate-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #222;
+  font-size: 14px;
+  font-weight: 900;
+  font-style: italic;
+}
+
+.rate-row {
+  display: grid;
+  grid-template-columns: 63% 37%;
+  align-items: center;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.rate-row + .rate-row {
+  border-top: 1px solid #222;
+}
+
+.rate-row strong {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  border-left: 1px solid #222;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.payment-details {
+  display: grid;
+  grid-template-rows: repeat(4, 59px);
+}
+
+.payment-row {
+  display: grid;
+  grid-template-columns: 145px 12px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.payment-label,
+.payment-colon {
+  white-space: nowrap;
+}
+
+.payment-line {
+  height: 30px;
+  align-self: end;
+  border-bottom: 1.5px solid #111;
+}
+
+.payment-amount {
+  display: flex;
+  min-width: 0;
+  height: 59px;
+  justify-content: center;
+  align-items: center;
+  background: #dedede;
+  border-top: 1.5px solid #111;
+  border-bottom: 1px solid #111;
+  font-size: 19px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.notes {
+  margin-top: 12px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: pre-line;
+}
+
+.document-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 0 2px;
+  font-size: 8px;
+  font-weight: 500;
+}
+
+/* =========================
+   A4 LANDSCAPE PRINT
+   ========================= */
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 5mm;
+  }
+
+  html,
+  body {
+    width: auto !important;
+    margin: 1mm !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .utility-page,
+  .utility-page * {
+    visibility: visible !important;
+  }
+
+  .utility-page {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .utility-document {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    font-size: 10pt !important;
+    font-weight: 700 !important;
+  }
+
+  .document-heading {
+    min-height: 20mm !important;
+    margin-bottom: 2mm !important;
+    padding: 0 1mm 2mm !important;
+  }
+
+  .summary-logo {
+    max-width: 46mm !important;
+    max-height: 18mm !important;
+  }
+
+  .heading-title {
+    font-size: 16pt !important;
+    font-weight: 900 !important;
+    white-space: nowrap !important;
+  }
+
+  .summary-logo-screen {
+    display: none !important;
+  }
+
+  .summary-logo-print {
+    display: block !important;
+  }
+
+  .bill-header {
+    grid-template-columns: 1.3fr 1fr 1.3fr 1fr !important;
+  }
+
+  .meta-item {
+    min-height: 54px !important;
+    padding: 5px 3px !important;
+  }
+
+  .meta-label {
+    margin-bottom: 3px !important;
+    font-size: 9pt !important;
+    font-weight: 900 !important;
+  }
+
+  .meta-value {
+    font-size: 12pt !important;
+    font-weight: 900 !important;
+  }
+
+  .billing-table {
+    width: 100% !important;
+    table-layout: fixed !important;
+  }
+
+  .billing-table th,
+  .billing-table td {
+    padding: 3px 2px !important;
+    border: 1px solid #111 !important;
+  }
+
+  .billing-table thead th {
+    height: 42px !important;
+    font-size: 9.5pt !important;
+    line-height: 1.12 !important;
+    font-weight: 900 !important;
+    background: #eee !important;
+  }
+
+  .billing-table tbody td {
+    height: 54px !important;
+    font-size: 10pt !important;
+    font-weight: 700 !important;
+  }
+
+  .billing-table .location {
+    font-size: 9pt !important;
+  }
+
+  .billing-table tfoot td {
+    height: 42px !important;
+    font-size: 10pt !important;
+    background: #eee !important;
+  }
+
+  .billing-table .grand-label {
+    font-size: 11pt !important;
+  }
+
+  .billing-table .grand-amount {
+    color: #fff !important;
+    background: #111 !important;
+  }
+
+  .bottom-section {
+    grid-template-columns: 33% minmax(0, 1fr) !important;
+    gap: 7% !important;
+    margin-top: 10px !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .rate-card {
+    grid-template-rows: 49px repeat(3, 49px) !important;
+  }
+
+  .rate-heading {
+    font-size: 10pt !important;
+  }
+
+  .rate-row,
+  .rate-row strong {
+    font-size: 9pt !important;
+  }
+
+  .payment-details {
+    grid-template-rows: repeat(4, 49px) !important;
+  }
+
+  .payment-row {
+    grid-template-columns: 125px 12px minmax(0, 1fr) !important;
+    gap: 5px !important;
+    font-size: 10pt !important;
+  }
+
+  .payment-line {
+    height: 25px !important;
+  }
+
+  .payment-amount {
+    height: 49px !important;
+    background: #dedede !important;
+    font-size: 15pt !important;
+  }
+
+  .document-footer {
+    margin-top: 18px !important;
+    font-size: 7.5pt !important;
+  }
+
+  .notes {
+    font-size: 8.5pt !important;
+    text-align: center !important;
+  }
+
+  .billing-table th,
+  .billing-table td,
+  .payment-row,
+  .rate-row,
+  .document-footer {
+    text-align: center !important;
+  }
+
+  .billing-table tr,
+  .rate-card,
+  .payment-details {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
+</style>
+
+{% endblock %}

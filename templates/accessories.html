@@ -1,0 +1,1501 @@
+{% extends 'base.html' %}
+{% block content %}
+{% macro qty_with_issue_unit(value, item) -%}
+{{ '{:,.2f}'.format(value or 0) }} {{ item.unit }}
+{% set factor = item.issue_unit_factor|default(1, true)|float %}
+{% if item.issue_unit and item.issue_unit|lower != (item.unit or '')|lower and factor > 0 %}
+<span class="block text-[10px] font-medium text-cyan-700">{{ '{:,.0f}'.format((value or 0) / factor) if item.issue_unit|lower in ('roll', 'rolls', 'pc', 'pcs', 'piece', 'pieces', 'pair', 'pairs', 'dozen', 'doz', 'dz', 'gross', 'pack', 'packs', 'bundle', 'bundles', 'box', 'boxes', 'set', 'sets', 'bunch', 'bunches', 'cone', 'cones', 'reel', 'reels') else '{:,.2f}'.format((value or 0) / factor) }} {{ item.issue_unit }}</span>
+{% endif %}
+{%- endmacro %}
+{% macro qty_by_unit(item, key) -%}
+{% for amount in item.amounts %}<div>{{ '{:,.2f}'.format(amount[key] or 0) }} {{ amount.unit }}{% for issue_amount in amount.issue_amounts %}<span class="block text-[10px] font-semibold text-purple-700">{{ '{:,.2f}'.format(issue_amount[key] or 0) }} {{ issue_amount.unit }}</span>{% endfor %}</div>{% endfor %}
+{%- endmacro %}
+{% macro receive_po_form(po, form_id) %}
+<details class="mt-2 text-left">
+  <summary class="cursor-pointer rounded-lg border border-emerald-500 bg-emerald-50 px-3 py-1.5 text-center text-[10px] font-bold uppercase text-emerald-700">Receive PO</summary>
+  <form method="post" enctype="multipart/form-data" class="mt-2 grid w-full min-w-0 max-w-full gap-3 rounded-lg border border-slate-200 bg-white p-3">
+    <input type="hidden" name="item_id" value="{{ po.item_id }}">
+    <input type="hidden" name="action" value="mark_received">
+    {% for po_item in po['items'] %}
+    {% set stock_unit = (po_item.unit or 'PCS')|upper %}
+    {% set issue_unit_default = po_item.issue_unit or ('ROLL' if (po_item.unit or '')|lower in ('m', 'meter', 'meters', 'metre', 'metres', 'cm', 'centimeter', 'centimeters', 'mm', 'millimeter', 'millimeters', 'in', 'inch', 'inches') else 'PCS' if (po_item.unit or '')|lower in ('pack', 'packs') else stock_unit) %}
+    {% set package_stock = (po_item.unit or '')|lower in ('pack', 'packs', 'packet', 'packets', 'bundle', 'bundles', 'box', 'boxes', 'carton', 'cartons', 'case', 'cases', 'bale', 'bales', 'bag', 'bags') %}
+    {% set issue_factor_mode = 'ISSUE_PER_STOCK' if package_stock and issue_unit_default|lower != (po_item.unit or '')|lower else 'STOCK_PER_ISSUE' %}
+    <fieldset class="grid min-w-0 gap-2 border-b border-slate-200 pb-3 sm:grid-cols-3">
+      <legend class="max-w-full whitespace-normal break-words px-1 text-xs font-bold text-slate-800 sm:col-span-3">{{ po_item.item }} · PO {{ po_item.qty }} {{ po_item.unit or 'PCS' }}</legend>
+      <label class="text-[10px] font-bold text-slate-600">Received quantity ({{ po_item.unit or 'PCS' }})<input type="number" name="received_qty_{{ po_item.id }}" min="0.01" max="{{ po_item.qty }}" step="0.01" value="{{ po_item.qty }}" required class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-xs"></label>
+      <label class="text-[10px] font-bold text-slate-600">Issue unit
+        <input id="issue-unit-field-{{ po_item.id }}" type="text" name="issue_unit_{{ po_item.id }}" value="{{ issue_unit_default }}" data-stock-unit="{{ po_item.unit or 'PCS' }}" data-conversion-field="issue-factor-{{ po_item.id }}" readonly required class="mt-1 w-full rounded border border-slate-300 bg-slate-100 px-2 py-1.5 text-xs">
+        <datalist id="issue-unit-list-{{ po_item.id }}"><option value="PCS"><option value="PAIR"><option value="DOZEN"><option value="GROSS"><option value="BUNDLE"><option value="PACK"><option value="ROLL"><option value="METER"><option value="INCH"><option value="CM"><option value="MM"><option value="FOOT"><option value="YARD"><option value="KG"><option value="GRAM"><option value="MG"><option value="LITER"><option value="ML"><option value="BOX"><option value="CONE"><option value="HANK"><option value="CARTON"><option value="OTHER"></datalist>
+      </label>
+      <label id="issue-factor-label-{{ po_item.id }}" class="text-[10px] font-bold text-slate-600">{% if issue_factor_mode == 'ISSUE_PER_STOCK' %}Issue units per 1 {{ stock_unit }}{% else %}PO units per 1 issue unit{% endif %}<input id="issue-factor-{{ po_item.id }}" type="number" name="issue_factor_{{ po_item.id }}" min="0.000001" step="any" value="{% if po_item.issue_unit %}{{ (1 / po_item.issue_unit_factor) if issue_factor_mode == 'ISSUE_PER_STOCK' and po_item.issue_unit_factor else po_item.issue_unit_factor or 1 }}{% elif issue_unit_default|lower == (po_item.unit or '')|lower %}1{% endif %}" data-auto-factor="" data-stock-unit="{{ po_item.unit or 'PCS' }}" data-mode-field="issue-factor-mode-{{ po_item.id }}" required class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-xs"><input id="issue-factor-mode-{{ po_item.id }}" type="hidden" name="issue_factor_mode_{{ po_item.id }}" value="{{ issue_factor_mode }}" data-package-stock="{{ 'true' if package_stock else 'false' }}" data-stock-unit="{{ po_item.unit or 'PCS' }}" data-issue-unit-field="issue-unit-field-{{ po_item.id }}"></label>
+      <p class="text-[10px] font-normal text-slate-500 sm:col-span-3">Example: 4 CONES per 1 BUNDLE, or 100 METER per 1 ROLL.</p>
+    </fieldset>
+    {% endfor %}
+    <label class="text-[10px] font-bold text-slate-600">Purchase slip image<input type="file" name="purchase_slip_image" accept="image/png,image/jpeg,image/webp" required class="mt-1 block w-full text-xs"></label>
+    <button type="submit" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white">Record receipt</button>
+  </form>
+</details>
+{% endmacro %}
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+  <div class="mx-auto max-w-7xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-violet-300">Stock Portal</p>
+          <h1 class="mt-2 text-3xl font-black">{% if portal_page == 'home' %}Accessories{% elif portal_page == 'purchase-orders' %}Purchase Orders{% elif portal_page == 'unallocated-stock' %}Unallocated Stock{% elif portal_page == 'issuance-store-finder' %}Issuance &amp; Store Finder{% else %}Issued / Returned Items{% endif %}</h1>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          {% if portal_page == 'home' and not read_only_profile %}<a href="#local-po" class="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600"><i class="fa-solid fa-cart-plus"></i> Local PO</a>{% endif %}
+          {% if portal_page != 'home' %}<a href="{{ url_for('accessories_portal') }}" class="inline-flex items-center rounded-lg border border-violet-300 bg-violet-700 px-3 py-2 text-sm font-bold text-white hover:bg-violet-600">Accessories Home</a>{% endif %}
+          <a href="{{ url_for('stock_portal') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Stock Portal</a>
+        </div>
+      </div>
+    </header>
+
+    <nav class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Accessory sub-portals">
+      <a href="{{ url_for('accessories_portal', portal_page='purchase-orders') }}" class="rounded-xl border border-slate-200 p-4 shadow-sm transition hover:border-cyan-400 hover:bg-cyan-50"><span class="block text-sm font-black text-slate-800">Purchase Orders</span><span class="mt-1 block text-xs text-slate-500">Local and auto-generated POs · receive stock</span></a>
+      <a href="{{ url_for('accessories_portal', portal_page='unallocated-stock') }}" class="rounded-xl border border-amber-200 p-4 shadow-sm transition hover:bg-amber-50"><span class="block text-sm font-black text-slate-800">Unallocated Stock</span><span class="mt-1 block text-xs text-slate-500">Put received items away before issuing</span></a>
+      <a href="{{ url_for('accessories_portal', portal_page='issuance-store-finder') }}" class="rounded-xl border border-violet-200 p-4 shadow-sm transition hover:bg-violet-50"><span class="block text-sm font-black text-slate-800">Issuance &amp; Store Finder</span><span class="mt-1 block text-xs text-slate-500">Find rack, shelf, carton · issue from location</span></a>
+      <a href="{{ url_for('accessories_portal', portal_page='issued-returned-items') }}" class="rounded-xl border border-cyan-200 p-4 shadow-sm transition hover:bg-cyan-50"><span class="block text-sm font-black text-slate-800">Issued / Returned Items</span><span class="mt-1 block text-xs text-slate-500">View issue history and record returns</span></a>
+    </nav>
+
+    {% if portal_page == 'home' %}
+    <section class="grid gap-4 md:grid-cols-3">
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Total Ordered</p>
+        <p class="mt-3 text-3xl font-black text-slate-800">{{ '{:,.2f}'.format(accessory_summary.values()|sum(attribute='ordered', start=0.0)) if accessory_summary else '0.00' }}</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Received</p>
+        <p class="mt-3 text-3xl font-black text-emerald-700">{{ '{:,.2f}'.format(accessory_summary.values()|sum(attribute='received', start=0.0)) if accessory_summary else '0.00' }}</p>
+      </div>
+      <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Balance</p>
+        <p class="mt-3 text-3xl font-black text-violet-700">{{ '{:,.2f}'.format(accessory_summary.values()|sum(attribute='balance', start=0.0)) if accessory_summary else '0.00' }}</p>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if portal_page == 'purchase-orders' %}
+    <div class="mb-4 grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_auto] lg:items-end">
+      <div>
+        <label for="purchase-order-search" class="mb-1 block text-xs font-bold uppercase text-slate-500">Search purchase orders</label>
+        <input id="purchase-order-search" type="search" autocomplete="off" placeholder="Order, PO, item, supplier, party, or article" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+      </div>
+      <nav class="flex flex-wrap gap-2" aria-label="Purchase order sections">
+        <button type="button" data-scroll-target="auto-generated-pos-section" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">Auto Generated POs</button>
+        <button type="button" data-scroll-target="local-po" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">Local POs</button>
+        <button type="button" data-scroll-target="party-accessories-section" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">Party Accessories</button>
+      </nav>
+      <p id="purchase-order-search-empty" hidden role="status" class="mt-2 text-sm text-slate-500">No matching purchase-order records.</p>
+    </div>
+    <div class="grid grid-cols-1 items-start gap-4">
+    {% endif %}
+    {% if portal_page in ('home', 'purchase-orders') %}
+    <section id="auto-generated-pos-section" class="overflow-x-auto rounded-2xl border border-slate-200">
+      <h2 class="border-b border-slate-200 bg-slate-50 px-4 py-3 text-lg font-black text-slate-800">AUTO GENERATED POs</h2>
+      <table class="w-full text-center text-sm">
+        <thead class="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500"><tr><th class="px-3 py-3">Order</th><th class="px-3 py-3">PO Number</th><th class="px-3 py-3">Status</th><th class="px-3 py-3">Receipt</th></tr></thead>
+        <tbody id="auto-po-list" {% if portal_page == 'purchase-orders' %}data-load-more-list{% endif %}>
+          {% for po in auto_po_summaries %}
+          <tr {% if portal_page == 'purchase-orders' %}data-load-more-row data-po-search-row data-po-search-text="{{ po.order_id }} {{ po.po_no }} {{ po.status }}{% for search_item in po['items'] %} {{ search_item.item }} {{ search_item.size }} {{ search_item.quality }} {{ search_item.supplier }} {{ search_item.date }}{% endfor %}"{% endif %} class="border-y border-slate-200">
+            <td class="px-3 py-3 font-bold text-slate-800">{{ po.order_id }}</td><td class="px-3 py-3">{{ po.po_no }}</td>
+            <td class="px-3 py-3"><span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {% if po.all_received %}bg-emerald-100 text-emerald-700{% elif po.status == 'PO_SENT' %}bg-amber-100 text-amber-700{% else %}bg-cyan-100 text-cyan-700{% endif %}">{{ 'RECEIVED' if po.all_received else po.status }}</span></td>
+            <td class="px-3 py-3">
+              <button type="button" data-po-id="{{ po.item_id }}" onclick="openPurchaseOrder(this.dataset.poId)" class="mb-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[10px] font-bold uppercase text-slate-700 hover:bg-slate-100">View PO</button>
+              {% if po.receipt_image %}<a href="{{ po.receipt_image }}" target="_blank" rel="noopener" class="rounded-lg border border-sky-500 bg-sky-50 px-3 py-1.5 text-[10px] font-bold uppercase text-sky-700">View Receipt</a>{% endif %}
+              {% if not po.all_received and po.status == 'PO_SENT' %}{{ receive_po_form(po, 'auto-' ~ loop.index) }}{% elif not po.receipt_image and po.all_received %}<span class="text-xs text-slate-500">No receipt image</span>{% endif %}
+            </td>
+          </tr>
+          {% else %}<tr {% if portal_page == 'purchase-orders' %}data-po-empty-row{% endif %}><td colspan="4" class="px-3 py-6 text-slate-500">No Auto Generated POs.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+      {% if portal_page == 'purchase-orders' %}<div class="flex justify-center border-t border-slate-100 p-3"><button type="button" data-load-more-button="auto-po-list" class="rounded border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">See more</button></div>{% endif %}
+    </section>
+    {% endif %}
+
+    {% if portal_page in ('home', 'purchase-orders') %}
+    <section id="local-po" class="space-y-4 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-[10px] font-bold uppercase tracking-wider text-emerald-700">General factory stock</p><h2 class="text-lg font-black text-slate-800">LOCAL POs</h2></div>
+        {% if not read_only_profile %}<details class="w-full sm:w-auto"><summary class="cursor-pointer rounded-lg bg-emerald-600 px-4 py-2 text-center text-sm font-bold text-white hover:bg-emerald-700">Create Local PO</summary><form id="local-po-create-form" method="post" class="mt-4 space-y-4 rounded-xl border border-slate-200 p-4"><input type="hidden" name="action" value="create_local_po"><div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label class="text-xs font-bold text-slate-600">Supplier<input name="local_supplier" list="local-vendor-list" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><datalist id="local-vendor-list">{% for vendor in vendors %}<option value="{{ vendor.name }}">{% endfor %}</datalist></label><label class="text-xs font-bold text-slate-600">PO Date<input type="date" name="local_date" value="{{ local_po_today }}" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label><label class="text-xs font-bold text-slate-600">Requested By<input name="local_requested_by" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label><label class="text-xs font-bold text-slate-600">Priority<select name="local_priority" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option>Normal</option><option>Urgent</option></select></label></div><div class="overflow-x-auto rounded-xl border border-slate-200"><table class="w-full min-w-[920px] text-sm"><thead class="bg-slate-50 text-left text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-3 py-2">Item</th><th class="px-3 py-2">Qty</th><th class="px-3 py-2">Unit</th><th class="px-3 py-2">Size</th><th class="px-3 py-2">Quality</th><th class="px-3 py-2">Rate</th><th class="px-3 py-2">Amount</th></tr></thead><tbody>{% for row_number in range(1, 7) %}<tr class="border-t border-slate-100"><td class="px-2 py-2"><input name="local_item_{{ row_number }}" data-local-row="{{ row_number }}" list="local-item-list" class="local-po-item w-full rounded border border-slate-300 px-2 py-1.5" placeholder="Accessory name"></td><td class="px-2 py-2"><input type="number" name="local_qty_{{ row_number }}" min="0" step="any" class="local-po-qty w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_unit_{{ row_number }}" value="PCS" class="local-po-unit w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_size_{{ row_number }}" class="w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_quality_{{ row_number }}" class="w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input type="number" name="local_rate_{{ row_number }}" min="0" step="0.01" class="local-po-rate w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input type="number" name="local_amount_{{ row_number }}" readonly class="local-po-amount w-full rounded border border-slate-200 bg-slate-50 px-2 py-1.5"></td></tr>{% endfor %}</tbody></table></div><datalist id="local-item-list">{% for item in local_po_items %}<option value="{{ item.item_name }}" data-size="{{ item.size or '' }}" data-quality="{{ item.material or '' }}" data-unit="{{ item.unit or '' }}">{% endfor %}</datalist><div class="flex justify-end"><button type="submit" class="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">Create Local PO</button></div></form></details>{% endif %}
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-slate-200"><table class="w-full text-center text-sm"><thead class="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500"><tr><th class="px-3 py-3">PO Number</th><th class="px-3 py-3">Status</th><th class="px-3 py-3">Receipt</th></tr></thead><tbody id="local-po-list" {% if portal_page == 'purchase-orders' %}data-load-more-list{% endif %}>
+        {% for po in local_po_summaries %}<tr {% if portal_page == 'purchase-orders' %}data-load-more-row data-po-search-row data-po-search-text="{{ po.order_id }} {{ po.po_no }} {{ po.status }}{% for search_item in po['items'] %} {{ search_item.item }} {{ search_item.size }} {{ search_item.quality }} {{ search_item.supplier }} {{ search_item.date }}{% endfor %}"{% endif %} class="border-y border-slate-200"><td class="px-3 py-3 font-bold text-slate-800">{{ po.po_no }}</td><td class="px-3 py-3"><span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {% if po.all_received %}bg-emerald-100 text-emerald-700{% elif po.status == 'PO_SENT' %}bg-amber-100 text-amber-700{% else %}bg-cyan-100 text-cyan-700{% endif %}">{{ 'RECEIVED' if po.all_received else po.status }}</span></td><td class="px-3 py-3">{% if po.receipt_image %}<a href="{{ po.receipt_image }}" target="_blank" rel="noopener" class="rounded-lg border border-sky-500 bg-sky-50 px-3 py-1.5 text-[10px] font-bold uppercase text-sky-700">View Receipt</a>{% endif %}{% if not po.all_received and po.status == 'PO_SENT' %}{{ receive_po_form(po, 'local-' ~ loop.index) }}{% elif not po.receipt_image and po.all_received %}<span class="text-xs text-slate-500">No receipt image</span>{% endif %}</td></tr>{% else %}<tr data-po-empty-row><td colspan="3" class="px-3 py-6 text-slate-500">No Local POs.</td></tr>{% endfor %}
+      </tbody></table></div>
+      {% if portal_page == 'purchase-orders' %}<div class="flex justify-center border-t border-slate-100 p-3"><button type="button" data-load-more-button="local-po-list" class="rounded border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">See more</button></div>{% endif %}
+    </section>
+    {% endif %}
+    {% if portal_page == 'purchase-orders' %}</div>{% endif %}
+    {% if portal_page == 'purchase-orders' %}<div id="local-po-form-container" class="mt-4" hidden></div>{% endif %}
+
+    {% if portal_page == 'purchase-orders' %}
+    <section id="party-accessories-section" class="space-y-4 rounded-2xl border border-cyan-200 bg-white p-5 shadow-sm">
+      <div>
+        <p class="text-[10px] font-bold uppercase tracking-wider text-cyan-700">Non-PO order receipt</p>
+        <h2 class="text-lg font-black text-slate-800">ACCESSORIES SENT BY PARTY</h2>
+      </div>
+      {% if not read_only_profile %}
+      <details class="border-b border-slate-200 pb-4">
+      <summary class="cursor-pointer rounded-lg bg-cyan-700 px-4 py-2 text-center text-sm font-bold text-white hover:bg-cyan-800">Record Party Accessory</summary>
+      <form method="post" class="mt-4 grid gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-4">
+        <input type="hidden" name="action" value="record_party_accessory">
+        <label class="text-xs font-bold text-slate-600">Order<select name="party_accessory_order" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"><option value="">Select order</option>{% for order in issue_orders %}<option value="{{ order.job_no }}">{{ order.job_no }}{% if order.name %} · {{ order.name }}{% endif %}{% if order.article_name %} · {{ order.article_name }}{% endif %}</option>{% endfor %}</select></label>
+        <label class="text-xs font-bold text-slate-600">Date sent<input type="date" name="party_accessory_date" value="{{ local_po_today }}" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+        <label class="text-xs font-bold text-slate-600">Accessory item<input id="party-accessory-item" name="party_accessory_item" list="party-accessory-item-list" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><datalist id="party-accessory-item-list">{% for item in local_po_items %}<option value="{{ item.item_name }}" data-unit="{{ item.unit or '' }}" data-size="{{ item.size or '' }}" data-quality="{{ item.material or '' }}">{% endfor %}</datalist></label>
+        <label class="text-xs font-bold text-slate-600">Quantity<input type="number" name="party_accessory_quantity" min="0.000001" step="any" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+        <label class="text-xs font-bold text-slate-600">Received unit<input id="party-accessory-stock-unit" name="party_accessory_unit" value="PCS" list="party-accessory-unit-list" data-party-stock-unit required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><datalist id="party-accessory-unit-list"><option value="PCS"><option value="BUNDLE"><option value="CONE"><option value="DOZEN"><option value="PACK"><option value="ROLL"><option value="METER"><option value="INCH"><option value="KG"><option value="OTHER"></datalist></label>
+        <label class="text-xs font-bold text-slate-600">Issue unit<input id="party-accessory-issue-unit" name="party_accessory_issue_unit" value="PCS" list="party-accessory-unit-list" data-stock-unit="PCS" data-conversion-field="issue-factor-party-accessory" data-auto-default="true" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+        <label id="issue-factor-label-party-accessory" class="text-xs font-bold text-slate-600">PO units per 1 issue unit<input id="issue-factor-party-accessory" type="number" name="party_accessory_issue_factor" value="1" min="0.000001" step="any" data-mode-field="issue-factor-mode-party-accessory" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><input id="issue-factor-mode-party-accessory" type="hidden" name="party_accessory_issue_factor_mode" value="STOCK_PER_ISSUE"><span class="mt-1 block text-[10px] font-normal">For BUNDLE to CONE, choose CONE and enter cones per bundle.</span></label>
+        <label class="text-xs font-bold text-slate-600">Size<input name="party_accessory_size" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+        <label class="text-xs font-bold text-slate-600">Quality<input name="party_accessory_quality" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+        <label class="text-xs font-bold text-slate-600">Notes<input name="party_accessory_note" maxlength="500" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+        <div class="flex items-end"><button type="submit" class="w-full rounded-lg bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800">Record party accessory</button></div>
+      </form>
+      </details>
+      {% endif %}
+      <div class="overflow-x-auto rounded border border-slate-200">
+        <table class="w-full min-w-[760px] text-left text-sm">
+          <thead class="bg-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-600"><tr><th class="px-3 py-2">Date</th><th class="px-3 py-2">Party</th><th class="px-3 py-2">Order / Article</th><th class="px-3 py-2">Accessory</th><th class="px-3 py-2 text-right">Quantity</th><th class="px-3 py-2">Recorded By</th><th class="px-3 py-2">View</th></tr></thead>
+          <tbody id="party-accessory-list" data-load-more-list>
+            {% for entry in party_accessories %}
+            <tr data-load-more-row data-po-search-row data-po-search-text="{{ entry.sent_date }} {{ entry.party_name }} {{ entry.order_id }} {{ entry.article_name }} {{ entry.item }} {{ entry.size }} {{ entry.quality }} {{ entry.quantity }} {{ entry.unit }} {{ entry.recorded_by }} {{ entry.note }}" class="border-t border-slate-200"><td class="px-3 py-2">{{ entry.sent_date }}</td><td class="px-3 py-2">{{ entry.party_name or '—' }}</td><td class="px-3 py-2">{{ entry.order_id }}{% if entry.article_name %}<span class="block text-xs text-slate-500">{{ entry.article_name }}</span>{% endif %}</td><td class="px-3 py-2 font-semibold">{{ entry.item }}{% if entry.size or entry.quality %}<span class="block text-xs font-normal text-slate-500">{{ entry.size or '' }}{% if entry.size and entry.quality %} · {% endif %}{{ entry.quality or '' }}</span>{% endif %}</td><td class="px-3 py-2 text-right">{{ '{:,.2f}'.format(entry.quantity) }} {{ entry.unit }}</td><td class="px-3 py-2">{{ entry.recorded_by or '—' }}</td><td class="px-3 py-2"><button type="button" data-date="{{ entry.sent_date|e }}" data-party="{{ entry.party_name|e }}" data-order="{{ entry.order_id|e }}" data-article="{{ entry.article_name|e }}" data-item="{{ entry.item|e }}" data-size="{{ entry.size|e }}" data-quality="{{ entry.quality|e }}" data-quantity="{{ entry.quantity }}" data-unit="{{ entry.unit|e }}" data-note="{{ entry.note|e }}" data-recorded-by="{{ entry.recorded_by|e }}" onclick="openPartyAccessoryView(this)" class="rounded border border-slate-300 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100">View</button></td></tr>
+            {% else %}<tr data-po-empty-row><td colspan="7" class="px-3 py-6 text-center text-slate-500">No party-supplied accessories recorded.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="flex justify-center border-t border-slate-100 p-3"><button type="button" data-load-more-button="party-accessory-list" class="rounded border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">See more</button></div>
+    </section>
+    {% endif %}
+
+    {% if portal_page == 'unallocated-stock' %}
+    <section class="overflow-hidden rounded-2xl border border-amber-200">
+      <h2 class="border-b border-amber-200 bg-amber-50 px-4 py-3 text-lg font-black text-slate-800">PUT AWAY UNLOCATED STOCK</h2>
+      <p class="px-4 py-3 text-sm text-slate-600">Choose the department store, then select Rack/Shelf or Floor and enter the stock location details.</p>
+      <div class="px-4 pb-3">
+        <label for="unallocated-stock-search" class="mb-1 block text-xs font-bold uppercase text-slate-500">Search unallocated stock</label>
+        <input id="unallocated-stock-search" type="search" autocomplete="off" placeholder="Item, PO, order, supplier, size, or quality" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+        <p id="unallocated-stock-search-empty" hidden role="status" class="mt-2 text-sm text-slate-500">No matching unallocated stock.</p>
+      </div>
+      <table class="unallocated-stock-table w-full table-fixed text-center text-xs">
+        <colgroup><col style="width:16%"><col style="width:9%"><col style="width:11%"><col style="width:12%"><col style="width:7%"><col style="width:11%"><col style="width:7%"><col style="width:7%"><col style="width:9%"><col style="width:11%"></colgroup>
+        <thead class="bg-slate-50 text-[9px] uppercase tracking-wide text-slate-500"><tr><th class="px-1 py-2">Item / Receipt</th><th class="px-1 py-2">Unlocated</th><th class="px-1 py-2">Location type</th><th class="px-1 py-2">Department</th><th class="px-1 py-2">Gala</th><th class="px-1 py-2">Store room</th><th class="px-1 py-2">Rack no.</th><th class="px-1 py-2">Shelf no.</th><th class="px-1 py-2">Quantity</th><th class="px-1 py-2">Actions</th></tr></thead>
+        <tbody>
+          {% for item in put_away_items %}
+          <tr data-unallocated-search="{{ item.item }} {{ item.size }} {{ item.quality }} {{ item.po_no }} {{ item.order_id }} {{ item.supplier }} {{ item.serial_no }} {{ item.received_at }} {{ item.date }}" class="border-t border-slate-200 [&>td]:break-words [&>td]:px-1 [&>td]:py-2">
+            <td class="text-center font-bold">{{ item.item }}{% if item.size or item.quality %}<div class="text-[10px] font-normal text-slate-500">{{ item.size or '' }}{% if item.size and item.quality %} · {% endif %}{{ item.quality or '' }}</div>{% endif %}<div class="text-[10px] font-normal text-slate-500">PO {{ item.po_no or '—' }} · {{ item.unit or 'PCS' }}{% if item.roll_length_m %} ({{ '{:g}'.format(item.roll_length_m) }} m/roll){% endif %}</div></td>
+            <td class="font-bold text-amber-700">{{ qty_with_issue_unit(item.unlocated_qty, item) }}</td>
+            <td><select form="put-away-{{ item.id }}" name="location_type" required class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"><option value="RACK_SHELF">Rack/Shelf</option><option value="FLOOR">Floor</option><option value="CABINET">Cabinet</option><option value="CUPBOARD">Cupboard</option></select></td>
+            <td><select form="put-away-{{ item.id }}" name="department" required class="department-room-department w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"><option value="">Department</option>{% for department in departments %}<option value="{{ department.name }}">{{ department.name }}</option>{% endfor %}</select></td>
+            <td><input form="put-away-{{ item.id }}" name="gala" maxlength="100" placeholder="Gala" class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"></td>
+            <td><select form="put-away-{{ item.id }}" name="room" required disabled class="department-room-select w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"><option value="">Select department first</option></select></td>
+            <td><input form="put-away-{{ item.id }}" name="rack_no" placeholder="Rack" class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"></td>
+            <td><input form="put-away-{{ item.id }}" name="shelf_no" placeholder="Shelf" class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"></td>
+            <td><input form="put-away-{{ item.id }}" type="number" name="quantity" min="{{ 1 if (item.unit or '')|upper in ('ROLL', 'ROLLS') else 0.01 }}" max="{{ item.unlocated_qty }}" step="{{ 1 if (item.unit or '')|upper in ('ROLL', 'ROLLS') else 0.01 }}" required class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"></td>
+            <td><div class="flex flex-col items-stretch gap-1"><form id="put-away-{{ item.id }}" method="post"><input type="hidden" name="action" value="put_away"><input type="hidden" name="item_id" value="{{ item.id }}"><button type="submit" class="w-full whitespace-normal rounded-lg bg-amber-600 px-1 py-1.5 text-[10px] font-bold text-white hover:bg-amber-700">Place stock</button></form>{% if not read_only_profile %}<button type="button" data-item-id="{{ item.id }}" data-item-name="{{ item.item|e }}" data-unit="{{ item.unit or 'PCS' }}" data-available="{{ item.unlocated_qty }}" data-po-no="{{ item.po_no or '' }}" data-order-id="{{ item.order_id or '' }}" data-supplier="{{ item.supplier or '' }}" data-return-date="{{ local_po_today }}" onclick="openSupplierReturnModal(this)" class="w-full whitespace-normal rounded-lg border border-red-300 bg-red-50 px-1 py-1.5 text-[10px] font-bold text-red-700 hover:bg-red-100">Return to supplier</button>{% endif %}</div></td>
+          </tr>
+          {% else %}<tr id="unallocated-stock-empty-row"><td colspan="10" class="px-3 py-6 text-slate-500">All received stock has been placed in a storage location.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+
+    {% if portal_page == 'issuance-store-finder' %}
+    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <header class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-700">Stock Portal</p>
+          <h2 class="mt-0.5 text-lg font-black text-slate-900">Store Location Finder</h2>
+        </div>
+        <span class="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-600 ring-1 ring-slate-200">{{ storage_location_count }} location(s)</span>
+      </header>
+      <form id="store-location-search-form" method="get" class="flex flex-col gap-2 border-b border-slate-200 p-3 sm:flex-row">
+        <label for="store-location-search" class="sr-only">Search items and locations</label>
+        <div class="relative min-w-0 flex-1">
+          <i class="fa-solid fa-magnifying-glass pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden="true"></i>
+          <input id="store-location-search" type="search" name="location_search" value="{{ location_search }}" placeholder="Item, size, rack, shelf, floor, or PO" class="w-full rounded-lg border border-slate-300 py-2.5 pl-9 pr-3 text-sm focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-100">
+        </div>
+        <div class="flex gap-2">
+          <button type="submit" class="inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-violet-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-violet-800 sm:flex-none"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Find</button>
+          {% if location_search %}<a href="{{ url_for('accessories_portal', portal_page='issuance-store-finder') }}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Clear</a>{% endif %}
+        </div>
+      </form>
+      <p id="store-location-search-status" class="hidden px-4 py-2 text-sm text-slate-500" role="status" aria-live="polite"></p>
+      <table id="store-location-table" class="w-full text-sm">
+        <tbody>
+          {% for item_group in storage_item_groups %}
+          <tr class="border-t border-slate-200 first:border-t-0">
+            <td colspan="6" class="p-0">
+              <section>
+                <header class="flex flex-wrap items-center justify-between gap-2 border-l-4 border-violet-500 bg-violet-50 px-4 py-3">
+                  <h3 class="text-base font-black text-slate-900">{{ item_group.item }}</h3>
+                  <span class="rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-violet-700 ring-1 ring-violet-200">{{ item_group.locations|length }} location(s)</span>
+                </header>
+                <div class="divide-y divide-slate-200">
+                  {% for location_group in item_group.locations %}
+                  <div class="grid gap-4 bg-white px-4 py-4 transition-colors hover:bg-slate-50 sm:grid-cols-2 xl:grid-cols-[minmax(9rem,.8fr)_minmax(12rem,1fr)_minmax(8rem,.7fr)_minmax(22rem,2fr)]">
+                    <div class="min-w-0">
+                      <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Variant</p>
+                      <p class="mt-0.5 font-semibold text-slate-800">{% if location_group.size or location_group.quality %}{{ location_group.size }}{% if location_group.size and location_group.quality %} · {% endif %}{{ location_group.quality }}{% else %}Standard{% endif %}</p>
+                    </div>
+                    <div class="min-w-0">
+                      <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Location</p>
+                      <p class="mt-0.5 break-words font-medium text-slate-800"><i class="fa-solid fa-location-dot mr-1.5 text-violet-600" aria-hidden="true"></i>{{ location_group.label }}</p>
+                    </div>
+                    <div>
+                      <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Available</p>
+                      {% for unit, quantity in location_group.available_by_unit %}<p class="mt-0.5 font-black text-slate-900">{{ '{:,.2f}'.format(quantity) }} {{ unit }}</p>{% endfor %}
+                      {% for (stock_unit, issue_unit, factor), quantity in location_group.available_by_issue_unit %}<p class="text-[10px] font-semibold text-purple-700">{{ '{:,.0f}'.format(quantity) if issue_unit|lower in ('roll', 'rolls', 'pc', 'pcs', 'piece', 'pieces', 'pair', 'pairs', 'dozen', 'doz', 'dz', 'gross', 'pack', 'packs', 'bundle', 'bundles', 'box', 'boxes', 'set', 'sets', 'bunch', 'bunches', 'cone', 'cones', 'reel', 'reels') else '{:,.2f}'.format(quantity) }} {{ issue_unit }}</p>{% endfor %}
+                    </div>
+                    <div class="min-w-0 sm:col-span-2 xl:col-span-1">
+                      <p class="text-[10px] font-bold uppercase tracking-wide text-slate-400">Purchase</p>
+                      {% set actionable_layers = location_group.layers|selectattr('orphaned', 'equalto', false)|selectattr('location.quantity', 'gt', 0)|list %}
+                      {% if actionable_layers %}
+                      <div class="mb-2 flex flex-wrap items-center gap-1.5" data-store-location-group>
+                        <select class="store-location-source min-w-0 flex-1 rounded border border-slate-300 bg-white px-2 py-1.5 text-[10px]" aria-label="Receipt source for this location">
+                          {% for row in actionable_layers %}<option value="{{ row.location.id }}" data-item-id="{{ row.location.requirement_id }}" data-unit="{{ row.unit }}" data-issue-unit="{{ row.issue_unit }}" data-issue-factor="{{ row.issue_unit_factor }}" data-roll-length="{{ row.roll_length_m }}" data-left-over="{{ row.location.quantity }}" data-location-label="{{ row.label|e }}" data-po-no="{{ row.po_no|e }}">PO {{ row.po_no or '—' }} · {{ '{:,.2f}'.format(row.location.quantity) }} {{ row.unit }}</option>{% endfor %}
+                        </select>
+                        <button type="button" data-issue-date="{{ local_po_today }}" data-order-id="{{ selected_order_id }}" onclick="openIssueModal(this)" class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-cyan-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-cyan-800"><i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i> Issue</button>
+                        {% if not read_only_profile %}
+                        <details class="relative shrink-0">
+                          <summary class="inline-flex cursor-pointer list-none items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-100"><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i> Move</summary>
+                          <form method="post" class="absolute right-0 z-20 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-2 rounded-lg border border-slate-200 bg-white p-3 text-left shadow-xl">
+                            <input type="hidden" name="action" value="move_stock">
+                            <input type="hidden" name="item_id" value="{{ actionable_layers[0].location.requirement_id }}">
+                            <input type="hidden" name="source_location_id" value="{{ actionable_layers[0].location.id }}">
+                            <label class="text-xs font-semibold text-slate-600">Move quantity<input type="number" name="quantity" min="{{ 1 if (actionable_layers[0].unit or '')|upper in ('ROLL', 'ROLLS') else 0.01 }}" max="{{ actionable_layers[0].location.quantity }}" step="{{ 1 if (actionable_layers[0].unit or '')|upper in ('ROLL', 'ROLLS') else 0.01 }}" required class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5"></label>
+                            <label class="text-xs font-semibold text-slate-600">Destination<select name="location_type" required class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5"><option value="RACK_SHELF">Rack/Shelf</option><option value="FLOOR">Floor</option><option value="CABINET">Cabinet</option><option value="CUPBOARD">Cupboard</option></select></label>
+                            <label class="text-xs font-semibold text-slate-600">Department<select name="department" required class="department-room-department mt-1 w-full rounded border border-slate-300 px-2 py-1.5">{% for department in departments %}<option value="{{ department.name }}" {% if department.name|lower == actionable_layers[0].location.department|lower %}selected{% endif %}>{{ department.name }}</option>{% endfor %}</select></label>
+                            <label class="text-xs font-semibold text-slate-600">Gala<input name="gala" maxlength="100" value="{{ actionable_layers[0].location.gala }}" placeholder="Gala" class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-xs"></label>
+                            <select name="room" required data-current-room="{{ actionable_layers[0].location.room|e }}" class="department-room-select w-full rounded border border-slate-300 px-2 py-1.5 text-xs"><option value="">Select store room</option></select>
+                            <div class="grid grid-cols-2 gap-2"><input name="rack_no" placeholder="Rack no." class="rounded border border-slate-300 px-2 py-1.5 text-xs"><input name="shelf_no" placeholder="Shelf no." class="rounded border border-slate-300 px-2 py-1.5 text-xs"></div>
+                            <input name="description" maxlength="200" value="{{ actionable_layers[0].description }}" placeholder="Pack description" class="rounded border border-slate-300 px-2 py-1.5 text-xs">
+                            <button type="submit" class="rounded-lg bg-violet-700 px-3 py-2 text-xs font-bold text-white hover:bg-violet-800">Confirm move</button>
+                          </form>
+                        </details>
+                        {% endif %}
+                      </div>
+                      {% endif %}
+                      {% for row in location_group.layers %}
+                      <div class="border-t border-slate-100 py-2 first:border-t-0">
+                        <div class="min-w-0 text-xs text-slate-700">
+                          {% if row.orphaned %}<span class="font-semibold text-amber-700">Linked receipt unavailable</span>{% else %}
+                          <p class="break-words"><span class="font-semibold">PO {{ row.po_no or '—' }}{% if row.location.requirement.order_id and row.location.requirement.order_id != local_po_order_id %} · {{ row.location.requirement.order_id }}{% endif %}</span><span class="text-slate-400"> · </span>{{ row.supplier or '—' }}</p>
+                          <p class="mt-0.5 text-[10px] text-slate-500">Purchased {{ '{:,.2f}'.format(row.purchased) }} {{ row.unit }}{% if row.description %} · {{ row.description }}{% endif %}</p>
+                          {% endif %}
+                        </div>
+                      </div>
+                      {% endfor %}
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+              </section>
+            </td>
+          </tr>
+          {% else %}<tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">{% if location_search %}No stored items match “{{ location_search }}”.{% else %}No stock has been assigned to a location yet.{% endif %}</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+
+    {% if portal_page == 'home' %}
+    <section class="overflow-x-auto rounded-2xl border border-slate-200">
+      <h2 class="border-b border-slate-200 bg-slate-50 px-4 py-3 text-lg font-black text-slate-800">CONSOLIDATED RECEIVED ACCESSORY STOCK</h2>
+      <table class="w-full text-center text-sm">
+        <thead class="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500"><tr><th class="px-3 py-3">Item</th><th class="px-3 py-3">Size</th><th class="px-3 py-3">Quality</th><th class="px-3 py-3">Net Received</th><th class="px-3 py-3">Net Used</th><th class="px-3 py-3">Available</th><th class="px-3 py-3">In Store</th></tr></thead>
+        <tbody>
+          {% for stock in stock_positions %}
+          <tr class="border-y border-slate-200"><td class="px-3 py-3 font-bold text-slate-800">{{ stock.item }}{% if stock.roll_length_m %}<span class="block text-xs font-normal text-slate-500">{{ '{:g}'.format(stock.roll_length_m) }} m per roll</span>{% endif %}</td><td class="px-3 py-3">{{ stock.size or '-' }}</td><td class="px-3 py-3">{{ stock.quality or '-' }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.received) }} {{ stock.unit }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.issued) }} {{ stock.unit }}</td><td class="px-3 py-3 font-bold text-emerald-700">{{ '{:,.1f}'.format(stock.available) }} {{ stock.unit }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.located) }} {{ stock.unit }}</td></tr>
+          {% else %}<tr><td colspan="7" class="px-3 py-6 text-slate-500">No received accessories yet.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+
+    {% if portal_page == 'issued-returned-items' %}
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <form method="get" class="grid gap-3 md:grid-cols-[1.5fr_1fr_auto] md:items-end">
+        <div><label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Search issue history</label><input type="text" name="search" value="{{ search }}" placeholder="Item, supplier, PO, order" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></div>
+        <div><label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</label><select name="status" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">All statuses</option><option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>PENDING</option><option value="PO_SENT" {% if status_filter == 'PO_SENT' %}selected{% endif %}>PO SENT</option><option value="RECEIVED" {% if status_filter == 'RECEIVED' %}selected{% endif %}>RECEIVED</option><option value="ISSUED" {% if status_filter == 'ISSUED' %}selected{% endif %}>ISSUED</option><option value="USED" {% if status_filter == 'USED' %}selected{% endif %}>USED</option><option value="RETURNED" {% if status_filter == 'RETURNED' %}selected{% endif %}>RETURNED</option></select></div>
+        <div class="flex gap-2"><button type="submit" class="rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">Apply</button>{% if search or status_filter %}<a href="{{ url_for('accessories_portal', portal_page='issued-returned-items', order_id=selected_order_id or None) }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Clear</a>{% endif %}</div>
+        {% if selected_order_id %}<input type="hidden" name="order_id" value="{{ selected_order_id }}">{% endif %}
+      </form>
+    </section>
+    {% endif %}
+
+    {% if portal_page == 'issued-returned-items' %}
+    <section class="overflow-x-auto rounded-2xl border border-slate-200">
+      <h2 class="border-b border-slate-200 bg-slate-50 px-4 py-3 text-lg font-black text-slate-800">ISSUE / RETURN HISTORY · RECEIVED ITEMS</h2>
+      <table class="w-full text-center text-sm">
+        <thead class="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500">
+          <tr>
+            <th class="px-3 py-3">Item</th>
+            <th class="px-3 py-3">Qty</th>
+            <th class="px-3 py-3">Received</th>
+            <th class="px-3 py-3">Issued</th>
+            <th class="px-3 py-3">Returned</th>
+            <th class="px-3 py-3">Balance</th>
+            <th class="px-3 py-3">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in received_item_groups %}
+          <tr class="border-y border-slate-200">
+            <td class="px-3 py-3 font-bold text-slate-800">{{ item.item }}{% for size, quality in item.variants %}<div class="text-xs font-normal text-slate-500">{{ size }}{% if size and quality %} · {% endif %}{{ quality }}</div>{% endfor %}</td>
+            <td class="px-3 py-3">{{ qty_by_unit(item, 'qty_value') }}</td>
+            <td class="px-3 py-3">{{ qty_by_unit(item, 'received_value') }}</td>
+            <td class="px-3 py-3">{{ qty_by_unit(item, 'issued_value') }}</td>
+            <td class="px-3 py-3">{{ qty_by_unit(item, 'returned_value') }}</td>
+            <td class="px-3 py-3">{{ qty_by_unit(item, 'left_over_value') }}</td>
+            <td class="px-3 py-3">
+              <span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase
+                {% if item.status_display == 'RECEIVED' %}bg-emerald-100 text-emerald-700
+                {% elif item.status_display == 'ISSUED' %}bg-cyan-100 text-cyan-700
+                {% elif item.status_display == 'USED' %}bg-purple-100 text-purple-700
+                {% elif item.status_display == 'PO_SENT' %}bg-amber-100 text-amber-700
+                {% else %}bg-slate-100 text-slate-700{% endif %}">
+                {{ item.status_display }}
+              </span>
+            </td>
+          </tr>
+          <tr id="issue-details-{{ loop.index }}" class="{% if not item.issue_history_entries %}hidden {% endif %}border-y border-cyan-200 bg-cyan-50/40">
+            <td class="p-0"></td>
+            <td colspan="6" class="p-0">
+              <table class="w-full border-y border-cyan-200 text-center text-xs">
+                <thead class="bg-cyan-50 text-center text-[10px] uppercase tracking-wide text-slate-500">
+                  <tr>
+                    <th class="px-3 py-1.5 font-bold">Issue Date</th>
+                    <th class="px-3 py-1.5 font-bold">Worker Name</th>
+                    <th class="px-3 py-1.5 font-bold">Order</th>
+                    <th class="px-3 py-1.5 font-bold">Cut</th>
+                    <th class="px-3 py-1.5 font-bold">Issued From</th>
+                    <th class="px-3 py-1.5 font-bold">Issued</th>
+                    <th class="px-3 py-1.5 font-bold">Returned</th>
+                    <th class="w-32 px-3 py-1.5 font-bold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for issue in item.issue_history_entries|sort(attribute='id', reverse=true) %}
+                  <tr class="border-t border-cyan-100 bg-white">
+                    <td class="px-3 py-1.5">{{ issue.issue_date }}</td>
+                    <td class="px-3 py-1.5">{{ issue.worker_name }}</td>
+                    <td class="px-3 py-1.5">{{ issue.order_id or 'General' }}</td>
+                    <td class="px-3 py-1.5">{{ issue.cut_no or '—' }}</td>
+                    <td class="px-3 py-1.5">{{ issue.location_label }}</td>
+                    <td class="px-3 py-1.5">{{ '{:,.2f}'.format(issue.issued_as_qty if issue.issued_as_qty else issue.issued_qty) }} {{ issue.issued_as_unit or issue.requirement.unit or item.unit or 'PCS' }}{% if issue.requirement.size or issue.requirement.quality %}<span class="block text-[10px] text-slate-500">{{ issue.requirement.size or '' }}{% if issue.requirement.size and issue.requirement.quality %} · {% endif %}{{ issue.requirement.quality or '' }}</span>{% endif %}</td>
+                    <td class="px-3 py-1.5">{{ '{:,.2f}'.format(issue.returned_value or 0) }}{% for returned in issue.return_entries|sort(attribute='id') %}<div class="text-[10px] text-slate-500">{{ returned.return_date }} · {{ '{:,.2f}'.format(returned.returned_qty) }} by {{ returned.returned_by }}</div>{% endfor %}</td>
+                    <td class="px-3 py-1.5">
+                      <div class="flex justify-center gap-1.5">
+                        <button type="button" data-item-id="{{ issue.requirement_id }}" data-item-name="{{ item.item|e }}" data-unit="{{ issue.requirement.unit or item.unit }}" data-issue-unit="{{ issue.issued_as_unit or issue.requirement.issue_unit or issue.requirement.unit }}" data-issue-factor="{{ issue.issue_conversion_factor or issue.requirement.issue_unit_factor or 1 }}" data-roll-length="{{ issue.requirement.roll_length_m }}" data-issue-id="{{ issue.id }}" data-cut-sheet-id="{{ issue.cut_sheet_id or '' }}" data-location-id="{{ issue.storage_location_id or '' }}" data-location-label="{{ issue.location_label|e }}" data-issue-date="{{ issue.issue_date }}" data-worker-name="{{ issue.worker_name|e }}" data-issued-qty="{{ issue.issued_as_qty if issue.issued_as_qty else (issue.issued_qty / (issue.issue_conversion_factor or 1)) }}" data-order-id="{{ issue.order_id or '' }}" data-left-over="{{ issue.editable_max_qty }}" onclick="openIssueModal(this)" class="rounded border border-slate-400 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-100">Edit</button>
+                        {% if issue.returnable and issue.returnable_remaining_qty > 0 %}<button type="button" data-item-id="{{ issue.requirement_id }}" data-issue-id="{{ issue.id }}" data-item-name="{{ item.item|e }}" data-unit="{{ issue.requirement.unit or item.unit }}" data-max-qty="{{ issue.returnable_remaining_qty }}" data-return-date="{{ local_po_today }}" onclick="openReturnModal(this)" class="rounded border border-amber-500 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100">Return</button>{% endif %}
+                        {% if issue.returned_value <= 0 %}<form method="post" onsubmit="return confirm('Delete this issue entry?');"><input type="hidden" name="item_id" value="{{ issue.requirement_id }}"><input type="hidden" name="issue_id" value="{{ issue.id }}"><input type="hidden" name="action" value="delete_issue"><button type="submit" class="rounded border border-red-400 bg-white px-2 py-1 text-[10px] font-bold text-red-700 hover:bg-red-50">Delete</button></form>{% endif %}
+                      </div>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="7" class="px-3 py-8 text-center text-slate-500">No received accessory items match these filters.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+
+    {% if portal_page == 'issued-returned-items' %}
+    <section class="overflow-x-auto rounded-2xl border border-red-200">
+      <h2 class="border-b border-red-200 bg-red-50 px-4 py-3 text-lg font-black text-slate-800">RETURNS / EXCHANGES TO SUPPLIER</h2>
+      <table class="w-full min-w-[900px] text-center text-sm">
+        <thead class="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-3 py-2">Date</th><th class="px-3 py-2">Accessory</th><th class="px-3 py-2">PO / Supplier</th><th class="px-3 py-2">Type</th><th class="px-3 py-2">Quantity</th><th class="px-3 py-2">From</th><th class="px-3 py-2">Recorded by</th><th class="px-3 py-2">Note</th><th class="px-3 py-2">Print</th></tr></thead>
+        <tbody>
+          {% for supplier_return in supplier_returns %}
+          <tr class="border-t border-slate-200">
+            <td class="px-3 py-2">{{ supplier_return.return_date }}</td>
+            <td class="px-3 py-2 font-bold">{{ supplier_return.requirement.item }}{% if supplier_return.requirement.size or supplier_return.requirement.quality %}<div class="text-xs font-normal text-slate-500">{{ supplier_return.requirement.size or '' }}{% if supplier_return.requirement.size and supplier_return.requirement.quality %} · {% endif %}{{ supplier_return.requirement.quality or '' }}</div>{% endif %}{% if supplier_return.return_type == 'EXCHANGE' and supplier_return.exchange_item %}<div class="mt-1 text-xs font-semibold text-emerald-700">Exchange for: {{ supplier_return.exchange_item }}</div>{% endif %}</td>
+            <td class="px-3 py-2">PO {{ supplier_return.requirement.po_no or '—' }} · {{ supplier_return.requirement.supplier or '—' }}</td>
+            <td class="px-3 py-2 font-bold uppercase">{{ supplier_return.return_type }}</td>
+            <td class="px-3 py-2">{{ '{:,.2f}'.format(supplier_return.returned_qty) }} {{ supplier_return.requirement.unit or 'PCS' }}</td>
+            <td class="px-3 py-2">{{ supplier_return.location_label }}</td>
+            <td class="px-3 py-2">{{ supplier_return.returned_by }}</td>
+            <td class="px-3 py-2">{{ supplier_return.note or '—' }}</td>
+            <td class="px-3 py-2"><a href="{{ url_for('accessory_supplier_return_print', return_id=supplier_return.id) }}" target="_blank" rel="noopener" class="inline-flex rounded-lg bg-slate-950 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800">Print</a></td>
+          </tr>
+          {% else %}<tr><td colspan="9" class="px-3 py-6 text-slate-500">No supplier returns or exchanges recorded.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+  </div>
+</div>
+<div id="issue-edit-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-950/50 p-4">
+  <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+    <div class="mb-4 flex items-center justify-between">
+      <h2 id="issue-modal-title" class="text-xl font-black text-slate-900">Add Issue</h2>
+      <button type="button" onclick="closeIssueModal()" class="text-2xl font-bold text-slate-500 hover:text-slate-900">&times;</button>
+    </div>
+    <form id="issue-modal-form" method="post" class="grid gap-4">
+      <input type="hidden" name="item_id" id="issue-modal-item-id">
+      <input type="hidden" name="issue_id" id="issue-modal-issue-id">
+      <input type="hidden" name="storage_location_id" id="issue-modal-location-id">
+      <input type="hidden" name="action" id="issue-modal-action" value="save_issue">
+      <p id="issue-modal-location-label" class="hidden rounded-lg bg-violet-50 p-3 text-sm font-bold text-violet-800"></p>
+      <div><label class="mb-1 block text-xs font-bold uppercase text-slate-500">Order (optional)</label><select name="order_id" id="issue-modal-order" class="w-full rounded-lg border border-slate-300 px-3 py-2"><option value="">General stock issue</option>{% for order in issue_orders %}<option value="{{ order.job_no }}" data-article-id="{{ order.article_id or '' }}">{{ order.job_no }}{% if order.article_name %} · {{ order.article_name }}{% endif %}</option>{% endfor %}</select></div>
+      <div id="issue-modal-cut-wrap" class="hidden"><label class="mb-1 block text-xs font-bold uppercase text-slate-500">Cut number</label><select name="cut_sheet_id" id="issue-modal-cut" class="w-full rounded-lg border border-slate-300 px-3 py-2"><option value="">Select cut</option></select><p id="issue-modal-cut-summary" class="mt-1 text-xs text-slate-600" aria-live="polite"></p></div>
+      <div><label class="mb-1 block text-xs font-bold uppercase text-slate-500">Date</label><input type="date" name="issue_date" id="issue-modal-date" required class="w-full rounded-lg border border-slate-300 px-3 py-2"></div>
+      <div><label class="mb-1 block text-xs font-bold uppercase text-slate-500">Worker Name</label><input type="text" name="worker_name" id="issue-modal-worker" required class="w-full rounded-lg border border-slate-300 px-3 py-2"></div>
+      <div><label id="issue-modal-qty-label" class="mb-1 block text-xs font-bold uppercase text-slate-500">Issued</label><input type="number" name="issued_qty" id="issue-modal-qty" step="0.01" min="0.01" required class="w-full rounded-lg border border-slate-300 px-3 py-2"></div>
+      <div class="flex justify-end gap-2">
+        <button type="button" onclick="closeIssueModal()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Cancel</button>
+        <button type="submit" id="issue-modal-save" class="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-bold text-white">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div id="accessory-return-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-950/50 p-4">
+  <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+    <div class="mb-4 flex items-center justify-between"><h2 class="text-xl font-black text-slate-900">Return <span id="return-modal-item"></span></h2><button type="button" onclick="closeReturnModal()" class="text-2xl font-bold text-slate-500 hover:text-slate-900">&times;</button></div>
+    <form method="post" class="grid gap-4">
+      <input type="hidden" name="action" value="return_issue">
+      <input type="hidden" name="item_id" id="return-modal-item-id">
+      <input type="hidden" name="issue_id" id="return-modal-issue-id">
+      <label class="text-xs font-bold uppercase text-slate-500">Return Date<input type="date" name="return_date" id="return-modal-date" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+      <label class="text-xs font-bold uppercase text-slate-500">Quantity Returned<input type="number" name="returned_qty" id="return-modal-qty" min="0.01" step="0.01" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+      <label class="text-xs font-bold uppercase text-slate-500">Note <span class="font-normal normal-case">(optional)</span><input type="text" name="return_note" maxlength="255" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+      <div class="flex justify-end gap-2"><button type="button" onclick="closeReturnModal()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Cancel</button><button type="submit" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700">Record Return</button></div>
+    </form>
+  </div>
+</div>
+<div id="supplier-return-modal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-slate-950/50 p-4">
+  <div class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+    <div class="mb-4 flex items-center justify-between">
+      <div><p class="text-[10px] font-bold uppercase tracking-wider text-red-700">Supplier transaction</p><h2 class="text-xl font-black text-slate-900">Return / Exchange <span id="supplier-return-item"></span></h2></div>
+      <button type="button" onclick="closeSupplierReturnModal()" class="text-2xl font-bold text-slate-500 hover:text-slate-900">&times;</button>
+    </div>
+    <p id="supplier-return-source" class="mb-4 rounded-lg bg-slate-50 p-3 text-sm text-slate-700"></p>
+    <form method="post" class="grid gap-4">
+      <input type="hidden" name="action" value="return_to_supplier">
+      <p id="supplier-return-po" class="rounded-lg border border-red-100 bg-red-50 p-3 text-sm font-bold text-slate-800" aria-live="polite"></p>
+      <label class="text-xs font-bold uppercase text-slate-500">Item from this PO<select name="item_id" id="supplier-return-item-id" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" onchange="updateSupplierReturnItem()"><option value="">Select item</option>{% for item in put_away_items %}<option value="{{ item.id }}" data-po-no="{{ item.po_no or '' }}" data-order-id="{{ item.order_id or '' }}" data-supplier="{{ item.supplier or '' }}" data-available="{{ item.unlocated_qty }}" data-unit="{{ item.unit or 'PCS' }}">{{ item.item }}{% if item.size or item.quality %} · {{ item.size or '' }}{% if item.size and item.quality %} · {% endif %}{{ item.quality or '' }}{% endif %} · PO {{ item.po_no or '—' }} · {{ item.supplier or 'Supplier not set' }} · {{ '{:,.2f}'.format(item.unlocated_qty) }} {{ item.unit or 'PCS' }}</option>{% endfor %}</select></label>
+      <label class="text-xs font-bold uppercase text-slate-500">Type<select name="return_type" id="supplier-return-type" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" onchange="updateSupplierReturnType()"><option value="RETURN">Return to supplier</option><option value="EXCHANGE">Exchange with supplier</option></select></label>
+      <label id="supplier-exchange-item-wrap" class="hidden text-xs font-bold uppercase text-slate-500">Replacement item<select name="exchange_item_id" id="supplier-exchange-item" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"><option value="">Select replacement item</option>{% for master_item in local_po_items %}<option value="{{ master_item.id }}" data-unit="{{ master_item.unit or '' }}">{{ master_item.item_name }}{% if master_item.size or master_item.material %} · {{ master_item.size or master_item.material }}{% endif %}{% if master_item.unit %} · {{ master_item.unit }}{% endif %}</option>{% endfor %}</select><span class="mt-1 block text-[10px] font-normal normal-case text-slate-500">Choose the item you want to receive in exchange.</span></label>
+      <label class="text-xs font-bold uppercase text-slate-500">Return date<input type="date" name="return_date" id="supplier-return-date" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+      <label class="text-xs font-bold uppercase text-slate-500">Quantity<input type="number" name="returned_qty" id="supplier-return-qty" min="0.01" step="0.01" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+      <label class="text-xs font-bold uppercase text-slate-500">Reason / note<input type="text" name="return_note" maxlength="255" placeholder="Wrong accessory, size, quality, or excess quantity" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+      <p class="text-xs text-slate-500">Only unused stock can be returned. For an exchange, select the replacement item you expect to receive from the item list.</p>
+      <div class="flex justify-end gap-2"><button type="button" onclick="closeSupplierReturnModal()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Cancel</button><button type="submit" class="rounded-lg bg-red-700 px-4 py-2 text-sm font-bold text-white hover:bg-red-800">Record supplier return</button></div>
+    </form>
+  </div>
+</div>
+<div id="po-view-modal" class="fixed inset-0 z-[80] hidden items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="po-view-title">
+  <div id="po-view-paper" class="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-lg bg-white shadow-2xl">
+    <header class="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white px-5 py-4">
+      <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Purchase Order</p><div class="mt-1 flex flex-wrap items-center gap-2"><h2 id="po-view-title" class="text-xl font-black text-slate-900"></h2><span id="po-view-status" class="rounded-full px-2.5 py-1 text-[10px] font-black uppercase"></span></div></div>
+      <div class="flex items-center gap-2"><button id="po-view-print" type="button" onclick="printPurchaseOrder()" class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-print mr-1" aria-hidden="true"></i>Print A5</button><button id="po-view-close" type="button" onclick="closePurchaseOrder()" aria-label="Close purchase order" class="rounded border border-slate-300 px-3 py-1.5 text-lg font-bold text-slate-600 hover:bg-slate-100">&times;</button></div>
+    </header>
+    <div class="space-y-5 p-5">
+      <dl id="po-view-meta" class="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-4"></dl>
+      <div class="overflow-x-auto rounded border border-slate-200">
+        <table class="w-full min-w-[760px] text-sm">
+          <thead class="bg-slate-100 text-left text-[10px] uppercase tracking-wider text-slate-600"><tr><th class="px-3 py-2">Item</th><th class="px-3 py-2">Size</th><th class="px-3 py-2">Quality</th><th class="px-3 py-2 text-right">Qty</th><th class="px-3 py-2">Unit</th><th class="px-3 py-2 text-right">Rate</th><th class="px-3 py-2 text-right">Amount</th></tr></thead>
+          <tbody id="po-view-items"></tbody>
+          <tfoot class="border-t-2 border-slate-800 bg-slate-50 font-black"><tr><td colspan="6" class="px-3 py-3 text-right">Grand Total</td><td id="po-view-total" class="px-3 py-3 text-right"></td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="party-accessory-view-modal" class="fixed inset-0 z-[85] hidden items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="party-accessory-view-title">
+  <div class="w-full max-w-xl rounded-lg bg-white shadow-2xl">
+    <header class="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div><p class="text-[10px] font-bold uppercase tracking-wider text-cyan-700">Party supplied · Not a PO</p><h2 id="party-accessory-view-title" class="mt-1 text-xl font-black text-slate-900"></h2></div><button type="button" onclick="closePartyAccessoryView()" aria-label="Close party accessory details" class="rounded border border-slate-300 px-3 py-1.5 text-lg font-bold text-slate-600 hover:bg-slate-100">&times;</button></header>
+    <dl class="grid gap-4 p-5 sm:grid-cols-2">
+      <div><dt class="text-[10px] font-bold uppercase text-slate-500">Date sent</dt><dd id="party-accessory-view-date" class="mt-1 font-semibold text-slate-800"></dd></div>
+      <div><dt class="text-[10px] font-bold uppercase text-slate-500">Party</dt><dd id="party-accessory-view-party" class="mt-1 font-semibold text-slate-800"></dd></div>
+      <div><dt class="text-[10px] font-bold uppercase text-slate-500">Order</dt><dd id="party-accessory-view-order" class="mt-1 font-semibold text-slate-800"></dd></div>
+      <div><dt class="text-[10px] font-bold uppercase text-slate-500">Article</dt><dd id="party-accessory-view-article" class="mt-1 font-semibold text-slate-800"></dd></div>
+      <div><dt class="text-[10px] font-bold uppercase text-slate-500">Accessory</dt><dd id="party-accessory-view-item" class="mt-1 font-semibold text-slate-800"></dd></div>
+      <div><dt class="text-[10px] font-bold uppercase text-slate-500">Size / Quality</dt><dd id="party-accessory-view-spec" class="mt-1 font-semibold text-slate-800"></dd></div>
+      <div><dt class="text-[10px] font-bold uppercase text-slate-500">Quantity</dt><dd id="party-accessory-view-quantity" class="mt-1 font-semibold text-slate-800"></dd></div>
+      <div><dt class="text-[10px] font-bold uppercase text-slate-500">Recorded By</dt><dd id="party-accessory-view-recorded-by" class="mt-1 font-semibold text-slate-800"></dd></div>
+      <div class="sm:col-span-2"><dt class="text-[10px] font-bold uppercase text-slate-500">Notes</dt><dd id="party-accessory-view-note" class="mt-1 whitespace-pre-wrap text-slate-800"></dd></div>
+    </dl>
+  </div>
+</div>
+<script>
+  const departmentStoreRooms = {{ department_store_rooms|tojson }};
+  const issueArticleMaterialItems = {{ issue_article_material_items|tojson }};
+  const purchaseOrderSearch = document.getElementById('purchase-order-search');
+  const purchaseOrderSearchEmpty = document.getElementById('purchase-order-search-empty');
+  const purchaseOrderListUpdaters = [];
+  document.querySelectorAll('[data-scroll-target]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      document.getElementById(button.dataset.scrollTarget)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+  const localPoFormForRelocation = document.getElementById('local-po-create-form');
+  const localPoFormContainer = document.getElementById('local-po-form-container');
+  const localPoDetails = localPoFormForRelocation && localPoFormForRelocation.closest('details');
+  if (localPoFormForRelocation && localPoFormContainer && localPoDetails) {
+    localPoFormContainer.append(localPoFormForRelocation);
+    localPoFormContainer.hidden = !localPoDetails.open;
+    localPoDetails.addEventListener('toggle', function () {
+      localPoFormContainer.hidden = !localPoDetails.open;
+      if (localPoDetails.open) {
+        localPoFormContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  }
+
+  document.querySelectorAll('[data-load-more-list]').forEach(function (list) {
+    const rows = Array.from(list.querySelectorAll('[data-load-more-row]'));
+    const button = document.querySelector(`[data-load-more-button="${list.id}"]`);
+    if (!button) return;
+
+    let visibleCount = 10;
+    function updateVisibleRows() {
+      const searchTerm = purchaseOrderSearch ? purchaseOrderSearch.value.trim().toLocaleLowerCase() : '';
+      let matchingCount = 0;
+      rows.forEach(function (row) {
+        const searchText = (row.dataset.poSearchText || row.textContent).toLocaleLowerCase();
+        const matches = !searchTerm || searchText.includes(searchTerm);
+        row.hidden = !matches || (!searchTerm && matchingCount >= visibleCount);
+        if (matches) matchingCount += 1;
+      });
+      button.hidden = Boolean(searchTerm) || visibleCount >= matchingCount;
+    }
+
+    updateVisibleRows();
+    purchaseOrderListUpdaters.push(updateVisibleRows);
+    button.addEventListener('click', function () {
+      visibleCount = Math.min(visibleCount + 10, rows.length);
+      updateVisibleRows();
+    });
+  });
+
+  if (purchaseOrderSearch) {
+    purchaseOrderSearch.addEventListener('input', function () {
+      const searchTerm = purchaseOrderSearch.value.trim().toLocaleLowerCase();
+      purchaseOrderListUpdaters.forEach(function (updateList) {
+        updateList();
+      });
+      const hasMatches = Array.from(document.querySelectorAll('[data-po-search-row]')).some(function (row) {
+        return (row.dataset.poSearchText || row.textContent).toLocaleLowerCase().includes(searchTerm);
+      });
+      document.querySelectorAll('[data-po-empty-row]').forEach(function (row) {
+        row.hidden = Boolean(searchTerm);
+      });
+      purchaseOrderSearchEmpty.hidden = !searchTerm || hasMatches;
+    });
+  }
+
+  const unallocatedStockSearch = document.getElementById('unallocated-stock-search');
+  if (unallocatedStockSearch) {
+    const rows = Array.from(document.querySelectorAll('[data-unallocated-search]'));
+    const emptyRow = document.getElementById('unallocated-stock-empty-row');
+    const noMatches = document.getElementById('unallocated-stock-search-empty');
+    unallocatedStockSearch.addEventListener('input', function () {
+      const searchTerm = unallocatedStockSearch.value.trim().toLocaleLowerCase();
+      let hasMatches = false;
+      rows.forEach(function (row) {
+        const matches = row.dataset.unallocatedSearch.toLocaleLowerCase().includes(searchTerm);
+        row.hidden = !matches;
+        hasMatches = hasMatches || matches;
+      });
+      if (emptyRow) emptyRow.hidden = Boolean(searchTerm);
+      noMatches.hidden = Boolean(searchTerm) && !hasMatches;
+    });
+  }
+
+  function updateDepartmentStoreRooms(departmentSelect) {
+    const form = departmentSelect.form;
+    const roomSelect = form && form.elements.namedItem('room');
+    if (!roomSelect) return;
+
+    const selectedRoom = roomSelect.dataset.currentRoom || roomSelect.value;
+    const rooms = departmentStoreRooms[(departmentSelect.value || '').trim().toLowerCase()] || [];
+    roomSelect.replaceChildren(new Option(
+      rooms.length ? 'Select store room' : 'No rooms configured',
+      ''
+    ));
+    rooms.forEach(function (room) {
+      roomSelect.add(new Option(room, room, false, room === selectedRoom));
+    });
+    roomSelect.disabled = rooms.length === 0;
+    roomSelect.dataset.currentRoom = '';
+  }
+  document.querySelectorAll('.department-room-department').forEach(function (departmentSelect) {
+    departmentSelect.addEventListener('change', function () {
+      updateDepartmentStoreRooms(departmentSelect);
+    });
+    updateDepartmentStoreRooms(departmentSelect);
+  });
+
+  const storeSearchForm = document.getElementById('store-location-search-form');
+  const storeSearchInput = document.getElementById('store-location-search');
+  const storeSearchStatus = document.getElementById('store-location-search-status');
+  if (storeSearchForm && storeSearchInput && storeSearchStatus) {
+    let searchTimer;
+    let activeSearch;
+
+    storeSearchForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      updateStoreLocationResults();
+    });
+
+    storeSearchInput.addEventListener('input', function () {
+      window.clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(updateStoreLocationResults, 180);
+    });
+
+    async function updateStoreLocationResults() {
+      if (activeSearch) activeSearch.abort();
+      activeSearch = new AbortController();
+      storeSearchStatus.textContent = 'Searching…';
+      storeSearchStatus.classList.remove('hidden');
+
+      const url = new URL(window.location.href);
+      const searchTerm = storeSearchInput.value.trim();
+      if (searchTerm) {
+        url.searchParams.set('location_search', searchTerm);
+      } else {
+        url.searchParams.delete('location_search');
+      }
+
+      try {
+        const response = await fetch(url, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          signal: activeSearch.signal
+        });
+        if (!response.ok) throw new Error('Store search request failed.');
+
+        const html = await response.text();
+        const documentFromResponse = new DOMParser().parseFromString(html, 'text/html');
+        const resultsBody = documentFromResponse.querySelector('#store-location-table tbody');
+        const currentBody = document.querySelector('#store-location-table tbody');
+        if (!resultsBody || !currentBody) throw new Error('Store search results could not be loaded.');
+
+        currentBody.replaceChildren(...Array.from(resultsBody.childNodes));
+        window.history.replaceState({}, '', url);
+        storeSearchStatus.textContent = '';
+        storeSearchStatus.classList.add('hidden');
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        storeSearchStatus.textContent = 'Live search failed. Press Enter to try again.';
+      }
+    }
+  }
+</script>
+<script>
+  const localPoForm = document.getElementById('local-po-create-form');
+  if (localPoForm) {
+    const localSupplierInput = localPoForm.querySelector('[name="local_supplier"]');
+    let localVendorCatalog = [];
+    let loadedSupplier = '';
+    let requestedSupplier = '';
+    let vendorLookupSequence = 0;
+    let vendorLookupTimer;
+    const localPackageUnits = ['pack', 'packs', 'packet', 'packets', 'bundle', 'bundles', 'box', 'boxes', 'carton', 'cartons', 'case', 'cases', 'bale', 'bales', 'bag', 'bags'];
+
+    function normalizeLocalPoText(value) {
+      return String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+    }
+
+    function updateLocalPoAmount(rowNumber) {
+      const quantity = Number(localPoForm.querySelector(`[name="local_qty_${rowNumber}"]`)?.value || 0);
+      const rate = Number(localPoForm.querySelector(`[name="local_rate_${rowNumber}"]`)?.value || 0);
+      const amount = localPoForm.querySelector(`[name="local_amount_${rowNumber}"]`);
+      if (amount) amount.value = quantity > 0 && rate > 0 ? (quantity * rate).toFixed(2) : '';
+    }
+
+    function getLocalVendorRate(match, purchaseUnit) {
+      const vendorUnit = String(match.unit || '').trim().toLowerCase();
+      const poUnit = String(purchaseUnit || '').trim().toLowerCase();
+      const packQty = Number(match.pack_qty || 0);
+      const packPrice = Number(match.pack_price || 0);
+      if (vendorUnit === poUnit) {
+        if (localPackageUnits.includes(vendorUnit) || ['roll', 'rolls'].includes(vendorUnit)) {
+          const vendorRate = Number(match.rate || 0);
+          return packPrice || (packQty > 0 ? vendorRate * packQty : vendorRate);
+        }
+        return Number(match.rate || 0) || packPrice;
+      }
+      if (['roll', 'rolls'].includes(vendorUnit) && textileUnitMeasure(poUnit)?.[0] === 'length' && packQty > 0) {
+        const rollMeters = textileUnitMeasure('meter')[1] * packQty;
+        const poUnitMeters = textileUnitMeasure(poUnit)[1];
+        return (packPrice || Number(match.rate || 0)) / rollMeters * poUnitMeters;
+      }
+      const vendorMeasure = textileUnitMeasure(vendorUnit);
+      const poMeasure = textileUnitMeasure(poUnit);
+      if (vendorMeasure && poMeasure && vendorMeasure[0] === poMeasure[0]) {
+        return Number(match.rate || 0) * poMeasure[1] / vendorMeasure[1];
+      }
+      return Number(match.rate || 0);
+    }
+
+    function applyLocalVendorRate(itemInput) {
+      const rowNumber = itemInput.dataset.localRow;
+      const itemName = normalizeLocalPoText(itemInput.value);
+      const matches = localVendorCatalog.filter(entry => normalizeLocalPoText(entry.item_name) === itemName);
+      const sizeInput = localPoForm.querySelector(`[name="local_size_${rowNumber}"]`);
+      const qualityInput = localPoForm.querySelector(`[name="local_quality_${rowNumber}"]`);
+      const match = matches.find(entry =>
+        normalizeLocalPoText(entry.size) === normalizeLocalPoText(sizeInput?.value) &&
+        normalizeLocalPoText(entry.material) === normalizeLocalPoText(qualityInput?.value)
+      ) || matches[0];
+      const unitInput = localPoForm.querySelector(`[name="local_unit_${rowNumber}"]`);
+      const rateInput = localPoForm.querySelector(`[name="local_rate_${rowNumber}"]`);
+      if (rateInput && rateInput.dataset.itemKey !== itemName) {
+        rateInput.dataset.itemKey = itemName;
+        rateInput.dataset.manual = 'false';
+        rateInput.value = '';
+      }
+      if (rateInput && unitInput) {
+        const unitRate = match ? getLocalVendorRate(match, unitInput.value) : 0;
+        if (unitRate > 0 && rateInput.dataset.manual !== 'true') {
+          rateInput.value = unitRate.toFixed(2);
+        }
+      }
+      updateLocalPoAmount(rowNumber);
+    }
+
+    function fillItemMasterDetails(itemInput) {
+      const itemName = normalizeLocalPoText(itemInput.value);
+      const itemList = document.getElementById('local-item-list');
+      const option = itemList && Array.from(itemList.options).find(entry => normalizeLocalPoText(entry.value) === itemName);
+      const rowNumber = itemInput.dataset.localRow;
+      const unitInput = localPoForm.querySelector(`[name="local_unit_${rowNumber}"]`);
+      const sizeInput = localPoForm.querySelector(`[name="local_size_${rowNumber}"]`);
+      const qualityInput = localPoForm.querySelector(`[name="local_quality_${rowNumber}"]`);
+      if (option) {
+        if (unitInput) unitInput.value = option.dataset.unit || unitInput.value;
+        if (sizeInput) sizeInput.value = option.dataset.size || '';
+        if (qualityInput) qualityInput.value = option.dataset.quality || '';
+      }
+      applyLocalVendorRate(itemInput);
+    }
+
+    async function loadLocalVendorCatalog() {
+      const supplier = (localSupplierInput.value || '').trim();
+      const supplierKey = normalizeLocalPoText(supplier);
+      if (!supplierKey) {
+        vendorLookupSequence += 1;
+        localVendorCatalog = [];
+        loadedSupplier = '';
+        requestedSupplier = '';
+        localPoForm.querySelectorAll('.local-po-item').forEach(applyLocalVendorRate);
+        return;
+      }
+      if (supplierKey === loadedSupplier || supplierKey === requestedSupplier) return;
+      const lookupSequence = ++vendorLookupSequence;
+      requestedSupplier = supplierKey;
+      localVendorCatalog = [];
+      localPoForm.querySelectorAll('.local-po-item').forEach(applyLocalVendorRate);
+      try {
+        const response = await fetch(`/manager/api/vendor-items?vendor_name=${encodeURIComponent(supplier)}`);
+        if (!response.ok) throw new Error('Vendor item lookup failed');
+        const catalog = await response.json();
+        if (lookupSequence !== vendorLookupSequence || normalizeLocalPoText(localSupplierInput.value) !== supplierKey) return;
+        localVendorCatalog = catalog;
+        loadedSupplier = supplierKey;
+        requestedSupplier = '';
+        localPoForm.querySelectorAll('.local-po-item').forEach(applyLocalVendorRate);
+      } catch (error) {
+        if (lookupSequence !== vendorLookupSequence) return;
+        localVendorCatalog = [];
+        loadedSupplier = supplierKey;
+        requestedSupplier = '';
+        localPoForm.querySelectorAll('.local-po-item').forEach(applyLocalVendorRate);
+      }
+    }
+
+    localPoForm.querySelectorAll('.local-po-item').forEach(function (itemInput) {
+      itemInput.addEventListener('input', () => fillItemMasterDetails(itemInput));
+      itemInput.addEventListener('change', () => {
+        fillItemMasterDetails(itemInput);
+        loadLocalVendorCatalog();
+      });
+    });
+    localPoForm.querySelectorAll('.local-po-qty, .local-po-rate').forEach(function (input) {
+      input.addEventListener('input', () => {
+        const rowNumber = input.name.match(/_(\d+)$/)[1];
+        if (input.classList.contains('local-po-rate')) input.dataset.manual = 'true';
+        updateLocalPoAmount(rowNumber);
+      });
+    });
+    localPoForm.querySelectorAll('.local-po-unit').forEach(function (input) {
+      input.addEventListener('change', function () {
+        const rowNumber = this.name.match(/_(\d+)$/)[1];
+        const itemInput = localPoForm.querySelector(`[name="local_item_${rowNumber}"]`);
+        if (itemInput) applyLocalVendorRate(itemInput);
+      });
+    });
+    localSupplierInput.addEventListener('input', function () {
+      window.clearTimeout(vendorLookupTimer);
+      vendorLookupTimer = window.setTimeout(loadLocalVendorCatalog, 180);
+    });
+    localSupplierInput.addEventListener('change', function () {
+      window.clearTimeout(vendorLookupTimer);
+      loadLocalVendorCatalog();
+    });
+    localPoForm.addEventListener('submit', function () {
+      for (let rowNumber = 1; rowNumber <= 6; rowNumber++) updateLocalPoAmount(rowNumber);
+    });
+  }
+</script>
+<script>
+  function openSupplierReturnModal(button) {
+    const modal = document.getElementById('supplier-return-modal');
+    const itemSelect = document.getElementById('supplier-return-item-id');
+    const exchangeItemSelect = document.getElementById('supplier-exchange-item');
+    const poNo = button.dataset.poNo || '';
+    const orderId = button.dataset.orderId || '';
+    const supplier = button.dataset.supplier || '';
+    let matchingItemFound = false;
+
+    itemSelect.value = '';
+    exchangeItemSelect.value = '';
+    document.getElementById('supplier-return-type').value = 'RETURN';
+    for (const option of itemSelect.options) {
+      if (!option.value) continue;
+      const matchesPo = option.dataset.poNo === poNo &&
+        option.dataset.orderId === orderId &&
+        option.dataset.supplier === supplier;
+      option.hidden = !matchesPo;
+      option.disabled = !matchesPo;
+      if (matchesPo && option.value === button.dataset.itemId) {
+        itemSelect.value = option.value;
+        matchingItemFound = true;
+      }
+    }
+
+    document.getElementById('supplier-return-po').textContent =
+      'PO ' + (poNo || '—') + ' · Supplier: ' + (supplier || 'Not specified') +
+      (orderId && orderId !== 'LOCAL-STOCK' ? ' · Order: ' + orderId : '');
+    document.getElementById('supplier-return-item').textContent =
+      matchingItemFound ? '' : ' — No unallocated items on this PO';
+    document.getElementById('supplier-return-date').value = button.dataset.returnDate || '';
+    updateSupplierReturnItem();
+    updateSupplierReturnType();
+    const submitButton = document.querySelector('#supplier-return-modal button[type="submit"]');
+    submitButton.disabled = !matchingItemFound;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function updateSupplierReturnItem() {
+    const itemSelect = document.getElementById('supplier-return-item-id');
+    const option = itemSelect.selectedOptions[0];
+    const quantity = document.getElementById('supplier-return-qty');
+    const selected = Boolean(option && option.value);
+    quantity.max = selected ? option.dataset.available : '';
+    const isWholeStockUnit = isDiscreteIssueUnit(option?.dataset.unit || '');
+    quantity.step = isWholeStockUnit ? '1' : '0.01';
+    quantity.min = isWholeStockUnit ? '1' : '0.01';
+    quantity.value = '';
+    document.getElementById('supplier-return-source').textContent = selected
+      ? 'Returning from unallocated stock. Available to return: ' +
+        Number(option.dataset.available || 0).toLocaleString() + ' ' +
+        (option.dataset.unit || 'units') + '.'
+      : 'Select an unallocated item from this PO.';
+    const submitButton = document.querySelector('#supplier-return-modal button[type="submit"]');
+    submitButton.disabled = !selected;
+  }
+
+  function updateSupplierReturnType() {
+    const isExchange = document.getElementById('supplier-return-type').value === 'EXCHANGE';
+    const replacementWrap = document.getElementById('supplier-exchange-item-wrap');
+    const replacementSelect = document.getElementById('supplier-exchange-item');
+    replacementWrap.classList.toggle('hidden', !isExchange);
+    replacementSelect.required = isExchange;
+    if (!isExchange) replacementSelect.value = '';
+  }
+
+  function closeSupplierReturnModal() {
+    const modal = document.getElementById('supplier-return-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  function updateIssueOrderOptions() {
+    const orderSelect = document.getElementById('issue-modal-order');
+    for (const option of orderSelect.options) {
+      if (!option.value) continue;
+      if (!option.dataset.baseLabel) option.dataset.baseLabel = option.textContent;
+      option.disabled = false;
+      option.textContent = option.dataset.baseLabel;
+    }
+  }
+
+  function syncStoreLocationSource(group) {
+    const sourceSelect = group.querySelector('.store-location-source');
+    const source = sourceSelect && sourceSelect.selectedOptions[0];
+    if (!source) return;
+
+    const issueButton = group.querySelector('button[onclick="openIssueModal(this)"]');
+    const moveForm = group.querySelector('form[method="post"]');
+    const fields = ['itemId', 'unit', 'issueUnit', 'issueFactor', 'rollLength', 'leftOver', 'locationLabel'];
+    fields.forEach(function (field) {
+      if (issueButton) issueButton.dataset[field] = source.dataset[field] || '';
+    });
+    if (issueButton) issueButton.dataset.locationId = source.value;
+
+    if (moveForm) {
+      moveForm.elements.namedItem('item_id').value = source.dataset.itemId || '';
+      moveForm.elements.namedItem('source_location_id').value = source.value;
+      const quantity = moveForm.elements.namedItem('quantity');
+      const isRoll = ['roll', 'rolls'].includes((source.dataset.unit || '').toLowerCase());
+      quantity.max = source.dataset.leftOver || '';
+      quantity.min = isRoll ? '1' : '0.01';
+      quantity.step = isRoll ? '1' : '0.01';
+      if (quantity.value && Number(quantity.value) > Number(quantity.max)) quantity.value = '';
+    }
+  }
+
+  document.querySelectorAll('[data-store-location-group]').forEach(function (group) {
+    const sourceSelect = group.querySelector('.store-location-source');
+    sourceSelect.addEventListener('change', function () {
+      syncStoreLocationSource(group);
+    });
+    syncStoreLocationSource(group);
+  });
+
+  async function openIssueModal(button) {
+    const modal = document.getElementById('issue-edit-modal');
+    const isEdit = Boolean(button.dataset.issueId);
+    const issueUnit = String(button.dataset.issueUnit || button.dataset.unit || 'PCS').trim();
+    const stockUnit = String(button.dataset.unit || 'PCS').trim();
+    const normalizedIssueUnit = issueUnit.toLowerCase();
+    const isWholeUnit = isDiscreteIssueUnit(normalizedIssueUnit);
+    const conversionFactor = normalizedIssueUnit === stockUnit.toLowerCase()
+      ? 1
+      : Number(button.dataset.issueFactor || 1) || 1;
+    document.getElementById('issue-modal-title').textContent = isEdit ? 'Edit Issue' : 'Add Issue';
+    document.getElementById('issue-modal-item-id').value = button.dataset.itemId || '';
+    document.getElementById('issue-modal-issue-id').value = button.dataset.issueId || '';
+    document.getElementById('issue-modal-location-id').value = button.dataset.locationId || '';
+    document.getElementById('issue-modal-action').value = isEdit ? 'edit_issue' : 'save_issue';
+    const locationLabel = document.getElementById('issue-modal-location-label');
+    locationLabel.textContent = button.dataset.locationLabel ? 'Stock location: ' + button.dataset.locationLabel : '';
+    locationLabel.classList.toggle('hidden', !button.dataset.locationLabel);
+    const orderSelect = document.getElementById('issue-modal-order');
+    const selectedOrderId = button.dataset.orderId || '{{ selected_order_id }}';
+    orderSelect.value = selectedOrderId || '';
+    updateIssueOrderOptions();
+    const activeOrderId = orderSelect.value;
+    const cutSelect = document.getElementById('issue-modal-cut');
+    cutSelect.dataset.stockMax = button.dataset.leftOver || '';
+    cutSelect.dataset.issueQty = button.dataset.issuedQty || '';
+    cutSelect.dataset.issueOrder = activeOrderId || '';
+    document.getElementById('issue-modal-date').value = button.dataset.issueDate || '{{ local_po_today }}';
+    document.getElementById('issue-modal-worker').value = button.dataset.workerName || '';
+    const issueQuantity = document.getElementById('issue-modal-qty');
+    issueQuantity.step = isWholeUnit ? '1' : '0.01';
+    issueQuantity.min = isWholeUnit ? '1' : '0.01';
+    issueQuantity.dataset.issueFactor = String(conversionFactor);
+    issueQuantity.value = button.dataset.issuedQty || '';
+    issueQuantity.max = button.dataset.leftOver ? String(Number(button.dataset.leftOver) / conversionFactor) : '';
+    document.getElementById('issue-modal-qty-label').textContent = isWholeUnit
+      ? `Whole ${issueUnit}${normalizedIssueUnit.startsWith('roll') && button.dataset.rollLength ? ` (${button.dataset.rollLength} m each)` : ''}`
+      : `${issueUnit} quantity`;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    await loadAccessoryCuts(
+      activeOrderId,
+      button.dataset.itemId || '',
+      button.dataset.cutSheetId || '',
+      button.dataset.issueId || ''
+    );
+  }
+
+  async function loadAccessoryCuts(orderId, itemId, selectedCutId, issueId) {
+    const wrapper = document.getElementById('issue-modal-cut-wrap');
+    const cutSelect = document.getElementById('issue-modal-cut');
+    const summary = document.getElementById('issue-modal-cut-summary');
+    const saveButton = document.getElementById('issue-modal-save');
+    const quantity = document.getElementById('issue-modal-qty');
+    cutSelect.replaceChildren(new Option('Select cut', ''));
+    cutSelect.required = false;
+    cutSelect.disabled = true;
+    wrapper.classList.add('hidden');
+    summary.textContent = '';
+    saveButton.disabled = false;
+    quantity.max = cutSelect.dataset.stockMax
+      ? String(Number(cutSelect.dataset.stockMax) / (Number(quantity.dataset.issueFactor) || 1))
+      : '';
+    if (!orderId) return;
+
+    summary.textContent = 'Loading cuts…';
+    wrapper.classList.remove('hidden');
+    saveButton.disabled = true;
+    const url = new URL('{{ url_for("accessory_cut_data") }}', window.location.origin);
+    url.searchParams.set('order_id', orderId);
+    url.searchParams.set('item_id', itemId);
+    if (issueId) url.searchParams.set('issue_id', issueId);
+    try {
+      const response = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Could not load cuts for this order.');
+      if (!data.cuts.length) {
+        wrapper.classList.add('hidden');
+        saveButton.disabled = false;
+        cutSelect.disabled = false;
+        return;
+      }
+      cutSelect.disabled = false;
+      cutSelect.required = true;
+      for (const cut of data.cuts) {
+        const option = new Option(
+          'Cut ' + cut.cut_no + ' · ' + Number(cut.cutting_pcs).toLocaleString() + ' PCS',
+          String(cut.id)
+        );
+        option.dataset.required = String(cut.required_qty);
+        option.dataset.remaining = String(cut.remaining_qty);
+        option.dataset.currentQty = String(cut.current_issue_qty);
+        option.dataset.currentReturned = String(cut.current_returned_qty);
+        option.dataset.unplanned = cut.unplanned ? 'true' : 'false';
+        option.dataset.unit = cut.unit || '';
+        cutSelect.add(option);
+      }
+      cutSelect.value = selectedCutId || '';
+      saveButton.disabled = false;
+      showSelectedCutAllowance();
+    } catch (error) {
+      summary.textContent = error.message || 'Could not load cuts for this order.';
+      saveButton.disabled = true;
+    }
+  }
+
+  function showSelectedCutAllowance() {
+    const cutSelect = document.getElementById('issue-modal-cut');
+    const summary = document.getElementById('issue-modal-cut-summary');
+    const quantity = document.getElementById('issue-modal-qty');
+    const option = cutSelect.selectedOptions[0];
+    const stockMax = Number(cutSelect.dataset.stockMax || 0);
+    if (!option || !option.value) {
+      summary.textContent = cutSelect.options.length > 1 ? 'Select a cut to see its item allowance.' : '';
+      quantity.max = cutSelect.dataset.stockMax ? String(Number(cutSelect.dataset.stockMax) / (Number(quantity.dataset.issueFactor) || 1)) : '';
+      return;
+    }
+    const required = Number(option.dataset.required || 0);
+    const remaining = Number(option.dataset.remaining || 0);
+    const currentQty = Number(option.dataset.currentQty || 0);
+    const currentReturned = Number(option.dataset.currentReturned || 0);
+    const allowanceUnit = option.dataset.unit || '';
+    const allowanceIncludingCurrent = remaining + currentQty;
+    if (option.dataset.unplanned === 'true') {
+      quantity.max = String(stockMax / (Number(quantity.dataset.issueFactor) || 1));
+      summary.textContent = `No per-cut requirement · limited by available stock (${allowanceUnit}) at this location.`;
+      return;
+    }
+    const remainingLabel = cutSelect.dataset.issueQty
+      ? 'Available excluding this issue: '
+      : 'Remaining: ';
+    const stockMaxInIssueUnits = stockMax / (Number(quantity.dataset.issueFactor) || 1);
+    const maxAllowed = cutSelect.dataset.issueQty
+      ? Math.min(stockMaxInIssueUnits, allowanceIncludingCurrent)
+      : Math.min(stockMaxInIssueUnits, remaining);
+    quantity.max = String(maxAllowed);
+    summary.textContent =
+      'Required for this cut: ' + required.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + allowanceUnit +
+      ' · ' + remainingLabel + remaining.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + allowanceUnit +
+      (currentReturned > 0 ? ' · Already returned: ' + currentReturned.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '');
+  }
+
+  document.getElementById('issue-modal-order').addEventListener('change', function () {
+    const itemId = document.getElementById('issue-modal-item-id').value;
+    const cutSelect = document.getElementById('issue-modal-cut');
+    const issueId = this.value === cutSelect.dataset.issueOrder
+      ? document.getElementById('issue-modal-issue-id').value
+      : '';
+    cutSelect.dataset.issueQty = issueId
+      ? document.getElementById('issue-modal-qty').value
+      : '';
+    loadAccessoryCuts(this.value, itemId, '', issueId);
+  });
+  document.getElementById('issue-modal-cut').addEventListener('change', showSelectedCutAllowance);
+
+  function closeIssueModal() {
+    const modal = document.getElementById('issue-edit-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  function openReturnModal(button) {
+    document.getElementById('return-modal-item-id').value = button.dataset.itemId || '';
+    document.getElementById('return-modal-issue-id').value = button.dataset.issueId || '';
+    document.getElementById('return-modal-item').textContent = button.dataset.itemName || 'Accessory';
+    document.getElementById('return-modal-date').value = button.dataset.returnDate || '';
+    const quantity = document.getElementById('return-modal-qty');
+    const isWholeStockUnit = isDiscreteIssueUnit(button.dataset.unit || '');
+    quantity.step = isWholeStockUnit ? '1' : '0.01';
+    quantity.min = isWholeStockUnit ? '1' : '0.01';
+    quantity.max = button.dataset.maxQty || '';
+    quantity.value = '';
+    const modal = document.getElementById('accessory-return-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function closeReturnModal() {
+    const modal = document.getElementById('accessory-return-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+</script>
+<script>
+const textileUnitMeasures = {
+  length: { m: 1, meter: 1, meters: 1, metre: 1, metres: 1, cm: 0.01, centimeter: 0.01, centimeters: 0.01, mm: 0.001, millimeter: 0.001, millimeters: 0.001, in: 0.0254, inch: 0.0254, inches: 0.0254, ft: 0.3048, foot: 0.3048, feet: 0.3048, yd: 0.9144, yard: 0.9144, yards: 0.9144, km: 1000, kilometer: 1000, kilometers: 1000 },
+  count: { pc: 1, pcs: 1, piece: 1, pieces: 1, pair: 2, pairs: 2, dozen: 12, doz: 12, dz: 12, gross: 144 },
+  mass: { kg: 1, kilogram: 1, kilograms: 1, g: 0.001, gm: 0.001, gram: 0.001, grams: 0.001, mg: 0.000001, milligram: 0.000001, milligrams: 0.000001, lb: 0.45359237, lbs: 0.45359237, pound: 0.45359237, oz: 0.028349523125, ounce: 0.028349523125, ounces: 0.028349523125 },
+  volume: { l: 1, liter: 1, liters: 1, litre: 1, litres: 1, ml: 0.001, milliliter: 0.001, milliliters: 0.001, millilitre: 0.001, millilitres: 0.001 }
+};
+
+function textileUnitMeasure(unit) {
+  const normalized = String(unit || '').trim().toLowerCase();
+  for (const [dimension, units] of Object.entries(textileUnitMeasures)) {
+    if (Object.prototype.hasOwnProperty.call(units, normalized)) return [dimension, units[normalized]];
+  }
+  return null;
+}
+
+function isDiscreteIssueUnit(unit) {
+  const normalized = String(unit || '').trim().toLowerCase();
+  if (!normalized) return false;
+  const measure = textileUnitMeasure(normalized);
+  return !measure || measure[0] === 'count';
+}
+
+function updateReceiptIssueFactor(unitInput, force = false) {
+  const factorInput = document.getElementById(unitInput.dataset.conversionField);
+  if (!factorInput) return;
+  const modeInput = document.getElementById(factorInput.dataset.modeField);
+  const factorLabel = document.getElementById('issue-factor-label-' + factorInput.id.replace('issue-factor-', ''));
+  const stockUnit = String(unitInput.dataset.stockUnit || '').trim().toLowerCase();
+  const issueUnit = String(unitInput.value || '').trim().toLowerCase();
+  if (!issueUnit) return;
+  const packageUnits = ['pack', 'packs', 'packet', 'packets', 'bundle', 'bundles', 'box', 'boxes', 'carton', 'cartons', 'case', 'cases', 'bale', 'bales', 'bag', 'bags'];
+  const issuePerStock = packageUnits.includes(stockUnit) && issueUnit !== stockUnit;
+  if (modeInput) modeInput.value = issuePerStock ? 'ISSUE_PER_STOCK' : 'STOCK_PER_ISSUE';
+  if (factorLabel && factorLabel.firstChild) {
+    factorLabel.firstChild.textContent = issuePerStock
+      ? `Issue units per 1 ${unitInput.dataset.stockUnit}`
+      : 'PO units per 1 issue unit';
+  }
+  let factor = null;
+  if (stockUnit === issueUnit) {
+    factor = 1;
+  } else {
+    const stockMeasure = textileUnitMeasure(stockUnit);
+    const issueMeasure = textileUnitMeasure(issueUnit);
+    if (stockMeasure && issueMeasure && stockMeasure[0] === issueMeasure[0]) {
+      factor = issueMeasure[1] / stockMeasure[1];
+    }
+  }
+  if (factor !== null && (force || !factorInput.value || factorInput.dataset.autoFactor === 'true')) {
+    factorInput.value = String(issuePerStock ? 1 / factor : factor);
+    factorInput.dataset.autoFactor = 'true';
+  } else if (factor === null && factorInput.dataset.autoFactor === 'true') {
+    factorInput.value = '';
+    factorInput.dataset.autoFactor = 'false';
+  }
+  factorInput.dataset.unitForFactor = issueUnit;
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  const partyStockUnit = document.getElementById('party-accessory-stock-unit');
+  const partyIssueUnit = document.getElementById('party-accessory-issue-unit');
+  const partyFactorInput = document.getElementById('issue-factor-party-accessory');
+  if (partyStockUnit && partyIssueUnit && partyFactorInput) {
+    const syncPartyStockUnit = function () {
+      const stockUnit = String(partyStockUnit.value || '').trim();
+      if (partyIssueUnit.dataset.stockUnit === stockUnit) return;
+      partyIssueUnit.dataset.stockUnit = stockUnit;
+      partyFactorInput.value = '';
+      partyFactorInput.dataset.autoFactor = 'true';
+      updateReceiptIssueFactor(partyIssueUnit, true);
+    };
+    partyStockUnit.addEventListener('input', syncPartyStockUnit);
+    partyStockUnit.addEventListener('change', syncPartyStockUnit);
+  }
+
+  document.querySelectorAll('[data-conversion-field]').forEach(function (unitInput) {
+    const factorInput = document.getElementById(unitInput.dataset.conversionField);
+    if (!factorInput) return;
+    if (factorInput.value) factorInput.dataset.autoFactor = 'false';
+    updateReceiptIssueFactor(unitInput);
+    unitInput.addEventListener('input', function () {
+      if (factorInput.dataset.unitForFactor !== String(unitInput.value || '').trim().toLowerCase()) {
+        factorInput.value = '';
+        factorInput.dataset.autoFactor = 'false';
+      }
+      updateReceiptIssueFactor(unitInput, true);
+    });
+    unitInput.addEventListener('change', function () {
+      updateReceiptIssueFactor(unitInput, true);
+    });
+  });
+});
+</script>
+<script>
+  const purchaseOrderData = {{ po_view_data|tojson }};
+  const poCurrencyFormat = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  let activePurchaseOrder = null;
+
+  function openPurchaseOrder(poId) {
+    const po = purchaseOrderData[String(poId)];
+    if (!po) return;
+    activePurchaseOrder = po;
+    document.getElementById('po-view-title').textContent = 'P.O. ' + (po.po_no || '—');
+    const status = document.getElementById('po-view-status');
+    status.textContent = po.status || 'PENDING';
+    status.className = 'rounded-full px-2.5 py-1 text-[10px] font-black uppercase ' +
+      (po.status === 'RECEIVED' ? 'bg-emerald-100 text-emerald-800' : po.status === 'PO_SENT' ? 'bg-amber-100 text-amber-800' : 'bg-cyan-100 text-cyan-800');
+    const meta = document.getElementById('po-view-meta');
+    meta.replaceChildren();
+    for (const [label, value] of [
+      ['Order', po.order_id], ['Supplier', po.supplier], ['Date', po.date],
+      ['Requested By', po.requested_by], ['Priority', po.priority],
+      ['For', po.for_field]
+    ]) {
+      if (!value) continue;
+      const wrapper = document.createElement('div');
+      wrapper.className = 'po-meta-field min-w-0';
+      const heading = document.createElement('dt');
+      heading.className = 'text-[10px] font-bold uppercase tracking-wider text-slate-500';
+      heading.textContent = label;
+      const detail = document.createElement('dd');
+      detail.className = 'po-meta-value mt-0.5 text-sm font-semibold text-slate-800';
+      detail.textContent = value;
+      wrapper.append(heading, detail);
+      meta.appendChild(wrapper);
+    }
+
+    const rows = document.getElementById('po-view-items');
+    rows.replaceChildren();
+    for (const item of po.items || []) {
+      const row = document.createElement('tr');
+      row.className = 'border-t border-slate-200';
+      for (const [value, className] of [
+        [item.item, 'px-3 py-2 font-bold'],
+        [item.size || '—', 'px-3 py-2'],
+        [item.quality || '—', 'px-3 py-2'],
+        [item.quantity, 'px-3 py-2 text-right'],
+        [item.unit, 'px-3 py-2'],
+        [poCurrencyFormat.format(item.rate || 0), 'px-3 py-2 text-right'],
+        [poCurrencyFormat.format(item.amount || 0), 'px-3 py-2 text-right font-semibold']
+      ]) {
+        const cell = document.createElement('td');
+        cell.className = className;
+        cell.textContent = value || '—';
+        row.appendChild(cell);
+      }
+      rows.appendChild(row);
+    }
+    document.getElementById('po-view-total').textContent = poCurrencyFormat.format(po.total || 0);
+    const modal = document.getElementById('po-view-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function closePurchaseOrder() {
+    const modal = document.getElementById('po-view-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  function printPurchaseOrder() {
+      if (!activePurchaseOrder) return;
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) return;
+
+      const printDocument = printWindow.document;
+      printDocument.open();
+      printDocument.write('<!doctype html><html><head><meta charset="utf-8"><title>Purchase Order</title></head><body></body></html>');
+      printDocument.close();
+      printDocument.title = `Purchase Order ${activePurchaseOrder.po_no || ''}`;
+
+      const style = printDocument.createElement('style');
+      style.textContent = `
+        @page { size: A5 landscape; margin: 5mm; }
+        * { box-sizing: border-box; }
+        html, body { width: 200mm; height: 138mm; margin: 0; padding: 0; }
+        body { color: #000; font-family: Arial, sans-serif; }
+        #po-print-page { width: 200mm; height: 136mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; break-after: avoid; page-break-after: avoid; }
+        #po-print-content { width: 200mm; padding: 1mm; transform-origin: top left; }
+        .po-print-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #000; padding-bottom: 3mm; }
+        .po-print-eyebrow { margin: 0 0 1mm; color: #000; font-size: 7pt; font-weight: 700; text-transform: uppercase; }
+        .po-print-title { margin: 0; font-size: 15pt; font-weight: 800; }
+        .po-print-status { border: 3px double #000; border-radius: 0; background: #fff; color: #000; padding: 2mm 4mm; font-size: 10pt; font-weight: 900; text-align: center; text-transform: uppercase; transform: rotate(-2deg); }
+        .po-print-meta { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2mm; margin: 3mm 0; }
+        .po-print-meta-label { margin: 0; color: #000; font-size: 8pt; font-weight: 700; text-transform: uppercase; }
+        .po-print-meta-value { margin: 1mm 0 0; font-size: 9pt; font-weight: 700; white-space: nowrap; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9pt; }
+        thead { background: #fff; }
+        th, td { border: 1px solid #000; color: #000; padding: 2mm 1.5mm; text-align: center; vertical-align: middle; overflow-wrap: anywhere; }
+        th { font-size: 8pt; text-transform: uppercase; }
+        .po-print-number { text-align: center; white-space: nowrap; }
+        tfoot { background: #fff; font-weight: 800; }
+        @media print { html, body { overflow: hidden; } }
+      `;
+      printDocument.head.appendChild(style);
+
+      const page = printDocument.createElement('main');
+      page.id = 'po-print-page';
+      const content = printDocument.createElement('div');
+      content.id = 'po-print-content';
+      page.appendChild(content);
+
+      const header = printDocument.createElement('header');
+      header.className = 'po-print-header';
+      const heading = printDocument.createElement('div');
+      const eyebrow = printDocument.createElement('p');
+      eyebrow.className = 'po-print-eyebrow';
+      eyebrow.textContent = 'Purchase Order';
+      const title = printDocument.createElement('h1');
+      title.className = 'po-print-title';
+      title.textContent = `P.O. ${activePurchaseOrder.po_no || '—'}`;
+      heading.append(eyebrow, title);
+      const status = printDocument.createElement('span');
+      status.className = 'po-print-status';
+      status.textContent = activePurchaseOrder.status || 'PENDING';
+      header.append(heading, status);
+      content.appendChild(header);
+
+      const meta = printDocument.createElement('section');
+      meta.className = 'po-print-meta';
+      for (const [label, value] of [
+        ['Order', activePurchaseOrder.order_id], ['Supplier', activePurchaseOrder.supplier],
+        ['Date', activePurchaseOrder.date], ['Requested By', activePurchaseOrder.requested_by],
+        ['Priority', activePurchaseOrder.priority], ['For', activePurchaseOrder.for_field]
+      ]) {
+        if (!value) continue;
+        const cell = printDocument.createElement('div');
+        const fieldLabel = printDocument.createElement('p');
+        fieldLabel.className = 'po-print-meta-label';
+        fieldLabel.textContent = label;
+        const fieldValue = printDocument.createElement('p');
+        fieldValue.className = 'po-print-meta-value';
+        fieldValue.textContent = value;
+        cell.append(fieldLabel, fieldValue);
+        meta.appendChild(cell);
+      }
+      content.appendChild(meta);
+
+      const table = printDocument.createElement('table');
+      const head = printDocument.createElement('thead');
+      const headerRow = printDocument.createElement('tr');
+      for (const label of ['Item', 'Size', 'Quality', 'Qty', 'Unit', 'Rate', 'Amount']) {
+        const cell = printDocument.createElement('th');
+        cell.textContent = label;
+        headerRow.appendChild(cell);
+      }
+      head.appendChild(headerRow);
+      table.appendChild(head);
+      const body = printDocument.createElement('tbody');
+      for (const item of activePurchaseOrder.items || []) {
+        const row = printDocument.createElement('tr');
+        for (const [value, numeric] of [
+          [item.item, false], [item.size || '—', false], [item.quality || '—', false],
+          [item.quantity, true], [item.unit, false], [poCurrencyFormat.format(item.rate || 0), true],
+          [poCurrencyFormat.format(item.amount || 0), true]
+        ]) {
+          const cell = printDocument.createElement('td');
+          if (numeric) cell.className = 'po-print-number';
+          cell.textContent = value || '—';
+          row.appendChild(cell);
+        }
+        body.appendChild(row);
+      }
+      table.appendChild(body);
+      const foot = printDocument.createElement('tfoot');
+      const totalRow = printDocument.createElement('tr');
+      const totalLabel = printDocument.createElement('td');
+      totalLabel.colSpan = 6;
+      totalLabel.className = 'po-print-number';
+      totalLabel.textContent = 'Grand Total';
+      const totalValue = printDocument.createElement('td');
+      totalValue.className = 'po-print-number';
+      totalValue.textContent = poCurrencyFormat.format(activePurchaseOrder.total || 0);
+      totalRow.append(totalLabel, totalValue);
+      foot.appendChild(totalRow);
+      table.appendChild(foot);
+      content.appendChild(table);
+      printDocument.body.appendChild(page);
+
+      const printableWidth = 200 * 96 / 25.4;
+      const printableHeight = 136 * 96 / 25.4;
+      let scale = 1;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        content.style.width = `${200 / scale}mm`;
+        content.style.transform = `scale(${scale})`;
+        const nextScale = Math.min(
+          1,
+          printableWidth / content.scrollWidth,
+          printableHeight / content.scrollHeight
+        );
+        if (Math.abs(nextScale - scale) < 0.005) break;
+        scale = nextScale;
+      }
+      content.style.width = `${200 / scale}mm`;
+      content.style.transform = `scale(${scale})`;
+      printWindow.addEventListener('afterprint', () => printWindow.close(), { once: true });
+      printWindow.focus();
+      printWindow.setTimeout(() => printWindow.print(), 100);
+  }
+
+  function openPartyAccessoryView(button) {
+    const values = {
+      date: button.dataset.date,
+      party: button.dataset.party,
+      order: button.dataset.order,
+      article: button.dataset.article,
+      item: button.dataset.item,
+      spec: [button.dataset.size, button.dataset.quality].filter(Boolean).join(' · '),
+      quantity: `${Number(button.dataset.quantity || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} ${button.dataset.unit || ''}`.trim(),
+      'recorded-by': button.dataset.recordedBy,
+      note: button.dataset.note
+    };
+    for (const [field, value] of Object.entries(values)) {
+      document.getElementById(`party-accessory-view-${field}`).textContent = value || '—';
+    }
+    const modal = document.getElementById('party-accessory-view-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function closePartyAccessoryView() {
+    const modal = document.getElementById('party-accessory-view-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('#local-po > div.overflow-x-auto tbody tr').forEach(function (row) {
+      const poNumber = row.cells[0]?.textContent.trim();
+      const entry = Object.entries(purchaseOrderData).find(([, po]) => po.is_local && po.po_no === poNumber);
+      if (!entry) return;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'mb-1 mr-1 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-[10px] font-bold uppercase text-slate-700 hover:bg-slate-100';
+      button.textContent = 'View PO';
+      button.addEventListener('click', () => openPurchaseOrder(entry[0]));
+      row.cells[row.cells.length - 1].prepend(button);
+    });
+    document.getElementById('po-view-modal').addEventListener('click', function (event) {
+      if (event.target === this) closePurchaseOrder();
+    });
+    document.getElementById('party-accessory-view-modal').addEventListener('click', function (event) {
+      if (event.target === this) closePartyAccessoryView();
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') closePurchaseOrder();
+      if (event.key === 'Escape') closePartyAccessoryView();
+    });
+  });
+</script>
+{% endblock %}

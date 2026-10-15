@@ -1,0 +1,374 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+  <div class="mx-auto max-w-7xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-300">Stock Portal</p>
+          <h1 class="mt-2 text-3xl font-black">Warehouse</h1>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a href="{{ url_for('warehouse_in_transit') }}" class="inline-flex items-center rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 hover:bg-amber-300">In Transit to Warehouse</a>
+          <a href="{{ url_for('stock_portal') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Stock Portal</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Ready to dispatch</p>
+      <h2 class="mt-2 text-lg font-black text-slate-900">Completed orders awaiting shipment</h2>
+      <div class="mt-4">
+        <input id="warehouse-search" type="text" placeholder="Search by party, article, style, color, order id, article id" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100" />
+      </div>
+      <form id="combined-shipment-form" method="get" action="{{ url_for('create_combined_shipment') }}" class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p class="text-xs font-black uppercase tracking-wide text-emerald-800">Combined shipment</p>
+            <p class="mt-1 text-xs font-semibold text-emerald-700">Select orders and choose how many separate shipment entries each needs. All entries will be recorded on one challan.</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2 sm:min-w-[310px]">
+            <button type="submit" class="col-span-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black uppercase text-white hover:bg-emerald-700">Continue to Combined Shipment</button>
+          </div>
+        </div>
+        <div id="combined-shipment-fields"></div>
+      </form>
+      <div class="mt-5 space-y-5">
+        {% for item in ready_orders %}
+        <article class="warehouse-order-card overflow-hidden rounded-2xl border border-slate-400 bg-slate-50/60 shadow-sm" data-party="{{ item.order.name or '' }}" data-article="{{ item.order.article_name or '' }}" data-style="{{ item.order.style or '' }}" data-color="{{ item.order.color or '' }}" data-order-id="{{ item.order.job_no or '' }}" data-article-id="{{ item.order.article_id or '' }}">
+          <div class="warehouse-order-toggle flex cursor-pointer flex-col gap-4 border-b border-slate-200 bg-white p-5 text-left transition hover:bg-slate-50 sm:flex-row sm:items-start sm:justify-between" role="button" tabindex="0" aria-expanded="false">
+            <div class="min-w-0">
+              <div class="flex items-center gap-3">
+                <input type="checkbox" class="combined-shipment-select h-5 w-5 rounded border-slate-300 text-emerald-600" data-item-type="order" value="{{ item.order.job_no }}" aria-label="Select {{ item.order.job_no }} for combined shipment" onclick="event.stopPropagation()">
+                <i class="warehouse-order-chevron fa-solid fa-chevron-right text-xs text-slate-400 transition-transform" aria-hidden="true"></i>
+                <a href="{{ url_for('order_details', job_no=item.order.job_no) }}" class="text-xl font-black text-indigo-700 hover:text-indigo-900 hover:underline" onclick="event.stopPropagation()">{{ item.order.job_no }}</a>
+              </div>
+              <p class="mt-1 truncate text-xl font-bold text-slate-900">{{ item.order.name or 'Unnamed party' }}</p>
+              <p class="mt-1 text-sm text-slate-500">{{ item.order.article_name or 'Unnamed article' }}{% if item.order.color %} · {{ item.order.color }}{% endif %}</p>
+              <label class="mt-3 inline-flex items-center gap-2 text-sm font-bold text-slate-600" onclick="event.stopPropagation()">
+                Entries on this challan
+                <input type="number" min="1" step="1" value="1" class="combined-shipment-count w-16 rounded-md border border-slate-300 px-2 py-1 text-center text-sm" aria-label="Shipment entries for {{ item.order.job_no }}">
+              </label>
+            </div>
+            <div class="grid grid-cols-5 gap-2 text-center sm:min-w-[560px]">
+              <div class="rounded-xl bg-slate-100 px-3 py-2">
+                <p class="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total Order PCS</p>
+                <p class="mt-1 text-lg font-black text-slate-900">{{ '{:,.0f}'.format(item.total_order_pcs) }}</p>
+              </div>
+              <div class="rounded-xl bg-emerald-50 px-3 py-2">
+                <p class="text-[9px] font-bold uppercase tracking-wider text-emerald-600">Produced Till Date PCS</p>
+                <p class="mt-1 text-lg font-black text-emerald-700">{{ '{:,.0f}'.format(item.completed_pcs) }}</p>
+              </div>
+              <div class="rounded-xl bg-sky-50 px-3 py-2">
+                <p class="text-[9px] font-bold uppercase tracking-wider text-sky-600">Warehouse Packets</p>
+                <p class="mt-1 text-lg font-black text-sky-700">{{ '{:,.2f}'.format(item.dispatchable_packets) }}</p>
+              </div>
+              <div class="rounded-xl bg-violet-50 px-3 py-2">
+                <p class="text-[9px] font-bold uppercase tracking-wider text-violet-600">Shipped PCS</p>
+                <p class="mt-1 text-lg font-black text-violet-700">{{ '{:,.0f}'.format(item.shipped_pcs) }}</p>
+              </div>
+              <div class="rounded-xl bg-rose-50 px-3 py-2">
+                <p class="text-[9px] font-bold uppercase tracking-wider text-rose-600">Dispatchable PCS</p>
+                <p class="mt-1 text-lg font-black text-rose-700">{{ '{:,.0f}'.format(item.dispatchable_pcs) }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="warehouse-order-details hidden grid gap-4 p-5 lg:grid-cols-[1fr_1.5fr]">
+            <div class="space-y-4">
+              <div>
+                <p class="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Production quality split</p>
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="rounded-xl border border-sky-100 bg-sky-50 p-3">
+                    <p class="text-[10px] font-bold uppercase text-sky-600">A/Q total</p>
+                    <p class="mt-1 text-2xl font-black text-sky-900">{{ '{:,.0f}'.format(item.total_aq_pcs) }}</p>
+                    <p class="mt-1 text-xs text-sky-700">Produced, not yet shipped: {{ '{:,.0f}'.format(item.balance_aq_pcs) }} PCS</p>
+                  </div>
+                  <div class="rounded-xl border border-amber-100 bg-amber-50 p-3">
+                    <p class="text-[10px] font-bold uppercase text-amber-700">B/Q total</p>
+                    <p class="mt-1 text-2xl font-black text-amber-900">{{ '{:,.0f}'.format(item.total_bq_pcs) }}</p>
+                    <p class="mt-1 text-xs text-amber-800">Produced, not yet shipped: {{ '{:,.0f}'.format(item.balance_bq_pcs) }} PCS</p>
+                  </div>
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-3">
+                  <div class="rounded-xl border border-sky-200 bg-white p-3 shadow-sm">
+                    <p class="text-[10px] font-bold uppercase text-sky-700">Warehouse A/Q</p>
+                    <p class="mt-1 text-2xl font-black text-sky-900">{{ '{:,.0f}'.format(item.dispatchable_aq_pcs) }}</p>
+                    <p class="mt-1 text-xs text-sky-700">PCS available to dispatch</p>
+                  </div>
+                  <div class="rounded-xl border border-amber-200 bg-white p-3 shadow-sm">
+                    <p class="text-[10px] font-bold uppercase text-amber-700">Warehouse B/Q</p>
+                    <p class="mt-1 text-2xl font-black text-amber-900">{{ '{:,.0f}'.format(item.dispatchable_bq_pcs) }}</p>
+                    <p class="mt-1 text-xs text-amber-800">PCS available to dispatch</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <p class="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Packaging balance</p>
+                <div class="grid grid-cols-3 gap-2">
+                  <div class="rounded-xl bg-white p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-slate-400">Packets</p><p class="mt-1 font-black text-slate-800">{{ '{:,.2f}'.format(item.dispatchable_packets) }}</p></div>
+                  <div class="rounded-xl bg-white p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-slate-400">Cartons</p><p class="mt-1 font-black text-slate-800">{{ '{:,.2f}'.format(item.dispatchable_ctn) }}</p></div>
+                  <div class="rounded-xl bg-white p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-slate-400">Bails</p><p class="mt-1 font-black text-slate-800">{{ '{:,.2f}'.format(item.dispatchable_bails) }}</p></div>
+                </div>
+              </div>
+            </div>
+
+            <form method="post" action="{{ url_for('set_order_fulfillment_status', job_no=item.order.job_no) }}" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <input type="hidden" name="status" value="SHIPPED">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Dispatch entry</p>
+                  <h3 class="mt-1 text-base font-black text-slate-900">Choose quality quantities</h3>
+                </div>
+                <i class="fa-solid fa-truck-fast text-xl text-emerald-600" aria-hidden="true"></i>
+              </div>
+              <div class="shipment-controls grid gap-3" data-pcs-poly="{{ item.order.pcs_poly or 0 }}" data-packets-ctn="{{ item.packets_per_ctn }}" data-packets-bail="{{ item.packets_per_bail }}">
+                <p class="text-xs font-semibold text-slate-600">Enter any combination. Leave unused units at zero. PCS from packets, cartons, and bails is added to direct PCS for the selected quality.</p>
+                <div class="overflow-hidden rounded-xl border border-slate-200">
+                  <table class="w-full table-fixed text-[11px] sm:text-xs">
+                    <thead class="bg-slate-100 text-left font-black uppercase tracking-wide text-slate-500">
+                      <tr><th class="w-[18%] px-1 py-2 sm:px-3">Quality</th><th class="w-[20.5%] px-1 py-2 sm:px-2">PCS</th><th class="w-[20.5%] px-1 py-2 sm:px-2">Packets</th><th class="w-[20.5%] px-1 py-2 sm:px-2">CTN</th><th class="w-[20.5%] px-1 py-2 sm:px-2">Bails</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr class="border-t border-slate-200 bg-sky-50/60">
+                        <th class="px-1 py-2 text-left font-black text-sky-800 sm:px-3">A/Q</th>
+                        {% for unit in ('pcs', 'packets', 'ctn', 'bails') %}
+                        <td class="px-1 py-2 sm:px-2"><input type="number" name="shipment_aq_{{ unit }}" min="0" step="0.01" value="0" class="shipment-unit-input min-w-0 w-full rounded-lg border border-sky-200 bg-white px-1.5 py-2 text-xs font-black text-slate-900 sm:px-2 sm:text-sm" placeholder="0" aria-label="A/Q {{ unit }}"></td>
+                        {% endfor %}
+                      </tr>
+                      <tr class="border-t border-slate-200 bg-amber-50/60">
+                        <th class="px-1 py-2 text-left font-black text-amber-800 sm:px-3">B/Q</th>
+                        {% for unit in ('pcs', 'packets', 'ctn', 'bails') %}
+                        <td class="px-1 py-2 sm:px-2"><input type="number" name="shipment_bq_{{ unit }}" min="0" step="0.01" value="0" class="shipment-unit-input min-w-0 w-full rounded-lg border border-amber-200 bg-white px-1.5 py-2 text-xs font-black text-slate-900 sm:px-2 sm:text-sm" placeholder="0" aria-label="B/Q {{ unit }}"></td>
+                        {% endfor %}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p class="text-[10px] text-slate-500">1 packet = {{ item.order.pcs_poly or 0 }} PCS · {{ item.packets_per_ctn|round(2) }} packets/carton · {{ item.packets_per_bail|round(2) }} packets/bail</p>
+                <div class="space-y-3 rounded-xl bg-slate-50 p-3 text-[10px] font-bold text-slate-700">
+                  <div class="grid grid-cols-3 gap-3">
+                    <div class="rounded-lg bg-white p-2.5 shadow-sm"><span class="block">A/Q PCS</span><strong class="mt-1 block text-lg text-sky-700" data-result="aq-pcs">0.00</strong></div>
+                    <div class="rounded-lg bg-white p-2.5 shadow-sm"><span class="block">B/Q PCS</span><strong class="mt-1 block text-lg text-amber-700" data-result="bq-pcs">0.00</strong></div>
+                    <div class="rounded-lg bg-white p-2.5 shadow-sm"><span class="block">Total PCS</span><strong class="mt-1 block text-lg text-slate-900" data-result="pcs">0.00</strong></div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-3">
+                    <div class="rounded-lg bg-white p-3 shadow-sm ring-1 ring-slate-200"><span class="block">Packet equivalent</span><strong class="mt-1 block text-2xl leading-none text-slate-900" data-result="packets">0.00</strong></div>
+                    <div class="rounded-lg bg-white p-3 shadow-sm ring-1 ring-slate-200"><span class="block">CTN / Bails entered</span><strong class="mt-1 block text-2xl leading-none text-slate-900" data-result="packages">0 / 0</strong></div>
+                  </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <button type="submit" name="shipped_by_party" value="Canon" class="w-full rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-sm transition hover:bg-emerald-700">Mark Shipped by Canon</button>
+                  <button type="submit" name="shipped_by_party" value="Haram" class="w-full rounded-xl bg-slate-900 px-4 py-3 text-xs font-black uppercase tracking-wider text-white shadow-sm transition hover:bg-slate-800">Mark Shipped by Haram</button>
+                </div>
+              </div>
+            </form>
+
+          </div>
+        </article>
+        {% else %}
+        <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center text-sm font-semibold text-slate-500">No ready orders at the moment.</div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-600">Returned fabric awaiting dispatch</p>
+      <h2 class="mt-2 text-lg font-black text-slate-900">Sent-to-party shipments</h2>
+
+      <div class="mt-5 space-y-6">
+        <div>
+          <h3 class="mb-3 text-xs font-black uppercase tracking-[0.2em] text-emerald-700">A/Q returns</h3>
+          {% if ready_a_return_shipments %}
+          <div class="space-y-3">
+            {% for inventory in ready_a_return_shipments %}
+            <article class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <label class="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-wide text-emerald-800">
+                    <input type="checkbox" class="combined-shipment-select h-5 w-5 rounded border-emerald-300 text-emerald-600" data-item-type="return" data-order-id="{{ inventory.order_id or '' }}" value="{{ inventory.id }}" aria-label="Select A quality returned fabric for combined shipment">
+                    Include in combined shipment
+                  </label>
+                  <p class="text-xl font-black text-slate-900">{{ inventory.a_returned_party or 'Party' }}</p>
+                  <p class="mt-1 text-sm text-slate-600">{{ inventory.a_returned_article or inventory.fabric_for or 'Returned A quality fabric' }} · {{ inventory.serial_no or inventory.id }}</p>
+                  <p class="mt-1 text-lg font-black text-emerald-700">{{ '{:,.2f}'.format(inventory.a_returned_quantity|float) }} MTR</p>
+                </div>
+                <form method="post" action="{{ url_for('mark_return_shipped', inventory_id=inventory.id) }}" class="flex gap-2">
+                  <input type="hidden" name="return_quality" value="a">
+                  <button type="submit" name="shipped_by_party" value="Canon" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black uppercase text-white hover:bg-emerald-700">Shipped by Canon</button>
+                  <button type="submit" name="shipped_by_party" value="Haram" class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-black uppercase text-white hover:bg-slate-800">Shipped by Haram</button>
+                </form>
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm font-semibold text-slate-500">No A-quality returned fabric is waiting for dispatch.</p>
+          {% endif %}
+        </div>
+
+        <div>
+          <h3 class="mb-3 text-xs font-black uppercase tracking-[0.2em] text-sky-700">B/Q returns</h3>
+          {% if ready_b_return_shipments %}
+          <div class="space-y-3">
+            {% for inventory in ready_b_return_shipments %}
+            <article class="rounded-xl border border-sky-200 bg-sky-50 p-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <label class="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-wide text-sky-800">
+                    <input type="checkbox" class="combined-shipment-select h-5 w-5 rounded border-sky-300 text-emerald-600" data-item-type="return" data-order-id="{{ inventory.order_id or '' }}" value="{{ inventory.id }}" aria-label="Select returned fabric for combined shipment">
+                    Include in combined shipment
+                  </label>
+                  <p class="text-xl font-black text-slate-900">{{ inventory.b_returned_party or 'Party' }}</p>
+                  <p class="mt-1 text-sm text-slate-600">{{ inventory.b_returned_article or inventory.fabric_for or 'Returned B quality fabric' }} · {{ inventory.serial_no or inventory.id }}</p>
+                  <p class="mt-1 text-lg font-black text-sky-700">{{ '{:,.2f}'.format(inventory.b_returned_quantity|float) }} MTR</p>
+                </div>
+                <form method="post" action="{{ url_for('mark_return_shipped', inventory_id=inventory.id) }}" class="flex gap-2">
+                  <input type="hidden" name="return_quality" value="b">
+                  <button type="submit" name="shipped_by_party" value="Canon" class="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black uppercase text-white hover:bg-emerald-700">Shipped by Canon</button>
+                  <button type="submit" name="shipped_by_party" value="Haram" class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-black uppercase text-white hover:bg-slate-800">Shipped by Haram</button>
+                </form>
+              </div>
+            </article>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-sm font-semibold text-slate-500">No B-quality returned fabric is waiting for dispatch.</p>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+const warehouseSearch = document.getElementById('warehouse-search');
+if (warehouseSearch) {
+  warehouseSearch.addEventListener('input', function () {
+    const query = this.value.trim().toLowerCase();
+    document.querySelectorAll('.warehouse-order-card').forEach(function (card) {
+      const searchableText = [
+        card.dataset.party || '',
+        card.dataset.article || '',
+        card.dataset.style || '',
+        card.dataset.color || '',
+        card.dataset.orderId || '',
+        card.dataset.articleId || '',
+      ].join(' ').toLowerCase();
+
+      const matches = !query || searchableText.includes(query);
+      card.style.display = matches ? '' : 'none';
+    });
+  });
+}
+
+const combinedShipmentForm = document.getElementById('combined-shipment-form');
+const combinedShipmentFields = document.getElementById('combined-shipment-fields');
+if (combinedShipmentForm && combinedShipmentFields) {
+  combinedShipmentForm.addEventListener('submit', function (event) {
+    const selected = Array.from(document.querySelectorAll('.combined-shipment-select:checked'));
+    const selectedEntryCount = selected.reduce(function (count, checkbox) {
+      if (checkbox.dataset.itemType !== 'order') return count + 1;
+      const input = checkbox.closest('.warehouse-order-card')?.querySelector('.combined-shipment-count');
+      return count + Math.max(1, Math.floor(Number(input?.value) || 1));
+    }, 0);
+    if (selectedEntryCount < 2) {
+      event.preventDefault();
+      window.alert('Select at least two shipment items for a combined shipment.');
+      return;
+    }
+    const selectedOrders = new Set(
+      selected.filter(function (checkbox) {
+        return checkbox.dataset.itemType === 'order';
+      }).map(function (checkbox) {
+        return checkbox.value;
+      })
+    );
+    const invalidReturn = selected.find(function (checkbox) {
+      return checkbox.dataset.itemType === 'return' && !selectedOrders.has(checkbox.dataset.orderId);
+    });
+    if (invalidReturn) {
+      event.preventDefault();
+      window.alert('Select the order linked to each returned fabric item.');
+      return;
+    }
+    combinedShipmentFields.replaceChildren();
+    selected.forEach(function (checkbox) {
+      const input = checkbox.dataset.itemType === 'order'
+        ? checkbox.closest('.warehouse-order-card')?.querySelector('.combined-shipment-count')
+        : null;
+      const entryCount = input ? Math.max(1, Math.floor(Number(input.value) || 1)) : 1;
+      for (let index = 0; index < entryCount; index += 1) {
+        const itemInput = document.createElement('input');
+        itemInput.type = 'hidden';
+        itemInput.name = checkbox.dataset.itemType === 'return' ? 'combined_inventory_id' : 'combined_job_no';
+        itemInput.value = checkbox.value;
+        combinedShipmentFields.appendChild(itemInput);
+      }
+    });
+  });
+}
+
+document.querySelectorAll('.shipment-controls').forEach(function (controls) {
+  const aqPcsResult = controls.querySelector('[data-result="aq-pcs"]');
+  const bqPcsResult = controls.querySelector('[data-result="bq-pcs"]');
+  const pcsResult = controls.querySelector('[data-result="pcs"]');
+  const packetsResult = controls.querySelector('[data-result="packets"]');
+  const packagesResult = controls.querySelector('[data-result="packages"]');
+
+  function qualityTotals(prefix) {
+    const pcsPoly = parseFloat(controls.dataset.pcsPoly) || 0;
+    const packetsPerCtn = parseFloat(controls.dataset.packetsCtn) || 0;
+    const packetsPerBail = parseFloat(controls.dataset.packetsBail) || 0;
+    const value = function (unit) {
+      return parseFloat(controls.querySelector('[name="shipment_' + prefix + '_' + unit + '"]').value) || 0;
+    };
+    const pcs = value('pcs');
+    const packets = value('packets');
+    const ctn = value('ctn');
+    const bails = value('bails');
+    return {
+      pcs: pcs + packets * pcsPoly + ctn * packetsPerCtn * pcsPoly + bails * packetsPerBail * pcsPoly,
+      packetEquivalent: (pcsPoly > 0 ? pcs / pcsPoly : 0) + packets + ctn * packetsPerCtn + bails * packetsPerBail,
+      ctn: ctn,
+      bails: bails,
+    };
+  }
+
+  function updateShipmentPreview() {
+    const aq = qualityTotals('aq');
+    const bq = qualityTotals('bq');
+    aqPcsResult.textContent = aq.pcs.toFixed(2);
+    bqPcsResult.textContent = bq.pcs.toFixed(2);
+    pcsResult.textContent = (aq.pcs + bq.pcs).toFixed(2);
+    packetsResult.textContent = (aq.packetEquivalent + bq.packetEquivalent).toFixed(2);
+    packagesResult.textContent = aq.ctn + bq.ctn + ' / ' + (aq.bails + bq.bails);
+  }
+
+  controls.querySelectorAll('.shipment-unit-input').forEach(function (input) {
+    input.addEventListener('input', updateShipmentPreview);
+  });
+  updateShipmentPreview();
+});
+
+document.querySelectorAll('.warehouse-order-toggle').forEach(function (toggle) {
+  function toggleOrderCard() {
+    const card = toggle.closest('.warehouse-order-card');
+    const details = card.querySelector('.warehouse-order-details');
+    const chevron = card.querySelector('.warehouse-order-chevron');
+    const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', String(!isExpanded));
+    details.classList.toggle('hidden', isExpanded);
+    chevron.classList.toggle('rotate-90', !isExpanded);
+  }
+
+  toggle.addEventListener('click', toggleOrderCard);
+  toggle.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleOrderCard();
+    }
+  });
+});
+</script>
+{% endblock %}

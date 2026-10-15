@@ -1,0 +1,335 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+  <div class="mx-auto max-w-7xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-300">Stock Portal</p>
+          <h1 class="mt-2 text-3xl font-black">Goods Delivery</h1>
+        </div>
+        <a href="{{ url_for('stock_portal') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Stock Portal</a>
+      </div>
+    </header>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600">Delivered</p>
+      <h2 class="mt-2 text-lg font-black text-slate-900">Completed dispatches</h2>
+      <div class="mt-4">
+        <input id="goods-delivery-search" type="text" placeholder="Search by party, article, style, color, order id, article id" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100" />
+      </div>
+      <div class="mt-5 space-y-5">
+        {% for entry in delivered %}
+        {% set order = entry.order %}
+        {% set is_inventory_return = entry.kind == 'inventory_return' %}
+        {% set shipment_unit = 'MTR' if is_inventory_return else 'PCS' %}
+        <article class="delivery-order-card overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/60 shadow-sm" data-party="{{ order.name or '' }}" data-article="{{ order.article_name or '' }}" data-style="{{ order.style or '' }}" data-color="{{ order.color or '' }}" data-order-id="{{ order.job_no or '' }}" data-article-id="{{ order.article_id or '' }}">
+          <div class="delivery-order-toggle flex cursor-pointer flex-col gap-4 border-b border-slate-200 bg-white p-5 text-left transition hover:bg-slate-50 sm:flex-row sm:items-start sm:justify-between" role="button" tabindex="0" aria-expanded="false">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <i class="delivery-order-chevron fa-solid fa-chevron-right text-xs text-slate-400 transition-transform" aria-hidden="true"></i>
+                {% if is_inventory_return %}
+                <span class="text-lg font-black text-emerald-700">SENT TO PARTY</span>
+                {% else %}
+                <a href="{{ url_for('order_details', job_no=order.job_no) }}" class="text-lg font-black text-emerald-700 hover:text-emerald-900 hover:underline" onclick="event.stopPropagation()">{{ order.job_no }}</a>
+                {% endif %}
+              </div>
+              <p class="mt-1 truncate text-sm font-bold text-slate-900">{{ order.name or 'Unnamed party' }}</p>
+              <p class="mt-1 text-xs text-slate-500">{{ order.article_name or 'Unnamed article' }}{% if order.color %} · {{ order.color }}{% endif %}</p>
+            </div>
+            <div class="flex flex-col items-start gap-2 sm:items-end">
+              <div class="flex flex-wrap items-center justify-end gap-2">
+                {% if not is_inventory_return %}
+                <span class="rounded-full bg-rose-100 px-2 py-1 text-[10px] font-bold uppercase text-rose-700">{{ entry.shipments|length }} shipment{% if entry.shipments|length != 1 %}s{% endif %}</span>
+                {% endif %}
+                {% set status_label = order.fulfillment_status or 'DELIVERED' %}
+                {% set status_class = 'bg-emerald-100 text-emerald-700' if status_label == 'DELIVERED' else 'bg-amber-100 text-amber-700' %}
+                <span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {{ status_class }}">{{ status_label }}</span>
+              </div>
+              <div class="grid {% if is_inventory_return %}grid-cols-2{% else %}grid-cols-4{% endif %} gap-2 text-center sm:min-w-[340px]">
+                {% if not is_inventory_return %}
+                <div class="rounded-xl bg-blue-50 px-3 py-2">
+                  <p class="text-[10px] font-bold uppercase tracking-wider text-blue-700">Total Order PCS</p>
+                  <p class="mt-1 text-lg  font-black text-blue-900">{{ '{:,.0f}'.format((order.new_qty_pcs|float) if order.new_qty_pcs else ((order.qty|float) if order.qty else (((order.new_qty_dozen|float) * 12) if order.new_qty_dozen else 0))) }}</p>
+                </div>
+                {% endif %}
+                {% if not is_inventory_return %}
+                <div class="rounded-xl bg-sky-50 px-3 py-2">
+                  <p class="text-[10px] font-bold uppercase tracking-wider text-sky-700">Shipped Packets</p>
+                  <p class="mt-1 text-lg font-black text-sky-900">{{ '{:,.2f}'.format(entry.total_shipped_packets) }}</p>
+                </div>
+                <div class="rounded-xl bg-slate-100 px-3 py-2">
+                  <p class="text-[10px] font-bold uppercase tracking-wider text-slate-950">Shipped PCS</p>
+                  <p class="mt-1 text-lg font-black text-slate-900">{{ '{:,.0f}'.format(entry.total_shipped_pcs) }}</p>
+                </div>
+                {% else %}
+                <div class="rounded-xl bg-slate-100 px-3 py-2">
+                  <p class="text-[10px] font-bold uppercase tracking-wider text-slate-950">Shipped {{ shipment_unit }}</p>
+                  <p class="mt-1 text-lg font-black text-slate-900">{{ '{:,.0f}'.format(entry.total_shipped_pcs) }}</p>
+                </div>
+                {% endif %}
+                <div class="rounded-xl bg-emerald-50 px-3 py-2">
+                  <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Last Shipment Date</p>
+                  <p class="mt-1 text-lg font-black text-emerald-700">{{ entry.shipments[0].shipped_at or '—' if entry.shipments else '—' }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="delivery-order-details hidden space-y-4 p-5">
+            {% if not is_inventory_return %}
+            <div class="mb-3 flex items-center justify-end gap-3">
+              <select class="shipment-sort rounded-lg border border-slate-200 bg-white px-2 py-2 text-xs font-bold text-slate-700 focus:border-emerald-500 focus:outline-none" aria-label="Sort shipments">
+                <option value="descending">Descending</option>
+                <option value="ascending">Ascending</option>
+              </select>
+            </div>
+            {% endif %}
+
+            {% if not is_inventory_return %}
+            <div class="space-y-3">
+              {% for shipment in entry.shipments %}
+              <article class="shipment-card overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm" data-date="{{ shipment.shipped_at or '' }}" data-pcs="{{ shipment.shipped_pcs }}">
+                <div class="shipment-card-toggle flex cursor-pointer items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-left transition hover:bg-slate-100" role="button" tabindex="0" aria-expanded="false">
+                  <div>
+                    <p class="shipment-label text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">
+                      Shipment {{ entry.shipments|length - loop.index + 1 }}
+                    </p>
+                    <p class="mt-1 text-sm font-black text-slate-900">{{ shipment.shipped_at or '—' }}</p>
+                  </div>
+                  <div class="flex items-center gap-3 text-right">
+                    {% if is_inventory_return %}
+                    <span class="rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-bold uppercase text-emerald-700">{{ '{:,.0f}'.format(shipment.shipped_pcs) }} {{ shipment_unit }}</span>
+                    {% else %}
+                    <span class="rounded-full bg-sky-100 px-2 py-1 text-[9px] font-bold uppercase text-sky-700">{{ '{:,.2f}'.format(shipment.shipped_packets|default(0, true)|float) }} PKT EQ</span>
+                    <span class="rounded-full bg-violet-100 px-2 py-1 text-[9px] font-bold uppercase text-violet-700">{{ '{:,.2f}'.format(shipment.shipped_ctn|default(0, true)|float) }} CTN</span>
+                    <span class="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-bold uppercase text-amber-700">{{ '{:,.2f}'.format(shipment.shipped_bails|default(0, true)|float) }} BAIL</span>
+                    {% endif %}
+                    <i class="shipment-card-chevron fa-solid fa-chevron-right text-xs text-slate-400 transition-transform" aria-hidden="true"></i>
+                  </div>
+                </div>
+
+                <div class="shipment-card-details hidden p-4">
+                  <div class="grid gap-3 lg:grid-cols-[1fr_1.15fr]">
+                    <div class="space-y-3">
+                      {% set direct_pcs_total = (shipment.shipped_aq_direct_pcs|default(0, true)|float) + (shipment.shipped_bq_direct_pcs|default(0, true)|float) %}
+                      {% set packet_total = (shipment.shipped_aq_packets|default(0, true)|float) + (shipment.shipped_bq_packets|default(0, true)|float) %}
+                      {% set ctn_total = shipment.shipped_ctn|default(0, true)|float %}
+                      {% set bail_total = shipment.shipped_bails|default(0, true)|float %}
+                      {% set unit_box_count = (1 if direct_pcs_total > 0 else 0) + (1 if packet_total > 0 else 0) + (1 if ctn_total > 0 else 0) + (1 if bail_total > 0 else 0) %}
+                      {% if unit_box_count == 1 %}{% set unit_grid_class = 'grid-cols-1' %}{% elif unit_box_count == 2 %}{% set unit_grid_class = 'grid-cols-1 sm:grid-cols-2' %}{% elif unit_box_count == 3 %}{% set unit_grid_class = 'grid-cols-1 sm:grid-cols-3' %}{% else %}{% set unit_grid_class = 'grid-cols-1 sm:grid-cols-4' %}{% endif %}
+                      <div class="grid {{ unit_grid_class }} gap-2">
+                        {% if (shipment.shipped_aq_direct_pcs|default(0, true)|float) + (shipment.shipped_bq_direct_pcs|default(0, true)|float) > 0 %}
+                        <div class="rounded-xl bg-slate-50 p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-slate-400">Direct PCS</p><p class="mt-1 font-black text-slate-800">{{ '{:,.2f}'.format((shipment.shipped_aq_direct_pcs|default(0, true)|float) + (shipment.shipped_bq_direct_pcs|default(0, true)|float)) }}</p><p class="mt-1 text-[10px] font-semibold text-slate-500">A/Q {{ '{:,.2f}'.format(shipment.shipped_aq_direct_pcs|default(0, true)|float) }} · B/Q {{ '{:,.2f}'.format(shipment.shipped_bq_direct_pcs|default(0, true)|float) }}</p></div>
+                        {% endif %}
+                        {% if (shipment.shipped_aq_packets|default(0, true)|float) + (shipment.shipped_bq_packets|default(0, true)|float) > 0 %}
+                        <div class="rounded-xl bg-sky-50 p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-sky-600">Packets entered</p><p class="mt-1 font-black text-sky-800">{{ '{:,.2f}'.format((shipment.shipped_aq_packets|default(0, true)|float) + (shipment.shipped_bq_packets|default(0, true)|float)) }}</p><p class="mt-1 text-[10px] font-semibold text-slate-500">A/Q {{ '{:,.2f}'.format(shipment.shipped_aq_packets|default(0, true)|float) }} · B/Q {{ '{:,.2f}'.format(shipment.shipped_bq_packets|default(0, true)|float) }}</p></div>
+                        {% endif %}
+                        {% if shipment.shipped_ctn|default(0, true)|float > 0 %}
+                        <div class="rounded-xl bg-violet-50 p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-violet-600">CTN entered</p><p class="mt-1 font-black text-violet-800">{{ '{:,.2f}'.format(shipment.shipped_ctn|default(0, true)|float) }}</p><p class="mt-1 text-[10px] font-semibold text-slate-500">A/Q {{ '{:,.2f}'.format(shipment.shipped_aq_ctn|default(0, true)|float) }} · B/Q {{ '{:,.2f}'.format(shipment.shipped_bq_ctn|default(0, true)|float) }}</p></div>
+                        {% endif %}
+                        {% if shipment.shipped_bails|default(0, true)|float > 0 %}
+                        <div class="rounded-xl bg-amber-50 p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-amber-700">Bails entered</p><p class="mt-1 font-black text-amber-800">{{ '{:,.2f}'.format(shipment.shipped_bails|default(0, true)|float) }}</p><p class="mt-1 text-[10px] font-semibold text-slate-500">A/Q {{ '{:,.2f}'.format(shipment.shipped_aq_bails|default(0, true)|float) }} · B/Q {{ '{:,.2f}'.format(shipment.shipped_bq_bails|default(0, true)|float) }}</p></div>
+                        {% endif %}
+                      </div>
+
+                      <div class="grid grid-cols-2 gap-3">
+                        <div class="rounded-xl border border-sky-100 bg-sky-50 p-3">
+                          <p class="text-[10px] font-bold uppercase text-sky-600">A/Q shipped PCS</p>
+                          <p class="mt-1 text-2xl font-black text-sky-900">{{ '{:,.0f}'.format(shipment.shipped_aq_pcs) }}</p>
+                        </div>
+                        <div class="rounded-xl border border-amber-100 bg-amber-50 p-3">
+                          <p class="text-[10px] font-bold uppercase text-amber-700">B/Q shipped PCS</p>
+                          <p class="mt-1 text-2xl font-black text-amber-900">{{ '{:,.0f}'.format(shipment.shipped_bq_pcs) }}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div class="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Shipment record</p>
+                          <h3 class="mt-1 text-base font-black text-slate-900">Dispatch details</h3>
+                        </div>
+                        <i class="fa-solid fa-box-open text-xl text-emerald-600" aria-hidden="true"></i>
+                      </div>
+
+                      <div class="space-y-3 text-sm text-slate-700">
+                        <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <span class="font-semibold">Total shipped</span>
+                          <span class="font-black text-slate-900">{{ '{:,.0f}'.format(shipment.shipped_pcs) }} {{ shipment_unit }}</span>
+                        </div>
+                        <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <span class="font-semibold">Carton share</span>
+                          <span class="font-black text-slate-900">{{ '{:,.2f}'.format(shipment.ctn_percent) }}%</span>
+                        </div>
+                        <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                          <span class="font-semibold">Bail share</span>
+                          <span class="font-black text-slate-900">{{ '{:,.2f}'.format(shipment.bail_percent) }}%</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                          <span class="font-semibold">Shipped by</span>
+                          <span class="font-black text-slate-900">{{ shipment.shipped_by or '—' }}</span>
+                        </div>
+                      </div>
+
+                      {% if session.get('role') in ('owner', 'manager') %}
+                      <form method="post" action="{{ url_for('delete_order_shipment', job_no=order.job_no) }}" onsubmit="return confirm('Delete this shipment for {{ order.job_no }}? This will clear this shipment entry only.');" class="mt-4" onclick="event.stopPropagation()">
+                        <input type="hidden" name="shipment_id" value="{{ shipment.id }}">
+                        <button type="submit" class="w-full rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-red-700 transition hover:bg-red-100">Delete This Shipment</button>
+                      </form>
+                      {% endif %}
+                    </div>
+                  </div>
+                </div>
+              </article>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Order record</p>
+                  <h3 class="mt-1 text-base font-black text-slate-900">Dispatch summary</h3>
+                </div>
+                <i class="fa-solid fa-box-open text-xl text-emerald-600" aria-hidden="true"></i>
+              </div>
+
+              <div class="space-y-3 text-sm text-slate-700">
+                {% if not is_inventory_return %}
+                <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span class="font-semibold">Total order pcs</span>
+                  <span class="font-black text-slate-900">{{ '{:,.0f}'.format((order.new_qty_pcs|float) if order.new_qty_pcs else ((order.qty|float) if order.qty else (((order.new_qty_dozen|float) * 12) if order.new_qty_dozen else 0))) }} PCS</span>
+                </div>
+                {% endif %}
+                <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span class="font-semibold">Total shipped</span>
+                  <span class="font-black text-slate-900">{{ '{:,.0f}'.format(entry.total_shipped_pcs) }} {{ shipment_unit }}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span class="font-semibold">Delivered by</span>
+                  <span class="font-black text-slate-900">{{ order.delivered_by or '—' }}</span>
+                </div>
+                <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <span class="font-semibold">Last shipped on</span>
+                  <span class="font-black text-slate-900">{{ order.delivered_at or '—' }}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span class="font-semibold">Order status</span>
+                  {% set summary_status = order.fulfillment_status or 'DELIVERED' %}
+                  {% set summary_status_class = 'bg-emerald-100 text-emerald-700' if summary_status == 'DELIVERED' else 'bg-amber-100 text-amber-700' %}
+                  <span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {{ summary_status_class }}">{{ summary_status }}</span>
+                </div>
+              </div>
+
+              <div class="mt-4 flex justify-end">
+                {% if session.get('role') in ('owner', 'manager') %}
+                <form method="post" action="{{ url_for('delete_order_shipment', job_no=order.job_no) }}" onsubmit="return confirm('Delete all shipments for {{ order.job_no }}? This will clear the full shipment history and set the order back to pending.');" onclick="event.stopPropagation()">
+                  {% if is_inventory_return %}
+                  <input type="hidden" name="return_quality" value="{{ entry.return_quality }}">
+                  {% endif %}
+                  <button type="submit" class="rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wide text-red-700 transition hover:bg-red-100">Delete All Shipments</button>
+                </form>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </article>
+        {% else %}
+        <div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center text-sm font-semibold text-slate-500">No delivered orders yet.</div>
+        {% endfor %}
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+const goodsDeliverySearch = document.getElementById('goods-delivery-search');
+if (goodsDeliverySearch) {
+  goodsDeliverySearch.addEventListener('input', function () {
+    const query = this.value.trim().toLowerCase();
+    document.querySelectorAll('.delivery-order-card').forEach(function (card) {
+      const searchableText = [
+        card.dataset.party || '',
+        card.dataset.article || '',
+        card.dataset.style || '',
+        card.dataset.color || '',
+        card.dataset.orderId || '',
+        card.dataset.articleId || '',
+      ].join(' ').toLowerCase();
+
+      const matches = !query || searchableText.includes(query);
+      card.style.display = matches ? '' : 'none';
+    });
+  });
+}
+
+document.querySelectorAll('.delivery-order-toggle').forEach(function (toggle) {
+  function toggleOrderCard() {
+    const card = toggle.closest('.delivery-order-card');
+    const details = card.querySelector('.delivery-order-details');
+    const chevron = card.querySelector('.delivery-order-chevron');
+    const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', String(!isExpanded));
+    details.classList.toggle('hidden', isExpanded);
+    chevron.classList.toggle('rotate-90', !isExpanded);
+  }
+
+  toggle.addEventListener('click', toggleOrderCard);
+  toggle.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleOrderCard();
+    }
+  });
+});
+
+document.querySelectorAll('.shipment-sort').forEach(function (select) {
+  select.addEventListener('change', function () {
+    const orderCard = select.closest('.delivery-order-card');
+    const list = orderCard.querySelectorAll('.shipment-card');
+    const cards = Array.from(list);
+    const sortKey = select.value;
+
+    cards.sort(function (a, b) {
+      const dateA = Date.parse(a.dataset.date || '1970-01-01');
+      const dateB = Date.parse(b.dataset.date || '1970-01-01');
+      return sortKey === 'ascending' ? dateA - dateB : dateB - dateA;
+    });
+
+    const container = orderCard.querySelector('.delivery-order-details .space-y-3');
+    if (!container) return;
+    cards.forEach(function (card) {
+      container.appendChild(card);
+    });
+
+    cards.forEach(function (card, index) {
+      const label = card.querySelector('.shipment-label');
+      if (label) {
+        label.textContent = 'Shipment ' + (index + 1);
+      }
+    });
+  });
+});
+
+document.querySelectorAll('.shipment-card-toggle').forEach(function (toggle) {
+  function toggleShipmentCard() {
+    const card = toggle.closest('.shipment-card');
+    const details = card.querySelector('.shipment-card-details');
+    const chevron = card.querySelector('.shipment-card-chevron');
+    const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', String(!isExpanded));
+    details.classList.toggle('hidden', isExpanded);
+    chevron.classList.toggle('rotate-90', !isExpanded);
+  }
+
+  toggle.addEventListener('click', toggleShipmentCard);
+  toggle.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleShipmentCard();
+    }
+  });
+});
+</script>
+{% endblock %}

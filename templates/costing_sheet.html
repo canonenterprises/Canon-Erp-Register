@@ -1,0 +1,1704 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div id="print-area" class="max-w-7xl mx-auto p-4 sm:p-6 pt-20 mb-20">
+
+    <!-- HEADER -->
+    <div class="flex flex-wrap items-end justify-between gap-4 mb-6 no-print">
+        <div>
+            <p class="text-xs font-bold uppercase tracking-[0.2em] text-orange-600">
+                Production Finance
+            </p>
+
+            <h1 class="text-3xl font-black uppercase text-slate-900">
+                Article Manufacturing Cost Analysis
+            </h1>
+
+            <p class="mt-1 text-sm text-slate-500">
+                Excel-compatible production costing, revision, overhead and profit calculation.
+            </p>
+        </div>
+
+        <button
+            type="button"
+            onclick="window.print()"
+            class="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-slate-800">
+            <i class="fa-solid fa-print"></i>
+            Print
+        </button>
+    </div>
+
+
+    <!-- ORDER SELECTOR -->
+    <form
+        method="GET"
+        action="{{ url_for('costing_sheet') }}"
+        class="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm no-print">
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+            <div>
+                <label
+                    for="party_name"
+                    class="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Select Party
+                </label>
+
+                <select
+                    id="party_name"
+                    name="party_name"
+                    class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                    onchange="this.form.submit()">
+
+                    <option value="">Choose a party</option>
+
+                    {% for party_name in party_names %}
+                    <option
+                        value="{{ party_name }}"
+                        {% if party_name == selected_party_name %}selected{% endif %}>
+                        {{ party_name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label
+                    for="article_id"
+                    class="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Select Article
+                </label>
+
+                <select
+                    id="article_id"
+                    name="article_id"
+                    class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"
+                    onchange="this.form.submit()"
+                    {% if not selected_party_name %}disabled{% endif %}>
+
+                    <option value="">
+                        {% if selected_party_name %}Choose an article{% else %}Select a party first{% endif %}
+                    </option>
+
+                    {% for item in articles %}
+                    <option
+                        value="{{ item.id }}"
+                        {% if item.id|string == selected_article_id %}selected{% endif %}>
+                        {{ item.article_name or '—' }} | {{ item.style or '—' }} | {{ item.color or '—' }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+        </div>
+    </form>
+
+
+    {% if article %}
+
+    <!-- ARTICLE INFORMATION -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm mb-6">
+
+        <div class="flex items-center justify-between mb-5">
+            <div>
+                <h2 class="text-lg font-black uppercase text-slate-900">
+                    Article Information
+                </h2>
+
+                <p class="text-xs text-slate-500">
+                    Basic information for this costing sheet
+                </p>
+            </div>
+
+            <div class="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">
+                YEAR {{ current_year or 2026 }}
+            </div>
+        </div>
+
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Party Name
+                </label>
+
+                <input
+                    id="party-name"
+                    type="text"
+                    value="{{ article.party_name or '' }}"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">
+            </div>
+
+
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Article Name
+                </label>
+
+                <input
+                    id="article-name"
+                    type="text"
+                    value="{{ article.article_name or '' }}"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">
+            </div>
+
+
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Article Style
+                </label>
+
+                <input
+                    id="article-style"
+                    type="text"
+                    value="{{ article.style or '' }}"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+
+
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Article Color
+                </label>
+
+                <input
+                    id="article-color"
+                    type="text"
+                    value="{{ article.color or '' }}"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Costing Date
+                </label>
+
+                <input
+                    id="costing-date"
+                    type="date"
+                    value="{{ current_date }}"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+
+
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    File / Reference No.
+                </label>
+
+                <input
+                    id="file-no"
+                    type="text"
+                    value="{{ order.file_no if order else '' }}"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+
+
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Quantity (Pieces)
+                </label>
+
+                <input
+                    id="order-qty"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value=""
+                    placeholder="Enter order PCS"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-black">
+            </div>
+
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Quantity (Dozens)
+                </label>
+
+                <input
+                    id="order-dozens"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value=""
+                    placeholder="Enter order dozens"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-black">
+            </div>
+
+        </div>
+    </section>
+
+
+
+    <!-- GLOBAL COSTING SETTINGS -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm mb-6">
+
+        <div class="mb-5">
+            <h2 class="text-lg font-black uppercase text-slate-900">
+                Costing Controls
+            </h2>
+
+            <p class="text-xs text-slate-500">
+                These values control the Excel-style costing calculations.
+            </p>
+        </div>
+
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+
+            <!-- PRINTING -->
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Include Printing/Embroidery?
+                </label>
+
+                <select
+                    id="include-printing"
+                    onchange="calculateCosting()"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+
+                    <option value="NO">NO</option>
+                    <option value="YES">YES</option>
+
+                </select>
+            </div>
+
+
+            <!-- PRINTING RATE -->
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Printing/Embroidery Rate (PKR)
+                </label>
+
+                <input
+                    id="printing-rate"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value=""
+                    oninput="calculateCosting()"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+
+
+            <!-- GLOBAL REVISION -->
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Global Revision %
+                </label>
+
+                <input
+                    id="global-revision"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value=""
+                    oninput="calculateCosting()"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+
+
+            <!-- OVERHEAD -->
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Company Overhead %
+                </label>
+
+                <input
+                    id="overhead"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value=""
+                    oninput="calculateCosting()"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+
+
+            <!-- PROFIT -->
+            <div>
+                <label class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Canon Profit %
+                </label>
+
+                <input
+                    id="profit"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value=""
+                    oninput="calculateCosting()"
+                    class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            </div>
+
+        </div>
+
+    </section>
+
+
+
+    <!-- PRODUCTION OPERATIONS -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm mb-6">
+
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-5">
+
+            <div>
+                <h2 class="text-lg font-black uppercase text-slate-900">
+                    Production Process Costing
+                </h2>
+
+                <p class="text-xs text-slate-500">
+                    Manual rates override the base rate. If manual rate is blank or zero,
+                    the global revision percentage is applied.
+                </p>
+            </div>
+
+
+            <button
+                type="button"
+                onclick="addOperation()"
+                class="no-print inline-flex items-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-bold text-white hover:bg-orange-700">
+
+                <i class="fa-solid fa-plus"></i>
+                Add Operation
+
+            </button>
+
+        </div>
+
+
+        <div class="overflow-x-auto rounded-xl border border-slate-200">
+
+            <table class="w-full text-sm">
+
+                <thead class="bg-slate-100 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">
+
+                    <tr>
+                        <th class="px-3 py-3 min-w-[300px]">
+                            Cost Component / Production Process
+                        </th>
+
+                        <th class="px-3 py-3 w-36">
+                            Base Cost
+                        </th>
+
+                        <th class="px-3 py-3 w-36">
+                            Manual Rate
+                        </th>
+
+                        <th class="px-3 py-3 w-36">
+                            Revision Factor
+                        </th>
+
+                        <th class="px-3 py-3 w-40 text-center">
+                            Revised Cost
+                        </th>
+
+                        <th class="px-3 py-3 min-w-[300px]">
+                            Operational Analysis / Remarks
+                        </th>
+
+                        <th class="px-3 py-3 w-12 no-print"></th>
+                    </tr>
+
+                </thead>
+
+
+                <tbody id="operations-body">
+
+                </tbody>
+
+
+                <tfoot>
+
+                    <tr class="border-t-2 border-slate-300 bg-slate-50">
+
+                        <td class="px-3 py-4 font-black uppercase">
+                            Total Direct Operational Cost
+                        </td>
+
+                        <td
+                            id="base-total"
+                            class="px-3 py-4 font-black text-lg text-center">
+                            0.00
+                        </td>
+
+                        <td
+                            id="manual-total"
+                            class="px-3 py-4 font-black text-lg text-center">
+                            0.00
+                        </td>
+
+                        <td></td>
+
+                        <td
+                            id="revised-total"
+                            class="px-3 py-4 text-center text-lg font-black">
+                            0.00
+                        </td>
+
+                        <td colspan="2"></td>
+
+                    </tr>
+
+                </tfoot>
+
+            </table>
+
+        </div>
+
+    </section>
+
+
+
+    <!-- OUTSOURCE -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm mb-6">
+
+        <div class="mb-5">
+            <h2 class="text-sm font-black uppercase tracking-wider text-slate-900">
+                Outsource / External Cost
+            </h2>
+
+            <p class="text-xs text-slate-500 mt-1">
+                Enter each outsourced material once, then set its original and revised prices separately.
+            </p>
+        </div>
+
+        <div class="mb-3 grid grid-cols-[minmax(0,1fr)_8rem_8rem_2.5rem] items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            <span>Material or Service</span>
+            <span>Original Price</span>
+            <span>Revised Price</span>
+            <span></span>
+        </div>
+
+        <div id="outsource-items" class="space-y-2"></div>
+
+        <button
+            type="button"
+            onclick="addOutsourceItem()"
+            class="no-print mt-3 inline-flex items-center gap-1 rounded-lg bg-orange-600 px-3 py-2 text-xs font-bold text-white hover:bg-orange-700">
+            <i class="fa-solid fa-plus"></i>
+            Add Item
+        </button>
+
+    </section>
+
+
+
+    <!-- COST SUMMARY -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm mb-6">
+
+        <h2 class="mb-5 text-lg font-black uppercase text-slate-900">
+            Cost Summary
+        </h2>
+
+
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+
+            <div class="rounded-xl bg-slate-100 p-4">
+
+                <p class="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Original Direct Operational Cost
+                </p>
+
+                <p
+                    id="summary-original-direct"
+                    class="mt-2 text-2xl font-black text-slate-900">
+                    0.00
+                </p>
+
+                <p class="text-xs text-slate-400">
+                    Per piece
+                </p>
+
+            </div>
+
+
+            <div class="rounded-xl bg-blue-50 p-4">
+
+                <p class="text-[10px] font-black uppercase tracking-wider text-blue-600">
+                    Factory & Admin Overhead
+                </p>
+
+                <p
+                    id="summary-original-overhead"
+                    class="mt-2 text-2xl font-black text-blue-900">
+                    0.00
+                </p>
+
+                <p class="text-xs text-blue-500">
+                    Per piece
+                </p>
+
+            </div>
+
+
+            <div class="rounded-xl bg-orange-50 p-4">
+
+                <p class="text-[10px] font-black uppercase tracking-wider text-orange-600">
+                    Canon Profit
+                </p>
+
+                <p
+                    id="summary-original-profit"
+                    class="mt-2 text-2xl font-black text-orange-900">
+                    0.00
+                </p>
+
+                <p class="text-xs text-orange-500">
+                    Per piece
+                </p>
+
+            </div>
+
+
+            <div class="rounded-xl bg-purple-50 p-4">
+
+                <p class="text-[10px] font-black uppercase tracking-wider text-purple-600">
+                    Outsource
+                </p>
+
+                <p
+                    id="summary-original-outsource"
+                    class="mt-2 text-2xl font-black text-purple-900">
+                    0.00
+                </p>
+
+                <p class="text-xs text-purple-500">
+                    Per piece
+                </p>
+
+            </div>
+
+
+            <div class="rounded-xl bg-emerald-50 p-4">
+
+                <p class="text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                    Net Ready Cost
+                </p>
+
+                <p
+                    id="summary-original-total"
+                    class="mt-2 text-2xl font-black text-emerald-900">
+                    0.00
+                </p>
+
+                <p class="text-xs text-emerald-600">
+                    Per piece
+                </p>
+
+            </div>
+
+
+
+            <div class="rounded-xl bg-slate-100 p-4">
+
+                <p class="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                    Revised Direct Operational Cost
+                </p>
+
+                <p
+                    id="summary-revised-direct"
+                    class="mt-2 text-2xl font-black text-slate-900">
+                    0.00
+                </p>
+
+                <p class="text-xs text-slate-400">
+                    Per piece
+                </p>
+
+            </div>
+
+
+            <div class="rounded-xl bg-blue-50 p-4">
+
+                <p class="text-[10px] font-black uppercase tracking-wider text-blue-600">
+                    Revised Factory & Admin Overhead
+                </p>
+
+                <p
+                    id="summary-revised-overhead"
+                    class="mt-2 text-2xl font-black text-blue-900">
+                    0.00
+                </p>
+
+                <p class="text-xs text-blue-500">
+                    Per piece
+                </p>
+
+            </div>
+
+
+            <div class="rounded-xl bg-orange-50 p-4">
+
+                <p class="text-[10px] font-black uppercase tracking-wider text-orange-600">
+                    Revised Canon Profit
+                </p>
+
+                <p
+                    id="summary-revised-profit"
+                    class="mt-2 text-2xl font-black text-orange-900">
+                    0.00
+                </p>
+
+                <p class="text-xs text-orange-500">
+                    Per piece
+                </p>
+
+            </div>
+
+
+            <div class="rounded-xl bg-purple-50 p-4">
+
+                <p class="text-[10px] font-black uppercase tracking-wider text-purple-600">
+                    Revised Outsource
+                </p>
+
+                <p
+                    id="summary-revised-outsource"
+                    class="mt-2 text-2xl font-black text-purple-900">
+                    0.00
+                </p>
+
+                <p class="text-xs text-purple-500">
+                    Per piece
+                </p>
+
+            </div>
+
+
+            <div class="rounded-xl bg-emerald-50 p-4">
+
+                <p class="text-[10px] font-black uppercase tracking-wider text-emerald-700">
+                    Revised Net Ready Cost
+                </p>
+
+                <p
+                    id="summary-revised-total"
+                    class="mt-2 text-2xl font-black text-emerald-900">
+                    0.00
+                </p>
+
+                <p class="text-xs text-emerald-600">
+                    Per piece
+                </p>
+
+            </div>
+
+
+        </div>
+
+    </section>
+
+
+
+    <!-- TOTAL ORDER VALUE -->
+    <section class="rounded-2xl border border-slate-200 bg-slate-950 p-5 shadow-sm mb-6 text-white">
+
+        <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
+
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Quantity
+                </p>
+
+                <p
+                    id="summary-qty"
+                    class="mt-1 text-2xl font-black">
+                    0 PCS
+                </p>
+            </div>
+
+
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Net Ready Cost / Piece
+                </p>
+
+                <p
+                    id="summary-unit"
+                    class="mt-1 text-2xl font-black">
+                    PKR 0.00
+                </p>
+            </div>
+
+
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                    Estimated Order Cost
+                </p>
+
+                <p
+                    id="summary-order-total"
+                    class="mt-1 text-3xl font-black text-emerald-400">
+                    PKR 0.00
+                </p>
+            </div>
+
+        </div>
+
+    </section>
+
+
+
+    <!-- COMPARISON -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+
+        <h2 class="mb-4 text-lg font-black uppercase text-slate-900">
+            Cost Comparison
+        </h2>
+
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+
+            <div class="rounded-lg bg-slate-50 p-4">
+                <p class="text-[10px] font-bold uppercase text-slate-400">
+                    Original Direct Operational Cost
+                </p>
+
+                <p
+                    id="comparison-direct-original"
+                    class="mt-1 text-xl font-black">
+                    0.00
+                </p>
+            </div>
+
+
+            <div class="rounded-lg bg-slate-50 p-4">
+                <p class="text-[10px] font-bold uppercase text-slate-400">
+                    Revised Direct Operational Cost
+                </p>
+
+                <p
+                    id="comparison-direct-revised"
+                    class="mt-1 text-xl font-black">
+                    0.00
+                </p>
+            </div>
+
+
+            <div class="rounded-lg bg-orange-50 p-4">
+
+                <p class="text-[10px] font-bold uppercase text-orange-600">
+                    Direct Cost Difference
+                </p>
+
+                <p
+                    id="comparison-direct-difference"
+                    class="mt-1 text-xl font-black text-orange-900">
+                    0.00
+                </p>
+
+            </div>
+
+        </div>
+
+        <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+
+            <div class="rounded-lg bg-slate-50 p-4">
+                <p class="text-[10px] font-bold uppercase text-slate-400">
+                    Original Net Ready Cost
+                </p>
+
+                <p
+                    id="comparison-net-original"
+                    class="mt-1 text-xl font-black">
+                    0.00
+                </p>
+            </div>
+
+
+            <div class="rounded-lg bg-slate-50 p-4">
+                <p class="text-[10px] font-bold uppercase text-slate-400">
+                    Revised Net Ready Cost
+                </p>
+
+                <p
+                    id="comparison-net-revised"
+                    class="mt-1 text-xl font-black">
+                    0.00
+                </p>
+            </div>
+
+
+            <div class="rounded-lg bg-orange-50 p-4">
+
+                <p class="text-[10px] font-bold uppercase text-orange-600">
+                    Net Ready Cost Difference
+                </p>
+
+                <p
+                    id="comparison-net-difference"
+                    class="mt-1 text-xl font-black text-orange-900">
+                    0.00
+                </p>
+
+            </div>
+
+        </div>
+
+    </section>
+
+    {% if not history_view %}
+    <div class="mt-6 flex flex-wrap justify-end gap-3 no-print">
+        <button
+            type="button"
+            onclick="saveCostingSheet()"
+            class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">
+            <i class="fa-solid fa-floppy-disk"></i>
+            Save Costing Sheet
+        </button>
+
+        <a
+            href="{{ url_for('costing_sheet_history') }}"
+            class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">
+            <i class="fa-solid fa-clock-rotate-left"></i>
+            View History
+        </a>
+    </div>
+    {% endif %}
+
+    {% else %}
+
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center shadow-sm">
+
+        <i class="fa-solid fa-calculator mb-4 text-3xl text-orange-500"></i>
+
+        <h2 class="text-xl font-black text-slate-900">
+            Choose an order to begin
+        </h2>
+
+        <p class="mt-2 text-sm text-slate-500">
+            The article information and costing operations will load here.
+        </p>
+
+    </div>
+
+    {% endif %}
+
+</div>
+
+
+
+{% if article %}
+
+<script type="application/json" id="saved-costing-snapshot">{{ saved_snapshot|tojson }}</script>
+
+<script>
+
+function numberValue(value) {
+    return Number(value) || 0;
+}
+
+
+function money(value) {
+
+    return Number(value || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| EXCEL COSTING LOGIC
+|--------------------------------------------------------------------------
+|
+| Manual Rate > 0:
+|     Revised Cost = Manual Rate
+|
+| Manual Rate = 0:
+|     Revised Cost = Base Cost × (1 + Global Revision %)
+|
+| Revision Factor:
+|     Manual Rate > 0
+|         Manual Rate / Base Rate
+|
+|     Otherwise
+|         1 + Global Revision %
+|
+|--------------------------------------------------------------------------
+*/
+
+
+function calculateCosting() {
+
+    const globalRevision =
+        numberValue(document.getElementById('global-revision').value) / 100;
+
+    const overheadRate =
+        numberValue(document.getElementById('overhead').value) / 100;
+
+    const profitRate =
+        numberValue(document.getElementById('profit').value) / 100;
+
+    const printingEnabled =
+        document.getElementById('include-printing').value === 'YES';
+
+    const printingRate =
+        numberValue(document.getElementById('printing-rate').value);
+
+
+    let baseTotal = 0;
+    let manualTotal = 0;
+    let revisedTotal = 0;
+
+
+    document.querySelectorAll('.operation-row').forEach(function(row) {
+
+        const baseInput = row.querySelector('.base-rate');
+        const manualInput = row.querySelector('.manual-rate');
+
+        if (!baseInput || !manualInput) return;
+
+
+        const baseRate = numberValue(baseInput.value);
+        const manualRate = numberValue(manualInput.value);
+
+
+        let revisionFactor;
+        let revisedCost;
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Excel Formula:
+        | =IF(C16>0,C16/B16,1+$B$12)
+        |--------------------------------------------------------------------------
+        */
+
+        if (manualRate > 0 && baseRate > 0) {
+
+            revisionFactor = manualRate / baseRate;
+
+        } else {
+
+            revisionFactor = 1 + globalRevision;
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Excel Revised Cost
+        |--------------------------------------------------------------------------
+        */
+
+        if (manualRate > 0) {
+
+            revisedCost = manualRate;
+
+        } else {
+
+            revisedCost = baseRate * revisionFactor;
+
+        }
+
+
+        baseTotal += baseRate;
+        manualTotal += manualRate;
+        revisedTotal += revisedCost;
+
+
+        const factorElement =
+            row.querySelector('.revision-factor');
+
+        const revisedElement =
+            row.querySelector('.revised-cost');
+
+
+        if (factorElement) {
+
+            factorElement.textContent =
+                (revisionFactor * 100).toFixed(2) + '%';
+
+        }
+
+
+        if (revisedElement) {
+
+            revisedElement.textContent =
+                money(revisedCost);
+
+        }
+
+    });
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PRINTING
+    |--------------------------------------------------------------------------
+    |
+    | Excel:
+    | K3 = IF(B10="YES",B11,0)
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    if (printingEnabled) {
+
+        revisedTotal += printingRate;
+
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | FACTORY & ADMINISTRATIVE OVERHEAD
+    |--------------------------------------------------------------------------
+    */
+
+    const revisedOverhead =
+        revisedTotal * overheadRate;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CANON PROFIT
+    |--------------------------------------------------------------------------
+    |
+    | Excel:
+    | B49 = B48 * B14
+    | E49 = E48 * B14
+    |
+    | Important:
+    | Profit is calculated on the overhead amount,
+    | exactly as the supplied Excel sheet does.
+    |--------------------------------------------------------------------------
+    */
+
+    const revisedProfit =
+        (revisedTotal + revisedOverhead) * profitRate;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | OUTSOURCE
+    |--------------------------------------------------------------------------
+    */
+
+    const getOutsourceTotal = function(priceClass) {
+        let total = 0;
+
+        document.querySelectorAll('#outsource-items .' + priceClass).forEach(function(input) {
+            total += numberValue(input.value);
+        });
+
+        return total;
+    };
+
+    const originalOutsource =
+        getOutsourceTotal('original-outsource-price');
+
+    const revisedOutsource =
+        getOutsourceTotal('revised-outsource-price');
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | NET READY COST
+    |--------------------------------------------------------------------------
+    */
+
+    const revisedNetReadyCost =
+        revisedTotal +
+        revisedOverhead +
+        revisedProfit +
+        revisedOutsource;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ORIGINAL BASE COST
+    |--------------------------------------------------------------------------
+    */
+
+    const originalOverhead =
+        baseTotal * overheadRate;
+
+    const originalProfit =
+        (baseTotal + originalOverhead) * profitRate;
+
+    const originalNetReadyCost =
+        baseTotal +
+        (printingEnabled ? printingRate : 0) +
+        originalOverhead +
+        originalProfit +
+        originalOutsource;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | DIFFERENCE
+    |--------------------------------------------------------------------------
+    */
+
+    const directDifference =
+        revisedTotal - baseTotal;
+
+    const netReadyDifference =
+        revisedNetReadyCost - originalNetReadyCost;
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE TABLE TOTALS
+    |--------------------------------------------------------------------------
+    */
+
+    document.getElementById('base-total').textContent =
+        money(baseTotal);
+
+    document.getElementById('manual-total').textContent =
+        money(manualTotal);
+
+    document.getElementById('revised-total').textContent =
+        money(revisedTotal);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SUMMARY
+    |--------------------------------------------------------------------------
+    */
+
+    document.getElementById('summary-original-direct').textContent =
+        money(baseTotal);
+
+    document.getElementById('summary-original-overhead').textContent =
+        money(originalOverhead);
+
+    document.getElementById('summary-original-profit').textContent =
+        money(originalProfit);
+
+    document.getElementById('summary-original-outsource').textContent =
+        money(originalOutsource);
+
+    document.getElementById('summary-original-total').textContent =
+        money(originalNetReadyCost);
+
+    document.getElementById('summary-revised-direct').textContent =
+        money(revisedTotal);
+
+    document.getElementById('summary-revised-overhead').textContent =
+        money(revisedOverhead);
+
+    document.getElementById('summary-revised-profit').textContent =
+        money(revisedProfit);
+
+    document.getElementById('summary-revised-outsource').textContent =
+        money(revisedOutsource);
+
+    document.getElementById('summary-revised-total').textContent =
+        money(revisedNetReadyCost);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | QUANTITY
+    |--------------------------------------------------------------------------
+    */
+
+    const quantityInput = document.getElementById('order-qty');
+    const quantityText = quantityInput.value.trim();
+    const hasQuantity = quantityText !== '';
+    const quantity = numberValue(quantityText);
+
+
+    document.getElementById('summary-qty').textContent =
+        hasQuantity ? money(quantity) + ' PCS' : '';
+
+
+    document.getElementById('summary-unit').textContent =
+        'PKR ' + money(revisedNetReadyCost);
+
+
+    document.getElementById('summary-order-total').textContent =
+        hasQuantity ? 'PKR ' + money(revisedNetReadyCost * quantity) : '';
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | COMPARISON
+    |--------------------------------------------------------------------------
+    */
+
+    document.getElementById('comparison-direct-original').textContent =
+        money(baseTotal);
+
+    document.getElementById('comparison-direct-revised').textContent =
+        money(revisedTotal);
+
+    document.getElementById('comparison-direct-difference').textContent =
+        money(directDifference);
+
+    document.getElementById('comparison-net-original').textContent =
+        money(originalNetReadyCost);
+
+    document.getElementById('comparison-net-revised').textContent =
+        money(revisedNetReadyCost);
+
+    document.getElementById('comparison-net-difference').textContent =
+        money(netReadyDifference);
+
+}
+
+
+function restoreSavedSnapshot() {
+
+    const snapshot =
+        JSON.parse(document.getElementById('saved-costing-snapshot').textContent);
+
+    if (!snapshot) return;
+
+    const articleFields = {
+        'party_name': 'party-name',
+        'article_name': 'article-name',
+        'style': 'article-style',
+        'color': 'article-color',
+        'date': 'costing-date',
+        'file_no': 'file-no'
+    };
+
+    Object.keys(articleFields).forEach(function(key) {
+        const input = document.getElementById(articleFields[key]);
+        if (input && snapshot.article && snapshot.article[key] !== undefined) {
+            input.value = snapshot.article[key];
+        }
+    });
+
+    if (snapshot.quantity) {
+        document.getElementById('order-qty').value = snapshot.quantity.pieces || '';
+        document.getElementById('order-dozens').value = snapshot.quantity.dozens || '';
+    }
+
+    if (snapshot.controls) {
+        Object.keys(snapshot.controls).forEach(function(key) {
+            const input = document.getElementById(key.replace('_', '-'));
+            if (input) input.value = snapshot.controls[key];
+        });
+    }
+
+    (snapshot.operations || []).forEach(function(operation) {
+        addOperation();
+        const row = document.querySelector('#operations-body .operation-row:last-child');
+        row.querySelector('.operation-name').value = operation.name || '';
+        row.querySelector('.base-rate').value = operation.base_rate || '';
+        row.querySelector('.manual-rate').value = operation.manual_rate || '';
+        row.querySelector('.remarks').value = operation.remarks || '';
+    });
+
+    (snapshot.outsource || []).forEach(function(outsource) {
+        addOutsourceItem();
+        const row = document.querySelector('#outsource-items .outsource-item:last-child');
+        row.querySelector('.outsource-name').value = outsource.name || '';
+        row.querySelector('.original-outsource-price').value = outsource.original_price || '';
+        row.querySelector('.revised-outsource-price').value = outsource.revised_price || '';
+    });
+
+}
+
+
+function saveCostingSheet() {
+
+    calculateCosting();
+
+    const snapshot = {
+        article: {
+            party_name: document.getElementById('party-name').value,
+            article_name: document.getElementById('article-name').value,
+            style: document.getElementById('article-style').value,
+            color: document.getElementById('article-color').value,
+            date: document.getElementById('costing-date').value,
+            file_no: document.getElementById('file-no').value
+        },
+        quantity: {
+            pieces: document.getElementById('order-qty').value,
+            dozens: document.getElementById('order-dozens').value
+        },
+        controls: {
+            include_printing: document.getElementById('include-printing').value,
+            printing_rate: document.getElementById('printing-rate').value,
+            global_revision: document.getElementById('global-revision').value,
+            overhead: document.getElementById('overhead').value,
+            profit: document.getElementById('profit').value
+        },
+        operations: Array.from(document.querySelectorAll('.operation-row')).map(function(row) {
+            return {
+                name: row.querySelector('.operation-name').value,
+                base_rate: row.querySelector('.base-rate').value,
+                manual_rate: row.querySelector('.manual-rate').value,
+                revision_factor: row.querySelector('.revision-factor').textContent,
+                revised_cost: row.querySelector('.revised-cost').textContent,
+                remarks: row.querySelector('.remarks').value
+            };
+        }),
+        outsource: Array.from(document.querySelectorAll('#outsource-items .outsource-item')).map(function(row) {
+            return {
+                name: row.querySelector('.outsource-name').value,
+                original_price: row.querySelector('.original-outsource-price').value,
+                revised_price: row.querySelector('.revised-outsource-price').value
+            };
+        }),
+        totals: {
+            original_direct: document.getElementById('summary-original-direct').textContent,
+            original_overhead: document.getElementById('summary-original-overhead').textContent,
+            original_profit: document.getElementById('summary-original-profit').textContent,
+            original_outsource: document.getElementById('summary-original-outsource').textContent,
+            original_total: document.getElementById('summary-original-total').textContent,
+            revised_direct: document.getElementById('summary-revised-direct').textContent,
+            revised_overhead: document.getElementById('summary-revised-overhead').textContent,
+            revised_profit: document.getElementById('summary-revised-profit').textContent,
+            revised_outsource: document.getElementById('summary-revised-outsource').textContent,
+            revised_total: document.getElementById('summary-revised-total').textContent
+        }
+    };
+
+    const articleId = Number('{{ article.id }}');
+
+    fetch('{{ url_for("save_costing_sheet") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            article_id: articleId,
+            snapshot: snapshot
+        })
+    })
+        .then(function(response) {
+            return response.json().then(function(data) {
+                if (!response.ok) throw new Error(data.error || 'Unable to save costing sheet.');
+                return data;
+            });
+        })
+        .then(function(data) {
+            alert(data.duplicate
+                ? 'No changes detected. Existing costing history was kept.'
+                : 'Costing sheet saved successfully.');
+        })
+        .catch(function(error) {
+            alert(error.message);
+        });
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| ADD NEW PRODUCTION OPERATION
+|--------------------------------------------------------------------------
+*/
+
+function addOperation() {
+
+    const tbody =
+        document.getElementById('operations-body');
+
+    const row =
+        document.createElement('tr');
+
+    row.className =
+        'operation-row border-t border-slate-100';
+
+
+    row.innerHTML = `
+
+        <td class="px-3 py-2">
+
+            <input
+                type="text"
+                class="operation-name w-full rounded border border-slate-300 px-2 py-1.5 font-semibold"
+                placeholder="Operation name">
+
+        </td>
+
+
+        <td class="px-3 py-2">
+
+            <input
+                type="number"
+                min="0"
+                step="0.01"
+                value="0"
+                class="base-rate w-full rounded border border-slate-300 px-2 py-1.5"
+                oninput="calculateCosting()">
+
+        </td>
+
+
+        <td class="px-3 py-2">
+
+            <input
+                type="number"
+                min="0"
+                step="0.01"
+                value="0"
+                class="manual-rate w-full rounded border border-slate-300 px-2 py-1.5"
+                oninput="calculateCosting()">
+
+        </td>
+
+
+        <td class="px-3 py-2">
+
+            <span class="revision-factor block rounded bg-slate-50 px-2 py-1.5 font-bold text-slate-700">
+                100.00%
+            </span>
+
+        </td>
+
+
+        <td class="px-3 py-2 text-right">
+
+            <span class="revised-cost font-black">
+                0.00
+            </span>
+
+        </td>
+
+
+        <td class="px-3 py-2">
+
+            <input
+                type="text"
+                class="remarks w-full rounded border border-slate-300 px-2 py-1.5"
+                placeholder="Operational remarks">
+
+        </td>
+
+
+        <td class="px-3 py-2 text-center no-print">
+
+            <button
+                type="button"
+                onclick="removeOperation(this)"
+                class="rounded p-2 text-red-500 hover:bg-red-50">
+
+                <i class="fa-solid fa-trash"></i>
+
+            </button>
+
+        </td>
+
+    `;
+
+
+    tbody.appendChild(row);
+
+    calculateCosting();
+
+}
+
+
+function addOutsourceItem() {
+
+    const list =
+        document.getElementById('outsource-items');
+
+    const item =
+        document.createElement('div');
+
+    item.className =
+        'outsource-item grid grid-cols-[minmax(0,1fr)_8rem_8rem_2.5rem] items-center gap-2';
+
+    item.innerHTML = `
+        <input type="text" placeholder="Material or service" class="outsource-name min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">
+        <input type="number" min="0" step="0.01" value="0" oninput="calculateCosting()" class="original-outsource-price w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">
+        <input type="number" min="0" step="0.01" value="0" oninput="calculateCosting()" class="revised-outsource-price w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold">
+        <button type="button" onclick="removeOutsourceItem(this)" class="no-print rounded p-2 text-red-500 hover:bg-red-50" aria-label="Remove outsource item">
+            <i class="fa-solid fa-trash"></i>
+        </button>
+    `;
+
+    list.appendChild(item);
+
+    calculateCosting();
+
+}
+
+
+function removeOutsourceItem(button) {
+
+    const item =
+        button.closest('.outsource-item');
+
+    if (item) {
+
+        item.remove();
+
+        calculateCosting();
+
+    }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| REMOVE OPERATION
+|--------------------------------------------------------------------------
+*/
+
+function removeOperation(button) {
+
+    const row =
+        button.closest('.operation-row');
+
+    if (row) {
+
+        row.remove();
+
+        calculateCosting();
+
+    }
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| DISABLE PRINTING RATE WHEN PRINTING IS OFF
+|--------------------------------------------------------------------------
+*/
+
+document
+    .getElementById('include-printing')
+    .addEventListener('change', function() {
+
+        const rate =
+            document.getElementById('printing-rate');
+
+        if (this.value === 'YES') {
+
+            rate.disabled = false;
+
+            rate.classList.remove('bg-slate-100');
+
+        } else {
+
+            rate.disabled = true;
+
+            rate.classList.add('bg-slate-100');
+
+        }
+
+        calculateCosting();
+
+    });
+
+
+function syncQuantity(source) {
+
+    const piecesInput =
+        document.getElementById('order-qty');
+
+    const dozensInput =
+        document.getElementById('order-dozens');
+
+    if (source === 'pieces') {
+
+        dozensInput.value = piecesInput.value === ''
+            ? ''
+            : (numberValue(piecesInput.value) / 12).toFixed(2);
+
+    } else {
+
+        piecesInput.value = dozensInput.value === ''
+            ? ''
+            : (numberValue(dozensInput.value) * 12).toFixed(0);
+
+    }
+
+    calculateCosting();
+
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| QUANTITY
+|--------------------------------------------------------------------------
+*/
+
+document
+    .getElementById('order-qty')
+    .addEventListener('input', function() {
+        syncQuantity('pieces');
+    });
+
+document
+    .getElementById('order-dozens')
+    .addEventListener('input', function() {
+        syncQuantity('dozens');
+    });
+
+
+/*
+|--------------------------------------------------------------------------
+| INITIAL CALCULATION
+|--------------------------------------------------------------------------
+*/
+
+document.addEventListener('DOMContentLoaded', function() {
+
+    restoreSavedSnapshot();
+
+    document
+        .getElementById('include-printing')
+        .dispatchEvent(new Event('change'));
+
+    calculateCosting();
+
+});
+
+</script>
+
+
+<style>
+
+@media print {
+
+    .no-print,
+    nav,
+    button {
+        display: none !important;
+    }
+
+
+    body {
+        background: white !important;
+    }
+
+
+    #print-area {
+        max-width: none !important;
+        padding: 0 !important;
+    }
+
+
+    section {
+        box-shadow: none !important;
+        break-inside: avoid;
+    }
+
+
+    input {
+        border: none !important;
+        padding-left: 0 !important;
+        background: transparent !important;
+    }
+
+
+    .operation-row {
+        break-inside: avoid;
+    }
+
+}
+
+</style>
+
+{% endif %}
+
+{% endblock %}
+```

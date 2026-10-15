@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="max-w-6xl mx-auto p-6">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-800">Saved Requirements</h2>
+                <p class="text-sm text-slate-500">Order ID: {{ order_id }}</p>
+            </div>
+            <a href="{{ url_for('req_slip', job_no=order_id) }}" 
+               class="px-4 py-2 rounded-lg bg-slate-950 text-white text-xs font-bold no-print">
+               Back to Requirement Slip
+            </a>
+        </div>
+
+        <!-- Requirements Table -->
+        <div>
+            <form method="get" action="{{ url_for('saved_requirements') }}" class="mb-4 flex gap-2">
+                <input type="hidden" name="order_id" value="{{ order_id }}" />
+                <input name="po_search" value="{{ po_search or '' }}" placeholder="Search P.O. No" class="border rounded px-3 py-2 w-64" />
+                <button type="submit" class="px-3 py-2 bg-slate-800 text-white rounded">Search</button>
+                <a href="{{ url_for('saved_requirements', order_id=order_id) }}" class="px-3 py-2 bg-gray-200 rounded">Clear</a>
+            </form>
+            {% if grouped_requirements and grouped_requirements|length > 0 %}
+                {% for po_no, reqs in grouped_requirements %}
+                <div class="mb-6">
+                        <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold">P.O. No: {{ po_no }}</h3>
+                            {% if not read_only_profile %}
+                        <div class="flex gap-2">
+                            <a href="{{ url_for('req_slip', job_no=order_id, po_no=po_no) }}" class="px-3 py-1 rounded bg-indigo-600 text-white text-xs">Edit P.O.</a>
+                        </div>
+                            {% endif %}
+                    </div>
+                    <div class="overflow-x-auto mt-2">
+                        <table class="w-full border border-slate-300 rounded-lg text-sm">
+                            <thead class="bg-slate-100">
+                                <tr>
+                                    <th class="border px-2 py-1">S. No.</th>
+                                    <th class="border px-2 py-1">Item</th>
+                                    <th class="border px-2 py-1">Quantity</th>
+                                    <th class="border px-2 py-1">Size</th>
+                                    <th class="border px-2 py-1">Quality</th>
+                                    <th class="border px-2 py-1">Rate</th>
+                                    <th class="border px-2 py-1">Bill Amount</th>
+                                    <th class="border px-2 py-1">Requested By</th>
+                                    <th class="border px-2 py-1">Priority</th>
+                                    <th class="border px-2 py-1">Date</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for req in reqs %}
+                                <tr>
+                                    <td class="border px-2 py-1 text-center">{{ loop.revindex }}</td>
+                                    <td class="border px-2 py-1 text-center">{{ req.item }}</td>
+                                    <td class="border px-2 py-1 text-center">{{ req.qty }}</td>
+                                    <td class="border px-2 py-1 text-center">{{ req.size }}</td>
+                                    <td class="border px-2 py-1 text-center">{{ req.quality }}</td>
+                                    <td class="border px-2 py-1 text-center">{{ req.rate or '-' }}</td>
+                                    <td class="border px-2 py-1 text-center">{{ req.bill_amount or '-' }}</td>
+                                    <td class="border px-2 py-1 text-center">{{ req.requested_by }}</td>
+                                    <td class="border px-2 py-1 text-center">{{ req.priority }}</td>
+                                    <td class="border px-2 py-1 text-center">{{ req.date|format_ddmmyyyy if req.date else '' }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="border rounded-lg p-6 text-center text-slate-500">No requirements saved for this order.</div>
+            {% endif %}
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="mt-6 flex justify-end gap-3 no-print">
+                {% if not read_only_profile %}
+                <a href="{{ url_for('req_slip', job_no=order_id) }}" 
+               class="px-5 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold">
+               Add New Requirement
+            </a>
+                {% endif %}
+            <button onclick="window.print()" 
+                    class="px-5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold">
+                Print Requirements
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

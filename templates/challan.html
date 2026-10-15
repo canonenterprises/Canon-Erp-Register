@@ -1,0 +1,110 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+  <div class="mx-auto max-w-7xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <header class="rounded-2xl bg-sky-950 p-6 text-white shadow-xl sm:p-8">
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-sky-300">Stock Portal</p>
+          <h1 class="mt-2 text-3xl font-black">Challan</h1>
+        </div>
+        <a href="{{ url_for('stock_portal') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Stock Portal</a>
+      </div>
+    </header>
+
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="mb-5 grid gap-3 sm:grid-cols-2">
+        <a href="{{ url_for('challan_portal', shipper='Canon') }}" class="rounded-xl border-2 px-4 py-4 text-left {% if selected_shipper == 'Canon' %}border-emerald-500 bg-emerald-50{% else %}border-slate-200 bg-white{% endif %}">
+          <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700">Canon</p>
+          <p class="mt-1 text-lg font-black text-slate-900">Canon Challans</p>
+        </a>
+        <a href="{{ url_for('challan_portal', shipper='Haram') }}" class="rounded-xl border-2 px-4 py-4 text-left {% if selected_shipper == 'Haram' %}border-slate-900 bg-slate-100{% else %}border-slate-200 bg-white{% endif %}">
+          <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-700">Haram</p>
+          <p class="mt-1 text-lg font-black text-slate-900">Haram Challans</p>
+        </a>
+      </div>
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-sky-600">Generated documents</p>
+          <h2 class="mt-2 text-lg font-black text-slate-900">{{ selected_shipper }} shipment challans</h2>
+        </div>
+        <span id="challan-search-count" class="rounded-full bg-sky-100 px-3 py-1 text-xs font-black text-sky-700">{{ challans|length }} total</span>
+      </div>
+      <label class="mt-4 block">
+        <span class="sr-only">Search delivery challans</span>
+        <input id="challan-search" type="search" placeholder="Search challan number, party, article, shipment..." class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100">
+      </label>
+      <div class="mt-5 overflow-x-auto">
+        <table class="w-full min-w-[760px] text-sm">
+          <thead class="border-b border-slate-300 bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">
+            <tr>
+              <th class="px-3 py-3">Challan No</th>
+              <th class="px-3 py-3">Date</th>
+              <th class="px-3 py-3">Party</th>
+              <th class="px-3 py-3">Article</th>
+              <th class="px-3 py-3">Shipment</th>
+              <th class="px-3 py-3 text-right">METER</th>
+              <th class="px-3 py-3 text-right">Quantity</th>
+              <th class="px-3 py-3 text-right">PACKETS</th>
+              <th class="px-3 py-3 text-right">CTNS</th>
+              <th class="px-3 py-3 text-right">BAILS</th>
+              <th class="px-3 py-3 text-right">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for challan in challans %}
+            <tr class="challan-row border-b border-slate-100" data-challan-number="{{ format_challan_number(challan.challan_no) }}">
+              <td class="px-3 py-3 font-black text-sky-700">{{ format_challan_number(challan.challan_no) }}</td>
+              <td class="px-3 py-3 text-slate-600">{{ challan.challan_date or '—' }}</td>
+              <td class="px-3 py-3 font-semibold text-slate-800">{{ challan.party_name or '—' }}</td>
+              <td class="px-3 py-3 text-slate-600">{{ challan.article_name or '—' }}</td>
+              <td class="px-3 py-3 font-semibold text-slate-700">{{ shipment_summaries.get(challan.id, '—') }}</td>
+              <td class="px-3 py-3 text-right font-black text-sky-700">{% if meter_summaries.get(challan.id, 0) > 0 %}{{ '{:,.2f}'.format(meter_summaries[challan.id]) }} MTR{% else %}—{% endif %}</td>
+              <td class="px-3 py-3 text-right font-black text-slate-800">{% if challan.source_type in ('inventory_return', 'inventory_return_a') %}{{ '{:,.2f}'.format(challan.shipped_meter) }} MTR{% elif direct_pcs_summaries.get(challan.id, 0) > 0 %}{{ '{:,.2f}'.format(direct_pcs_summaries[challan.id]) }} PCS{% else %}—{% endif %}</td>
+              <td class="px-3 py-3 text-right font-black text-slate-800">{{ '{:,.2f}'.format(packet_summaries.get(challan.id, 0)) }}</td>
+              <td class="px-3 py-3 text-right font-black text-slate-800">{{ '{:,.2f}'.format(challan.shipped_ctn or 0) }}</td>
+              <td class="px-3 py-3 text-right font-black text-slate-800">{{ '{:,.2f}'.format(challan.shipped_bails or 0) }}</td>
+              <td class="px-3 py-3 text-right"><a href="{{ url_for('print_challan', challan_id=challan.id) }}" target="_blank" class="inline-flex items-center rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white hover:bg-sky-700">Print</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="11" class="px-3 py-10 text-center font-semibold text-slate-500">No challans generated yet.</td></tr>
+            {% endfor %}
+            {% if challans %}<tr id="challan-search-empty" hidden><td colspan="11" class="px-3 py-10 text-center font-semibold text-slate-500">No challans match your search.</td></tr>{% endif %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</div>
+  <script>
+  const challanSearch = document.getElementById('challan-search');
+  if (challanSearch) {
+    const challanRows = Array.from(document.querySelectorAll('.challan-row'));
+    const emptyRow = document.getElementById('challan-search-empty');
+    const countLabel = document.getElementById('challan-search-count');
+
+    challanSearch.addEventListener('input', function () {
+      const query = challanSearch.value.trim().toLocaleLowerCase();
+      const numericChallanQuery = /^(?:[ch][- ]?)?\d+$/i.test(query)
+        ? query.replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+        : null;
+      let visibleCount = 0;
+
+      challanRows.forEach(function (row) {
+        const challanDigits = (row.dataset.challanNumber || '').replace(/\D/g, '').replace(/^0+(?=\d)/, '');
+        const matches = row.textContent.toLocaleLowerCase().includes(query)
+          || (numericChallanQuery !== null && challanDigits === numericChallanQuery);
+        row.hidden = !matches;
+        if (matches) visibleCount += 1;
+      });
+
+      if (emptyRow) emptyRow.hidden = visibleCount > 0;
+      if (countLabel) {
+        countLabel.textContent = query
+          ? `${visibleCount} of ${challanRows.length} challans`
+          : `${challanRows.length} total`;
+      }
+    });
+  }
+  </script>
+{% endblock %}

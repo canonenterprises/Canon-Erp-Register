@@ -1,0 +1,240 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+<div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+    <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+        <div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-cyan-300">Canon Registry</p>
+                <h1 class="mt-2 text-3xl font-black">Worker Advance Management</h1>
+                <p class="mt-2 text-sm text-slate-300">Search workers, record advances, and log payments.</p>
+            </div>
+            <a href="{{ url_for('manager_dashboard') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Dashboard</a>
+        </div>
+    </header>
+
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <form id="worker-search-form" method="GET" action="{{ url_for('worker_advance') }}" class="w-full">
+            <label for="worker-search" class="mb-2 block text-[12px] font-black uppercase tracking-[0.2em] text-black-800">Find a worker</label>
+            <div class="group relative flex w-full items-center rounded-2xl border border-slate-200 bg-slate-50 shadow-inner transition focus-within:border-cyan-400 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-cyan-100/60">
+                <i class="fa-solid fa-magnifying-glass ml-5 text-slate-400 transition group-focus-within:text-cyan-600"></i>
+                <input id="worker-search" type="text" name="q" value="{{ search or '' }}" placeholder="Search by name, phone, Worker ID, or CNIC" autocomplete="off" class="w-full bg-transparent px-4 py-4 text-base font-semibold text-slate-800 outline-none placeholder:text-slate-400" />
+                <span id="worker-search-status" class="mr-4 hidden shrink-0 text-xs font-bold text-cyan-600">Searching...</span>
+                <button type="button" id="clear-worker-search" class="mr-3 shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700 {% if not search %}hidden{% endif %}">Clear</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
+        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 class="text-xl font-bold mb-4">Workers</h3>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm border">
+                    <thead class="border-b border-slate-200 text-[14px] uppercase tracking-wider text-black-800">
+                        <tr>
+                            <th class="p-3 border text-left">Worker</th>
+                            <th class="p-3 border text-left">Worker ID</th>
+                            <th class="p-3 border text-left">Phone</th>
+                            <th class="p-3 border text-left">CNIC</th>
+                            <th class="p-3 border text-left">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="worker-search-results" data-selected-worker-id="{{ selected_worker.id if selected_worker else '' }}">
+                        {% for worker in workers %}
+                        <tr class="{{ 'bg-slate-50' if selected_worker and selected_worker.id == worker.id else '' }}">
+                            <td class="p-3 border">{{ worker.name }}</td>
+                            <td class="p-3 border">{{ worker.worker_code or '-' }}</td>
+                            <td class="p-3 border">{{ worker.phone or '-' }}</td>
+                            <td class="p-3 border">{{ worker.cnic or '-' }}</td>
+                            <td class="p-3 border">
+                                <a href="{{ url_for('worker_advance', worker_id=worker.id, q=search) }}" class="text-s text-indigo-600 hover:text-indigo-800">Select</a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="p-4 text-center text-slate-500">No workers found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            {% if selected_worker %}
+            <div class="mb-6">
+                <h3 class="text-xl font-bold">Selected Worker</h3>
+                <p class="text-slate-600">{{ selected_worker.name }} • {{ selected_worker.worker_code or '-' }}</p>
+                <p class="text-slate-600">{{ selected_worker.phone or '-' }} • {{ selected_worker.cnic or '-' }}</p>
+                <p class="text-slate-600 mt-2">Current Balance: <strong class="text-slate-900">{{ balance }}</strong></p>
+            </div>
+
+            <div class="space-y-4">
+                <form method="POST" class="border rounded p-4">
+                    <input type="hidden" name="form_action" value="add_advance">
+                    <input type="hidden" name="worker_id" value="{{ selected_worker.id }}">
+                    <h4 class="font-semibold mb-3">Add Advance</h4>
+                    <div class="grid gap-3">
+                        <input type="date" name="date" value="{{ today }}" class="w-full border rounded p-2" required>
+                        <input type="number" step="0.01" name="amount" placeholder="Amount" class="w-full border rounded p-2" required>
+                        <input type="text" name="note" placeholder="Note (optional)" class="w-full border rounded p-2">
+                        <button type="submit" class="w-full px-4 py-2 bg-emerald-600 text-white rounded">Add Advance</button>
+                    </div>
+                </form>
+
+                <form method="POST" class="border rounded p-4">
+                    <input type="hidden" name="form_action" value="remove_advance">
+                    <input type="hidden" name="worker_id" value="{{ selected_worker.id }}">
+                    <h4 class="font-semibold mb-3">Record Payment</h4>
+                    <div class="grid gap-3">
+                        <input type="date" name="date" value="{{ today }}" class="w-full border rounded p-2" required>
+                        <input type="number" step="0.01" name="amount" placeholder="Amount" class="w-full border rounded p-2" required>
+                        <input type="text" name="note" placeholder="Note (optional)" class="w-full border rounded p-2">
+                        <button type="submit" class="w-full px-4 py-2 bg-red-600 text-white rounded">Record Payment</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="mt-6">
+                <h4 class="font-semibold mb-3">Transaction History</h4>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm border">
+                            <thead class="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
+                            <tr>
+                                <th class="p-2 border text-left">Date</th>
+                                <th class="p-2 border text-left">Type</th>
+                                <th class="p-2 border text-right">Amount</th>
+                                <th class="p-2 border text-left">Note</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for advance in advances %}
+                            <tr>
+                                <td class="p-2 border">{{ advance.date|format_ddmmyyyy if advance.date else '' }}</td>
+                                <td class="p-2 border">{{ advance.record_type.title() }}</td>
+                                <td class="p-2 border text-right">{{ advance.amount }}</td>
+                                <td class="p-2 border">{{ advance.note or '-' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="4" class="p-4 text-center text-slate-500">No advance records yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% else %}
+            <div class="text-slate-500">Select a worker from the list to manage advances and payments.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+</div>
+
+<script>
+    const workerSearchForm = document.getElementById('worker-search-form');
+    const workerSearchInput = document.getElementById('worker-search');
+    const workerSearchStatus = document.getElementById('worker-search-status');
+    const workerSearchResults = document.getElementById('worker-search-results');
+    const clearWorkerSearch = document.getElementById('clear-worker-search');
+    let workerSearchTimer;
+    let workerSearchController;
+
+    function renderWorkerResults(payload) {
+        workerSearchResults.replaceChildren();
+        workerSearchResults.dataset.selectedWorkerId = payload.selected_worker_id || '';
+
+        if (!payload.workers.length) {
+            const row = document.createElement('tr');
+            const cell = document.createElement('td');
+            cell.colSpan = 5;
+            cell.className = 'p-4 text-center text-slate-500';
+            cell.textContent = 'No workers found.';
+            row.appendChild(cell);
+            workerSearchResults.appendChild(row);
+            return;
+        }
+
+        payload.workers.forEach(function (worker) {
+            const row = document.createElement('tr');
+            if (String(worker.id) === String(payload.selected_worker_id || '')) {
+                row.className = 'bg-slate-50';
+            }
+
+            [worker.name, worker.worker_code, worker.phone, worker.cnic].forEach(function (value) {
+                const cell = document.createElement('td');
+                cell.className = 'p-3 border';
+                cell.textContent = value || '-';
+                row.appendChild(cell);
+            });
+
+            const actionCell = document.createElement('td');
+            actionCell.className = 'p-3 border';
+            const selectLink = document.createElement('a');
+            selectLink.href = worker.select_url;
+            selectLink.className = 'text-s text-indigo-600 hover:text-indigo-800';
+            selectLink.textContent = 'Select';
+            actionCell.appendChild(selectLink);
+            row.appendChild(actionCell);
+            workerSearchResults.appendChild(row);
+        });
+    }
+
+    async function searchWorkers() {
+        if (!workerSearchForm || !workerSearchInput || !workerSearchResults) return;
+
+        if (workerSearchController) workerSearchController.abort();
+        const controller = new AbortController();
+        workerSearchController = controller;
+        workerSearchStatus.classList.remove('hidden');
+        workerSearchStatus.textContent = 'Searching...';
+
+        const searchUrl = new URL(workerSearchForm.action, window.location.href);
+        searchUrl.searchParams.set('q', workerSearchInput.value.trim());
+        searchUrl.searchParams.set('format', 'json');
+        const selectedWorkerId = workerSearchResults.dataset.selectedWorkerId;
+        if (selectedWorkerId) searchUrl.searchParams.set('worker_id', selectedWorkerId);
+
+        try {
+            const response = await fetch(searchUrl, { signal: controller.signal });
+            if (!response.ok) throw new Error('Worker search failed.');
+            renderWorkerResults(await response.json());
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                workerSearchStatus.textContent = 'Search failed';
+                return;
+            }
+        } finally {
+            if (workerSearchController === controller) {
+                workerSearchController = null;
+                if (workerSearchStatus.textContent === 'Searching...') {
+                    workerSearchStatus.classList.add('hidden');
+                }
+            }
+        }
+    }
+
+    if (workerSearchInput && workerSearchForm) {
+        workerSearchInput.addEventListener('input', function () {
+            clearTimeout(workerSearchTimer);
+            clearWorkerSearch.classList.toggle('hidden', !workerSearchInput.value.trim());
+            workerSearchTimer = setTimeout(searchWorkers, 180);
+        });
+        workerSearchForm.addEventListener('submit', function (event) {
+            event.preventDefault();
+            clearTimeout(workerSearchTimer);
+            searchWorkers();
+        });
+    }
+
+    if (clearWorkerSearch && workerSearchInput) {
+        clearWorkerSearch.addEventListener('click', function () {
+            workerSearchInput.value = '';
+            clearTimeout(workerSearchTimer);
+            clearWorkerSearch.classList.add('hidden');
+            workerSearchInput.focus();
+            searchWorkers();
+        });
+    }
+</script>
+
+{% endblock %}

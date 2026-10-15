@@ -1,0 +1,493 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+<div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+    <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8"><div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center"><div><p class="text-[10px] font-bold uppercase tracking-[0.22em] text-cyan-300">Canon Registry</p><h1 class="mt-2 text-3xl font-black">Worker Management</h1><p class="mt-2 text-sm text-slate-300">Manage worker profiles, access details, and account balances.</p></div><a href="{{ url_for('manager_dashboard') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Dashboard</a></div></header>
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-col gap-4 border-b border-slate-100 pb-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 class="mt-1 text-2xl font-black text-slate-900">All Workers</h2>
+            </div>
+            <button type="button" id="open-worker-form" class="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800">
+                <i class="fa-solid fa-user-plus"></i> Add Worker
+            </button>
+        </div>
+
+        <div id="worker-form-panel" class="{% if not editing_worker and not new_entry %}hidden{% endif %} mt-6 rounded-2xl border border-cyan-100 bg-cyan-50/30 p-5 sm:p-6">
+        <div class="mb-6 flex items-start justify-between gap-4">
+            <div>
+                <p class="text-[15px] font-bold uppercase tracking-[0.2em] text-cyan-600">{% if editing_worker %}Edit profile{% else %}New profile{% endif %}</p>
+            </div>
+            {% if not editing_worker %}<button type="button" id="close-worker-form" class="flex h-9 w-9 items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-slate-700" title="Close form"><i class="fa-solid fa-xmark"></i></button>{% endif %}
+        </div>
+        <form method="POST" enctype="multipart/form-data">
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-800 mb-8">Employee Personal Details</h2>
+            </div>
+            <input type="hidden" name="worker_id" value="{{ editing_worker.id if editing_worker else '' }}">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Full Legal Name</label>
+                    <input type="text" name="name" required value="{{ editing_worker.name if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Date of Birth</label>
+                    <input type="date" name="dob" value="{{ editing_worker.dob if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Age</label>
+                    <input type="text" id="age-preview" value="{{ editing_worker.age if editing_worker and editing_worker.age is not none else '' }}" readonly class="w-full border rounded p-2 bg-slate-100">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">CNIC</label>
+                    <input type="text" id="cnic" name="cnic" maxlength="15" inputmode="numeric" placeholder="40000-0000000-0" value="{{ editing_worker.cnic if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Blood Group</label>
+                    <input type="text" name="blood_group" value="{{ editing_worker.blood_group if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <!-- Gender -->
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Gender</label>
+                    <div class="flex items-center gap-3 mt-2">
+                        <label class="inline-flex items-center gap-2">
+                            <input type="radio" name="gender" value="Male"
+                                {% if editing_worker and editing_worker.gender == 'Male' %}checked{% endif %}> Male
+                        </label>
+                        <label class="inline-flex items-center gap-2">
+                            <input type="radio" name="gender" value="Female"
+                                {% if editing_worker and editing_worker.gender == 'Female' %}checked{% endif %}> Female
+                        </label>
+                        <label class="inline-flex items-center gap-2">
+                            <input type="radio" name="gender" value="Other"
+                                {% if editing_worker and editing_worker.gender == 'Other' %}checked{% endif %}> Other
+                        </label>
+                    </div>
+                </div>
+
+            <!-- Marital Status -->
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Marital Status</label>
+                    <div class="flex flex-wrap items-center gap-3 mt-2">
+                        {% for value,label in [('Single','Single'),('Married','Married'),('Divorced','Divorced'),('Widowed','Widowed')] %}
+                        <label class="inline-flex items-center gap-2">
+                            <input type="radio" name="marital_status" value="{{ value }}"
+                                {% if editing_worker and editing_worker.marital_status == value %}checked{% endif %}> {{ label }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Phone</label>
+                    <input type="text" name="phone" value="{{ editing_worker.phone if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">WhatsApp Number</label>
+                    <input type="text" name="whatsapp_number" value="{{ editing_worker.whatsapp_number if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Emergency Number</label>
+                    <input type="text" name="emergency_number" value="{{ editing_worker.emergency_number if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Nationality</label>
+                    <input type="text" name="nationality" value="{{ editing_worker.nationality if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+            </div>
+
+
+
+
+            <div class="grid grid-cols-1 md:grid-cols-1 gap-4 mb-6">
+                <div class="md:col-span-2">
+                    <label class="block text-s font-bold text-slate-500">Current Address</label>
+                    <input type="text" name="address" value="{{ editing_worker.address if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+
+
+            </div>
+
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-s font-bold text-slate-500">City</label>
+                    <input type="text" name="city" value="{{ editing_worker.city if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">State</label>
+                    <input type="text" name="state" value="{{ editing_worker.state if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500">Picture</label>
+                    <input type="file" name="picture" accept="image/*" class="w-full">
+                    {% if editing_worker and editing_worker.picture %}
+                    <div class="mt-2">
+                        <img src="{{ url_for('static', filename='uploads/' ~ editing_worker.picture) }}" class="h-16 w-16 object-cover rounded-full" alt="pic" >
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+
+
+
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-800 pt-6 mb-8">Employment Details</h2>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Worker ID</label>
+                    {% if editing_worker %}
+                        <input type="text" value="{{ editing_worker.worker_code or '' }}" readonly class="w-full border rounded p-2 bg-slate-100">
+                    {% else %}
+                        <div class="w-full border rounded p-2 text-slate-500">{{ next_worker_code or 'Will be assigned automatically' }}</div>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Employment Type</label>
+                    <select name="employment_type" required class="w-full border rounded p-2">
+                        <option value="">Select employment type</option>
+                        <option value="PER DAY" {% if editing_worker and editing_worker.employment_type == 'PER DAY' %}selected{% endif %}>PER DAY</option>
+                        <option value="WAGES" {% if editing_worker and editing_worker.employment_type == 'WAGES' %}selected{% endif %}>WAGES</option>
+                        <option value="SALARIED" {% if editing_worker and editing_worker.employment_type == 'SALARIED' %}selected{% endif %}>SALARIED</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Designation</label>
+                    <select name="role" required class="w-full border rounded p-2">
+                        <option value="">Select designation</option>
+                        <option value="LABOUR" {% if editing_worker and editing_worker.role|upper == 'LABOUR' %}selected{% endif %}>LABOUR</option>
+                        <option value="OFFICE STAFF" {% if editing_worker and editing_worker.role|upper == 'OFFICE STAFF' %}selected{% endif %}>OFFICE STAFF</option>
+                        <option value="STAFF" {% if editing_worker and editing_worker.role|upper == 'STAFF' %}selected{% endif %}>STAFF</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Sub Designation</label>
+                    <input type="text" name="sub_designation" value="{{ editing_worker.sub_designation if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+            </div>
+
+
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Department</label>
+                    <select name="department" required class="w-full border rounded p-2">
+                        <option value="">Select department</option>
+                        {% for department in departments %}
+                        <option value="{{ department.name }}" {% if editing_worker and editing_worker.department == department.name %}selected{% endif %}>{{ department.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Referred By</label>
+                    <input type="text" name="referred_by" value="{{ editing_worker.referred_by if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Hired By</label>
+                    <input type="text" name="hired_by" value="{{ editing_worker.hired_by if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Hiring Date</label>
+                    <input type="date" name="joining_date" value="{{ editing_worker.joining_date if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Employment Status</label>
+                    <select name="status" required class="w-full border rounded p-2">
+                        <option value="Active" {% if not editing_worker or editing_worker.status == 'Active' %}selected{% endif %}>Active</option>
+                        <option value="Non-active" {% if editing_worker and editing_worker.status == 'Non-active' %}selected{% endif %}>Non-active</option>
+                    </select>
+                </div>
+            </div>
+
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="flex-1">
+                    <label class="block text-s font-bold text-slate-500">Salary</label>
+                    <input type="number" name="salary" min="0" step="0.01" value="{{ editing_worker.salary if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+                <div class="flex-1">
+                    <label class="block text-s font-bold text-slate-500">Attendance Allowance</label>
+                    <input type="number" name="attendance_allowance" min="0" step="0.01" value="{{ editing_worker.attendance_allowance if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">Supervisor</label>
+                    <input type="text" name="supervisor" value="{{ editing_worker.supervisor if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500">HOD</label>
+                    <input type="text" name="hod" value="{{ editing_worker.hod if editing_worker else '' }}" class="w-full border rounded p-2">
+                </div>
+            </div>
+
+
+
+        
+            <div class="md:col-span-3">
+                <h3 class="text-2xl font-extrabold text-slate-800 pt-10 mb-8">Educational Background</h3>
+                <div class="overflow-x-auto mt-2">
+                    <table class="w-full border text-sm">
+                        <thead class="bg-slate-100">
+                            <tr>
+                                <th class="p-2 border">Degree Earned</th>
+                                <th class="p-2 border">Field Of Study</th>
+                                <th class="p-2 border">Institution</th>
+                                <th class="p-2 border">Date of Completion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% set education_rows = editing_worker.education_entries if editing_worker else [] %}
+                            {% for i in range(4) %}
+                                {% set entry = education_rows[i] if i < education_rows|length else None %}
+                                <tr>
+                                    <td class="p-2 border"><input type="text" name="edu_degree[]" value="{{ entry.degree if entry else '' }}" class="w-full border rounded p-2"></td>
+                                    <td class="p-2 border"><input type="text" name="edu_field[]" value="{{ entry.field_of_study if entry else '' }}" class="w-full border rounded p-2"></td>
+                                    <td class="p-2 border"><input type="text" name="edu_institution[]" value="{{ entry.institution if entry else '' }}" class="w-full border rounded p-2"></td>
+                                    <td class="p-2 border"><input type="date" name="edu_completion[]" value="{{ entry.completion_date if entry else '' }}" class="w-full border rounded p-2"></td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="md:col-span-3 pt-10 mb-6 pr-10 text-right">
+                <button type="submit" class="px-4 py-2 bg-slate-950 text-white rounded">{{ 'Update Worker' if editing_worker else 'Add Worker' }}</button>
+                {% if editing_worker %}
+                    <a href="{{ url_for('workers') }}" class="ml-2 px-4 py-2 border rounded">Cancel</a>
+                {% endif %}
+            </div>
+        </form>
+        </div>
+
+        <div class="mt-6 w-full min-w-0">
+            <div class="mb-4">
+                <label for="worker-directory-search" class="mb-2 block text-[12px] font-black uppercase tracking-[0.2em] text-black-800">Find a worker</label>
+                <div class="group relative flex w-full items-center rounded-2xl border border-slate-200 bg-slate-50 shadow-inner transition focus-within:border-cyan-400 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-cyan-100/60">
+                    <i class="fa-solid fa-magnifying-glass ml-5 text-slate-400 transition group-focus-within:text-cyan-600" aria-hidden="true"></i>
+                    <input id="worker-directory-search" type="search" placeholder="Search name, phone, Worker ID, CNIC, department, designation, type, status, salary, or sub-designation" autocomplete="off" class="w-full bg-transparent px-4 py-4 text-base font-semibold text-slate-800 outline-none placeholder:text-slate-400">
+                    <button type="button" id="clear-worker-directory-search" class="mr-3 hidden shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700">Clear</button>
+                </div>
+            </div>
+            <table class="worker-directory-table w-full table-fixed text-xs">
+                <thead class="border-b border-slate-200 text-[14px] uppercase tracking-wider text-black-800">
+                    <tr>
+                        <th class="p-2 border">Photo</th>
+                        <th class="p-2 border">Worker ID</th>
+                        <th class="p-2 border">Name</th>
+                        <th class="p-2 border">Phone</th>
+                        <th class="p-2 border">DEPT</th>
+                        <th class="p-2 border">CNIC</th>
+                        <th class="p-2 border">Employment Type</th>
+                        <th class="p-2 border">Status</th>
+                        <th class="p-2 border">Sub Designation</th>
+                        <th class="p-2 border">Salary</th>
+                        <th class="p-2 border">Allowance</th>
+                        <th class="p-2 border">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="worker-directory-results">
+                    {% for w in workers %}
+                    <tr class="group" data-worker-search="{{ (w.name ~ ' ' ~ (w.phone or '') ~ ' ' ~ (w.worker_code or '') ~ ' ' ~ (w.cnic or '') ~ ' ' ~ (w.department or '') ~ ' ' ~ (w.employment_type or '') ~ ' ' ~ (w.role or '') ~ ' ' ~ (w.sub_designation or '') ~ ' ' ~ (w.salary if w.salary is not none else '') ~ ' ' ~ (w.status or 'Active'))|lower }}">
+                        <td class="p-2 border text-center">
+                            {% if w.picture %}
+                                <img src="{{ url_for('static', filename='uploads/' ~ w.picture) }}" alt="pic" class="h-12 w-12 object-cover mx-auto rounded-full">
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="p-2 border">{{ w.worker_code or '-' }}</td>
+                        <td class="p-2 border font-bold">{{ w.name }}</td>
+                        <td class="p-2 border">{{ w.phone or '-' }}</td>
+                        <td class="p-2 border">{{ w.department or '-' }}</td>
+                        <td class="p-2 border">{{ w.cnic or '-' }}</td>
+                        <td class="p-2 border">{{ w.employment_type or '-' }}</td>
+                        <td class="p-2 border text-center">
+                            <span class="inline-flex rounded-full px-2 py-1 text-xs font-bold {% if w.status == 'Non-active' %}bg-rose-100 text-rose-700{% else %}bg-emerald-100 text-emerald-700{% endif %}">{{ w.status or 'Active' }}</span>
+                        </td>
+                        <td class="p-2 border">{{ w.sub_designation or '-' }}</td>
+                        <td class="p-2 border">{{ w.salary if w.salary is not none else '-' }}</td>
+                        <td class="p-2 border">{{ w.attendance_allowance if w.attendance_allowance is not none else '-' }}</td>
+                        <td class="p-2 border">
+                            <div class="flex flex-wrap items-center justify-center gap-1">
+                                {% if not read_only_profile %}
+                                <a href="{{ url_for('workers', worker_id=w.id) }}" class="inline-flex items-center px-3 py-1 rounded bg-indigo-600 text-white text-xs">Edit</a>
+                                {% endif %}
+                                <a href="{{ url_for('worker_print', worker_id=w.id) }}" target="_blank" class="inline-flex items-center px-3 py-1 rounded bg-emerald-600 text-white text-xs">Print</a>
+                                {% if not read_only_profile %}
+                                <form method="POST" action="{{ url_for('delete_worker') }}" style="display:inline" onsubmit="return confirm('Are you sure you want to delete this worker? This action cannot be undone.');">
+                                    <input type="hidden" name="worker_id" value="{{ w.id }}">
+                                    <button type="submit" class="inline-flex items-center px-3 py-1 rounded bg-red-600 text-white text-xs opacity-0 translate-y-1 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:translate-y-0 group-focus-within:pointer-events-auto">Delete</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr id="worker-directory-empty"><td colspan="12" class="p-4 text-center text-slate-500">No workers yet.</td></tr>
+                    {% endfor %}
+                    <tr id="worker-directory-no-results" class="hidden"><td colspan="12" class="p-4 text-center text-slate-500">No workers match your search.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <style>
+            .worker-directory-table th,
+            .worker-directory-table td {
+                overflow-wrap: anywhere;
+                white-space: normal;
+            }
+        </style>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex justify-between items-center mb-10">
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-800">Manager Worker Advance</h2>
+            </div>
+            <div>
+                <a href="{{ url_for('worker_advance') }}" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-500">Manage worker advance</a>
+            </div>
+        </div>
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-xl font-semibold text-slate-800">Workers Who Have Taken Advances</h2>
+            </div>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="border-b border-slate-200 text-[14px] uppercase tracking-wider text-black-800">
+                    <tr>
+                        <th class="p-2 border text-center">Worker</th>
+                        <th class="p-2 border text-center">Worker ID</th>
+                        <th class="p-2 border text-center">Total Advance</th>
+                        <th class="p-2 border text-center">Months</th>
+                        <th class="p-2 border text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for summary in advance_summaries %}
+                    <tr>
+                        <td class="p-2 border text-center">{{ summary.worker.name }}</td>
+                        <td class="p-2 border text-center">{{ summary.worker.worker_code or '-' }}</td>
+                        <td class="p-2 border text-center">{{ summary.total_advance | round(2) }}</td>
+                        <td class="p-2 border text-center">{{ summary.months or '-' }}</td>
+                        <td class="p-2 border text-center">
+                            <a href="{{ url_for('worker_advance', worker_id=summary.worker.id) }}" class="px-3 py-1 rounded bg-indigo-600 text-white text-xs">{{ 'View / Add' if read_only_profile else 'View / Edit' }}</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="p-4 text-center text-slate-500">No workers have advance records yet.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</div>
+
+<script>
+    const workerFormPanel = document.getElementById('worker-form-panel');
+    const openWorkerForm = document.getElementById('open-worker-form');
+    const closeWorkerForm = document.getElementById('close-worker-form');
+    const employmentType = document.querySelector('select[name="employment_type"]');
+    const designation = document.querySelector('select[name="role"]');
+    const dateOfBirth = document.querySelector('input[name="dob"]');
+    const agePreview = document.getElementById('age-preview');
+    const cnicInput = document.getElementById('cnic');
+    if (cnicInput) {
+        function formatCnic(value) {
+            const digits = value.replace(/\D/g, '').slice(0, 13);
+            let formatted = digits.slice(0, 5);
+            if (digits.length > 5) formatted += '-' + digits.slice(5, 12);
+            if (digits.length > 12) formatted += '-' + digits.slice(12);
+            return formatted;
+        }
+        cnicInput.addEventListener('input', function () {
+            const formatted = formatCnic(cnicInput.value);
+            cnicInput.value = formatted;
+        });
+        cnicInput.value = formatCnic(cnicInput.value);
+    }
+    if (dateOfBirth && agePreview) {
+        function updateAgePreview() {
+            if (!dateOfBirth.value) {
+                agePreview.value = '';
+                return;
+            }
+            const birthDate = new Date(dateOfBirth.value + 'T00:00:00');
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const birthdayPassed = today.getMonth() > birthDate.getMonth() || (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+            if (!birthdayPassed) age -= 1;
+            agePreview.value = age >= 0 ? age : '';
+        }
+        dateOfBirth.addEventListener('input', updateAgePreview);
+        updateAgePreview();
+    }
+    if (employmentType && designation) {
+        function setOfficeStaffEmploymentType() {
+            if (designation.value === 'OFFICE STAFF' || designation.value === 'STAFF') {
+                employmentType.value = 'SALARIED';
+            }
+        }
+        designation.addEventListener('change', setOfficeStaffEmploymentType);
+        setOfficeStaffEmploymentType();
+    }
+    if (workerFormPanel && openWorkerForm) {
+        openWorkerForm.addEventListener('click', function () {
+            workerFormPanel.classList.remove('hidden');
+            workerFormPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    }
+    if (workerFormPanel && closeWorkerForm) {
+        closeWorkerForm.addEventListener('click', function () {
+            workerFormPanel.classList.add('hidden');
+        });
+    }
+
+    const workerDirectorySearch = document.getElementById('worker-directory-search');
+    const clearWorkerDirectorySearch = document.getElementById('clear-worker-directory-search');
+    const workerDirectoryRows = Array.from(document.querySelectorAll('#worker-directory-results [data-worker-search]'));
+    const workerDirectoryEmpty = document.getElementById('worker-directory-empty');
+    const workerDirectoryNoResults = document.getElementById('worker-directory-no-results');
+
+    if (workerDirectorySearch) {
+        workerDirectorySearch.addEventListener('input', function () {
+            const query = workerDirectorySearch.value.trim().toLowerCase();
+            let matchCount = 0;
+            workerDirectoryRows.forEach(function (row) {
+                const matches = row.dataset.workerSearch.includes(query);
+                row.classList.toggle('hidden', !matches);
+                if (matches) matchCount += 1;
+            });
+            if (workerDirectoryEmpty) workerDirectoryEmpty.classList.toggle('hidden', Boolean(query));
+            if (workerDirectoryNoResults) workerDirectoryNoResults.classList.toggle('hidden', !query || matchCount > 0);
+            if (clearWorkerDirectorySearch) clearWorkerDirectorySearch.classList.toggle('hidden', !query);
+        });
+    }
+
+    if (clearWorkerDirectorySearch && workerDirectorySearch) {
+        clearWorkerDirectorySearch.addEventListener('click', function () {
+            workerDirectorySearch.value = '';
+            workerDirectorySearch.dispatchEvent(new Event('input'));
+            workerDirectorySearch.focus();
+        });
+    }
+</script>
+
+{% endblock %}

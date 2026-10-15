@@ -1,0 +1,114 @@
+<!-- templates/navbar.html -->
+<style>
+@media print { nav.no-print { display: none !important; } }
+</style>
+<nav class="bg-white border-b border-slate-200 fixed top-0 left-0 right-0 h-16 md:h-20 flex items-center justify-center shadow-sm z-40 no-print px-4 md:px-0">
+  <div class="hidden md:flex flex-nowrap justify-center items-center gap-8 w-[1400px] max-w-full">
+        {% set current_order = request.args.get('job_no') or request.args.get('order_id') or request.args.get('filter_job') or request.args.get('auto_job') or (request.view_args.job_no if request.view_args and request.view_args.get('job_no') else None) %}
+        {% set all_nav_links = [
+            ('receiving_challan', '1. RECIEVING CHALLAN', 'receiving_challan'),
+            ('inventory', '2. INVENTORY', 'inventory'),
+            ('req_slip', '3. REQ SLIP', 'requirements'),
+            ('cutting_sheet', '4. CUTTING SHEET', 'cutting'),
+            ('production_entry', '5. PRODUCTION ENTRY', 'production_entry'),
+            ('production_log', '6. PRODUCTION LOG', 'production_log'),
+            ('summary', '7. MASTER SUMMARY', 'summary'),
+            ('job_sheet', '8. WORKER JOB SHEET', 'job_sheet'),
+            ('payout', '9. FINAL PAYOUT', 'payout')
+        ] %}
+          {% set role_nav_links = all_nav_links if session.get('role') != 'assistant_manager' else all_nav_links[:6] %}
+          {% set nav_links = [] %}
+          {% for endpoint, label, page_key in role_nav_links %}
+            {% if page_key in page_access_keys %}{% set _ = nav_links.append((endpoint, label)) %}{% endif %}
+          {% endfor %}
+        {% for endpoint, label in nav_links %}
+          {% set general_endpoint = endpoint in ['summary', 'job_sheet', 'payout'] %}
+          {% if request.endpoint == 'workers' or general_endpoint %}
+                {% set link_url = url_for('manager_dashboard', tab='list') %}
+            {% if general_endpoint %}
+              {% set link_url = url_for(endpoint) %}
+            {% endif %}
+          {% elif request.endpoint == 'order_details' and current_order %}
+                {% set link_url = url_for(endpoint, job_no=current_order) %}
+          {% elif current_order %}
+                {% set link_url = url_for(endpoint, job_no=current_order) %}
+            {% else %}
+                {% set link_url = url_for(endpoint) %}
+            {% endif %}
+            <a href="{{ link_url }}" 
+            class="text-xs font-bold uppercase whitespace-nowrap transition-all rounded-none px-0 py-0
+            {{ 'text-red-600 bg-red-50 border border-red-200 md:bg-transparent md:border-0 md:border-b-2 md:border-red-600 md:pb-1' if request.endpoint == endpoint else 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 md:hover:bg-transparent' }}">
+            {{ label }}
+            </a>
+        {% endfor %}
+  </div>
+
+  <div class="flex md:hidden w-full items-center justify-between">
+    <div class="flex items-center gap-2">
+      <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-950 text-white"><i class="fa-solid fa-layer-group text-sm"></i></span>
+      <span class="text-sm font-black uppercase tracking-wide text-slate-800">Canon Registry</span>
+    </div>
+    <button id="mobile-nav-toggle" type="button" aria-label="Open navigation" aria-expanded="false" class="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-200">
+      <i class="fa-solid fa-bars text-lg" aria-hidden="true"></i>
+    </button>
+  </div>
+</nav>
+
+<div id="mobile-nav-backdrop" class="fixed inset-0 z-[55] hidden bg-slate-950/40 backdrop-blur-sm md:hidden"></div>
+<aside id="mobile-nav-drawer" aria-label="Mobile navigation" class="fixed right-0 top-0 z-[60] flex h-full w-[min(86vw,21rem)] translate-x-full flex-col bg-white shadow-2xl transition-transform duration-300 md:hidden">
+  <div class="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+    <div>
+      <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Navigation</p>
+      <p class="mt-1 text-lg font-black text-slate-900">Canon Registry</p>
+    </div>
+    <button id="mobile-nav-close" type="button" aria-label="Close navigation" class="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition hover:bg-slate-100 hover:text-slate-900">
+      <i class="fa-solid fa-xmark text-lg" aria-hidden="true"></i>
+    </button>
+  </div>
+  <div class="flex-1 overflow-y-auto px-3 py-4">
+    <p class="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Production</p>
+    <div class="space-y-1">
+      {% for endpoint, label in nav_links %}
+        {% set general_endpoint = endpoint in ['summary', 'job_sheet', 'payout'] %}
+        {% if request.endpoint == 'workers' or general_endpoint %}
+          {% set link_url = url_for('manager_dashboard', tab='list') %}
+          {% if general_endpoint %}{% set link_url = url_for(endpoint) %}{% endif %}
+        {% elif request.endpoint == 'order_details' and current_order %}
+          {% set link_url = url_for(endpoint, job_no=current_order) %}
+        {% elif current_order %}
+          {% set link_url = url_for(endpoint, job_no=current_order) %}
+        {% else %}
+          {% set link_url = url_for(endpoint) %}
+        {% endif %}
+        <a href="{{ link_url }}" class="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-bold uppercase transition {% if request.endpoint == endpoint %}bg-red-50 text-red-600{% else %}text-slate-600 hover:bg-slate-100 hover:text-slate-950{% endif %}">
+          <span class="flex h-8 w-8 items-center justify-center rounded-lg {% if request.endpoint == endpoint %}bg-red-100{% else %}bg-slate-100{% endif %}"><i class="fa-solid fa-chevron-right text-[10px]"></i></span>
+          <span>{{ label }}</span>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</aside>
+
+<script>
+(function () {
+  const toggle = document.getElementById('mobile-nav-toggle');
+  const close = document.getElementById('mobile-nav-close');
+  const drawer = document.getElementById('mobile-nav-drawer');
+  const backdrop = document.getElementById('mobile-nav-backdrop');
+  if (!toggle || !close || !drawer || !backdrop) return;
+
+  function setOpen(isOpen) {
+    drawer.classList.toggle('translate-x-full', !isOpen);
+    backdrop.classList.toggle('hidden', !isOpen);
+    toggle.setAttribute('aria-expanded', String(isOpen));
+    document.body.classList.toggle('overflow-hidden', isOpen);
+  }
+
+  toggle.addEventListener('click', function () { setOpen(true); });
+  close.addEventListener('click', function () { setOpen(false); });
+  backdrop.addEventListener('click', function () { setOpen(false); });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') setOpen(false);
+  });
+})();
+</script>

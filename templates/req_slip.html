@@ -1,0 +1,727 @@
+{% extends 'base.html' %}
+{% block content %}
+{% include 'navbar.html' %}
+<div class="max-w-6xl mx-auto p-6 pt-20 md:pt-20" id="print-area">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+
+
+
+        <div class="print-header print-only">
+            <!-- Logo + Address (print only, at top left) -->
+            <div class="print-company">
+                <img src="{{ url_for('static', filename='canon logo black.webp') }}" alt="Canon Logo" class="h-10 w-auto print-logo">
+                <p class="text-[10px] mt-1 leading-tight">
+                    Akhter & Iqbal Compound, Block-C, Ground Floor, L/3, Block-22,<br>
+                    F.B. Industrial Area, Opp.Edhi Home, Karachi. Ph. 36342557
+                </p>
+            </div>
+
+            <div class="canon-print">
+                <div class="for-box">
+                    <label class="block text-sm font-bold">FOR</label>
+                    <input type="text" name="name" value="{{ order.name or '' }}" readonly class="border rounded p-1 w-10 text-xl text-left bg-slate-100">
+                </div>
+                <div class="article-box">
+                    <label class="block text-sm font-bold">ARTICLE</label>
+                    <input type="text" name="article_name" value="{{ order.article_name or '' }}" readonly class="border rounded p-1 w-auto text-left bg-slate-100">
+                </div>
+                <div class="file-box">
+                    <label class="block text-sm font-bold">FILE NO</label>
+                    <input type="text" name="file_no" value="{{ order.file_no or '' }}" readonly class="border rounded p-1 w-10 text-left bg-slate-100">
+                </div>
+                <div class="month-box">
+                    <label class="block text-sm font-bold">M/O</label>
+                    <input id="month-field" type="text" name="month" value="{{ order.month or '' }}" readonly class="border rounded p-1 w-auto text-left bg-slate-100">
+                </div>
+            </div>
+        </div>
+
+        <!-- Form -->
+        <form id="req-form" method="POST" action="{{ url_for('req_slip', job_no=selected_job) }}">
+            <input type="hidden" name="serial_no" value="{{ serial_no }}">
+            <input type="hidden" name="req_id" value="{{ req_id or '' }}">
+            <input type="hidden" name="po_no" value="{{ po_no or '' }}">
+            
+            <!-- Header -->
+            <div class="flex justify-between items-center mb-4">
+                <div>
+                    <h2 class="text-2xl font-extrabold text-slate-800" id="slip-title">Requirement Slip</h2>
+                </div>
+                <span class="px-3 py-1 rounded-full bg-emerald-100 text-black-700 text-m font-bold">P.O No: {{ po_no }}</span>
+            </div>
+
+            <!-- Top Info - All 5 in One Line using Flexbox -->
+            <div style="display: flex; gap: 8px; margin-bottom: 16px; width: 100%;">
+                <div style="flex: 1; min-width: 0;">
+                    <label class="block text-[14px] font-bold text-slate-500">Date</label>
+                    <input id="upper" type="date" name="date" value="{{ prefill.date }}" class="w-full font-bold border border-black-500 rounded p-1 text-[16px]" required>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <label class="block text-[14px] font-bold text-slate-500">Messers (Supplier)</label>
+                    <input id="upper" type="text" name="supplier" value="{{ prefill.supplier }}" class="w-full font-bold border rounded p-1 text-[16px]" list="supplier-list" placeholder="Enter supplier name" />
+                    <datalist id="supplier-list">
+                        {% for vendor in vendors %}
+                        <option value="{{ vendor.name }}">{{ vendor.name }}</option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <label class="block text-[14px] font-bold text-slate-500">Requested By</label>
+                    <input id="upper" type="text" name="requested_by" value="{{ prefill.requested_by }}" class="w-full font-bold border rounded p-1 text-[16px]" required>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <label class="block text-[14px] font-bold text-slate-500">Priority</label>
+                    <select id="upper" name="priority" class="w-full font-bold border rounded p-1 text-[16px]" required>
+                        <option value="">-- Select --</option>
+                        <option value="Normal" {% if prefill.priority == 'Normal' %}selected{% endif %}>Normal</option>
+                        <option value="Urgent" {% if prefill.priority == 'Urgent' %}selected{% endif %}>Urgent</option>
+                    </select>
+                </div>
+            </div>
+
+
+            <!-- Items Table -->
+            <div class="overflow-x-auto mb-4">
+                <table class="w-full border border-slate-300 rounded-lg text-xs">
+                    <thead class="bg-slate-100">
+                        <tr>
+                            <th class="border px-2 py-1 w-12 text-center">S. No.</th>
+                            <th class="border px-2 py-1 w-60 text-center">ITEM</th>
+                            <th class="border px-2 py-1 w-24 text-center">SIZE</th>
+                            <th class="border px-2 py-1 w-28 text-center">QUALITY</th>
+                            <th class="border px-2 py-1 w-20 text-center">QTY</th>
+                            <th class="border px-2 py-1 w-20 text-center">UNIT</th>
+                            <th class="border px-2 py-1 w-20 text-center">RATE</th>
+                            <th class="border px-2 py-1 w-28 text-center">BILL AMOUNT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for i in range(1,7) %}
+                        <tr>
+                            <td class="border px-2 py-1 text-center">{{ i }}</td>
+                            <td class="border px-2 py-1 text-center"><input type="text" name="item_{{ i }}" value="{{ prefill['item_' ~ i] }}" list="req-item-master-list" autocomplete="off" class="w-full p-1 border rounded text-[16px]"></td>
+                            <td class="border px-2 py-1 text-center"><input type="text" name="size_{{ i }}" value="{{ prefill['size_' ~ i] }}" class="w-full p-1 border rounded text-[16px]"></td>
+                            <td class="border px-2 py-1 text-center"><input type="text" name="quality_{{ i }}" value="{{ prefill['quality_' ~ i] }}" class="w-full p-1 border rounded text-[16px]"></td>
+                            <td class="border px-2 py-1 text-center"><input type="number" step="any" name="qty_{{ i }}" value="{{ prefill['qty_' ~ i] }}" class="w-full p-1 border rounded text-[16px]"></td>
+                            <td class="border px-2 py-1 text-center"><input type="text" name="unit_{{ i }}" value="{{ prefill['unit_' ~ i] }}" list="req-unit-list" autocomplete="off" class="w-full p-1 border rounded text-[16px]"></td>
+                            <td class="border px-2 py-1 text-center"><input type="number" step="0.01" name="rate_{{ i }}" value="{{ prefill['rate_' ~ i] }}" class="w-full p-1 border rounded text-[16px]"></td>
+                            <td class="border px-2 py-1 text-center"><input type="number" step="0.01" name="bill_amount_{{ i }}" value="{{ prefill['bill_amount_' ~ i] }}" class="w-full p-1 border rounded text-[16px]"></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <td class="border px-2 py-1 text-right" colspan="7"><strong class="text-sm">Grand Total</strong></td>
+                            <td class="border px-2 py-1"><input type="number" step="0.01" id="bill_amount_total" name="bill_amount_total" value="" class="w-full p-1 border font-bold rounded text-[18px]" /></td>
+                        </tr>
+                    </tfoot>
+                </table>
+                    <datalist id="req-item-master-list">
+                        {% for item in item_master_data %}
+                        <option value="{{ item.item_name }}"></option>
+                        {% endfor %}
+                    </datalist>
+            </div>
+            <datalist id="req-unit-list">
+                <option value="CM"></option><option value="MM"></option><option value="INCH"></option><option value="METER"></option><option value="ROLL"></option><option value="PCS"></option><option value="BUNDLE"></option><option value="CONE"></option><option value="PACK"></option><option value="BOX"></option><option value="CARTON"></option><option value="PAIR"></option><option value="KG"></option><option value="GM"></option><option value="MG"></option><option value="DOZENS"></option>
+            </datalist>
+            <input type="hidden" id="grand_total_hidden" name="grand_total" value="" />
+
+            <!-- Signature + Timestamp -->
+            <div class="print-only mt-6">
+                <p class="text-xs pt-6">Receiver Signature: ______________________</p>
+                <p class="mt-0 text-[10px] text-slate-500 text-right">
+                    Printed on: <span id="print-time"></span>
+                </p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end sm:items-center sm:gap-3 no-print">
+                <a href="{{ url_for('saved_requirements', order_id=selected_job) }}" class="w-full sm:w-auto text-center px-4 py-2 rounded-lg bg-slate-950 text-white text-xs font-bold">
+                    View Saved Requirements
+                </a>
+                <button type="button" onclick="printSlip('Requirement Slip - Canon Copy')" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold">
+                    Print Canon Copy
+                </button>
+                <button type="button" onclick="printSlip('Requirement Slip')" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-sky-600 text-white text-xs font-bold">
+                    Print Customer Copy
+                </button>
+                <button type="submit" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold">
+                    Save Requirement
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Validation Script -->
+<script>
+document.getElementById('req-form').addEventListener('submit', function(e) {
+    let rowsValid = false;
+    for (let i = 1; i <= 6; i++) {
+        const item = document.querySelector(`[name="item_${i}"]`).value.trim();
+        const qty = document.querySelector(`[name="qty_${i}"]`).value.trim();
+        const size = document.querySelector(`[name="size_${i}"]`).value.trim();
+        const quality = document.querySelector(`[name="quality_${i}"]`).value.trim();
+
+        if (item !== "") {
+            if (qty === "" || size === "" || quality === "") {
+                alert(`Row ${i}: Please fill quantity, size, and quality for the item.`);
+                e.preventDefault();
+                return;
+            }
+            rowsValid = true;
+        }
+    }
+
+    if (!rowsValid) {
+        alert("Please fill at least one item row before saving.");
+        e.preventDefault();
+    }
+});
+
+function printSlip(titleText) {
+    const now = new Date();
+    const options = {
+        weekday: 'long', year: 'numeric', month: 'long',
+        day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
+        timeZone: 'Asia/Karachi'
+    };
+    document.getElementById('print-time').textContent = now.toLocaleString('en-US', options);
+    
+    // Change Heading Title Temporarily for Printing
+    const titleElement = document.getElementById('slip-title');
+    const originalTitle = titleElement.textContent;
+    titleElement.textContent = titleText;
+
+    // If this is Canon Copy, mark body so print CSS shows canon-only header
+    const isCanon = String(titleText).toLowerCase().includes('canon');
+    if (isCanon) document.body.classList.add('print-canon');
+
+    // Trigger Print
+    window.print();
+
+    // Revert Heading and temporary class after print dialog triggers
+    setTimeout(() => {
+        titleElement.textContent = originalTitle;
+        if (isCanon) document.body.classList.remove('print-canon');
+    }, 500);
+}
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const today = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Karachi',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(new Date());
+    document.querySelectorAll('input[type="date"]').forEach(function (el) {
+        if (!el.value || el.value.trim() === '') {
+            el.value = today;
+        }
+    });
+
+    function updateMonthFromDate(dateStr){
+        if(!dateStr) return;
+        const d = new Date(dateStr);
+        if (isNaN(d)) return;
+        const monthName = d.toLocaleString('default', { month: 'long', year: 'numeric' });
+        const monthEl = document.getElementById('month-field');
+        if(monthEl) monthEl.value = monthName;
+    }
+
+    const poDate = document.getElementById('upper');
+    if(poDate){
+        updateMonthFromDate(poDate.value);
+        poDate.addEventListener('change', function(){ updateMonthFromDate(this.value); });
+    }
+
+    let vendorCatalog = [];
+    let vendorCatalogSupplier = '';
+    let vendorRequestToken = 0;
+    const reqItemMaster = {{ item_master_data | tojson }};
+    const articleUsageData = {{ article_usage_data | tojson }};
+    const orderRequirementQty = {{ order_requirement_qty|tojson }};
+    const autoCalculateRolls = {{ auto_calculate_rolls|tojson }};
+
+    function applyItemMasterForRow(rowIndex) {
+        const itemEl = document.querySelector(`[name="item_${rowIndex}"]`);
+        const sizeEl = document.querySelector(`[name="size_${rowIndex}"]`);
+        const qualityEl = document.querySelector(`[name="quality_${rowIndex}"]`);
+        const unitEl = document.querySelector(`[name="unit_${rowIndex}"]`);
+        if (!itemEl) return;
+
+        const itemName = itemEl.value.trim().toLowerCase();
+        const match = reqItemMaster.find(item => String(item.item_name || '').trim().toLowerCase() === itemName);
+        if (match) {
+            if (sizeEl) sizeEl.value = match.size || '';
+            if (qualityEl) qualityEl.value = match.material || '';
+            if (unitEl) unitEl.value = match.unit || '';
+        } else if (!itemName) {
+            if (sizeEl) sizeEl.value = '';
+            if (qualityEl) qualityEl.value = '';
+            if (unitEl) unitEl.value = '';
+        }
+    }
+
+    function clearStaleVendorRates() {
+        for (let i = 1; i <= 6; i++) {
+            const rateEl = document.querySelector(`[name="rate_${i}"]`);
+            const billEl = document.querySelector(`[name="bill_amount_${i}"]`);
+            if (rateEl && rateEl.value.trim()) {
+                rateEl.value = '';
+            }
+            if (billEl && billEl.value.trim()) {
+                billEl.value = '';
+            }
+        }
+    }
+
+    function applyVendorMatchForRow(rowIndex, match) {
+        const itemEl = document.querySelector(`[name="item_${rowIndex}"]`);
+        const rateEl = document.querySelector(`[name="rate_${rowIndex}"]`);
+        const qualityEl = document.querySelector(`[name="quality_${rowIndex}"]`);
+        const qtyEl = document.querySelector(`[name="qty_${rowIndex}"]`);
+        const unitEl = document.querySelector(`[name="unit_${rowIndex}"]`);
+        const billEl = document.querySelector(`[name="bill_amount_${rowIndex}"]`);
+        if (!itemEl || !rateEl || !qualityEl || !qtyEl) return;
+
+        if (!match) {
+            rateEl.value = '';
+            const master = reqItemMaster.find(item => String(item.item_name || '').trim().toLowerCase() === itemEl.value.trim().toLowerCase());
+            const usage = articleUsageData.find(item => String(item.item_name || '').trim().toLowerCase() === itemEl.value.trim().toLowerCase());
+            if (autoCalculateRolls && master && (['roll', 'rolls'].includes(String(master.unit || '').trim().toLowerCase()) || ['pack', 'packs', 'packet', 'packets', 'bundle', 'bundles', 'box', 'boxes', 'carton', 'cartons', 'case', 'cases', 'bale', 'bales', 'bag', 'bags'].includes(String(master.unit || '').trim().toLowerCase())) && usage) {
+                qtyEl.value = '';
+            }
+            if (billEl) billEl.value = '';
+            return;
+        }
+
+        const master = reqItemMaster.find(item => String(item.item_name || '').trim().toLowerCase() === itemEl.value.trim().toLowerCase());
+        const usage = articleUsageData.find(item => String(item.item_name || '').trim().toLowerCase() === itemEl.value.trim().toLowerCase());
+        const packageUnits = ['pack', 'packs', 'packet', 'packets', 'bundle', 'bundles', 'box', 'boxes', 'carton', 'cartons', 'case', 'cases', 'bale', 'bales', 'bag', 'bags'];
+        const unitFactors = { m: 1, meter: 1, meters: 1, metre: 1, metres: 1, cm: 0.01, centimeter: 0.01, centimeters: 0.01, mm: 0.001, millimeter: 0.001, millimeters: 0.001, in: 0.0254, inch: 0.0254, inches: 0.0254, ft: 0.3048, foot: 0.3048, feet: 0.3048, yd: 0.9144, yard: 0.9144, yards: 0.9144, km: 1000, kilometer: 1000, kilometers: 1000 };
+        const usageToMeters = usage ? unitFactors[String(usage.unit || '').trim().toLowerCase()] || 0 : 0;
+        const meterPurchase = Boolean(autoCalculateRolls && usageToMeters > 0);
+        const packagePurchase = Boolean(
+            autoCalculateRolls && master && packageUnits.includes(String(master.unit || '').trim().toLowerCase())
+        );
+        let unitRate = Number(match.rate || match.unit_rate || 0);
+        if (meterPurchase && ['roll', 'rolls'].includes(String(match.unit || '').trim().toLowerCase())) {
+            const metersPerRoll = Number(match.roll_length_m || match.pack_qty || 0);
+            const pricePerRoll = Number(match.pack_price || match.rate || 0);
+            unitRate = metersPerRoll > 0 ? pricePerRoll / metersPerRoll : 0;
+        } else if (packagePurchase && packageUnits.includes(String(match.unit || '').trim().toLowerCase())) {
+            unitRate = Number(match.pack_price || unitRate);
+        } else if (meterPurchase && usageToMeters > 0) {
+            const vendorUnitMeters = unitFactors[String(match.unit || '').trim().toLowerCase()] || 0;
+            if (vendorUnitMeters > 0 && vendorUnitMeters !== 1) unitRate /= vendorUnitMeters;
+        }
+        rateEl.value = unitRate > 0 ? unitRate.toFixed(2) : '';
+
+        if (!qualityEl.value.trim() && match.material) {
+            qualityEl.value = match.material;
+        }
+        if (unitEl && match.unit) {
+            unitEl.value = meterPurchase ? 'METER' : packagePurchase ? match.unit : match.unit;
+        }
+
+        if (meterPurchase) {
+            qtyEl.value = String(Number(orderRequirementQty || 0) * Number(usage.qty_per_piece || 0) * usageToMeters);
+        } else if (packagePurchase && packageUnits.includes(String(match.unit || '').trim().toLowerCase())) {
+            const unitsPerPackage = Number(match.pack_qty || 0);
+            const requiredPieces = Number(orderRequirementQty || 0) * Number(usage?.qty_per_piece || 0);
+            qtyEl.value = String(usage?.unit || '').trim().toLowerCase() === String(match.unit || '').trim().toLowerCase()
+                ? String(requiredPieces)
+                : unitsPerPackage > 0
+                ? String(Math.ceil(requiredPieces / unitsPerPackage - 1e-10))
+                : '';
+        } else if (autoCalculateRolls && master && ['roll', 'rolls'].includes(String(master.unit || '').trim().toLowerCase()) && usage) {
+            const vendorRollLength = Number(match.roll_length_m || (['roll', 'rolls'].includes(String(match.unit || '').trim().toLowerCase()) ? match.pack_qty : 0));
+            const factor = unitFactors[String(usage.unit || '').trim().toLowerCase()] || 0;
+            if (vendorRollLength > 0 && factor > 0 && ['roll', 'rolls'].includes(String(match.unit || '').trim().toLowerCase())) {
+                qtyEl.value = String(Math.ceil((Number(orderRequirementQty || 0) * Number(usage.qty_per_piece || 0) * factor) / vendorRollLength - 1e-10));
+            } else {
+                qtyEl.value = '';
+            }
+        }
+        if (billEl) {
+            const currentQty = parseNumber(qtyEl.value);
+            const currentRate = parseNumber(rateEl.value);
+            billEl.value = currentQty && currentRate ? (currentQty * currentRate).toFixed(2) : '';
+        }
+    }
+
+    function syncVendorRateLookup() {
+        const supplierInput = document.querySelector('input[name="supplier"]');
+        if (!supplierInput) return;
+        const supplier = (supplierInput.value || '').trim();
+        const currentRequestToken = ++vendorRequestToken;
+
+        if (!supplier) {
+            vendorCatalog = [];
+            vendorCatalogSupplier = '';
+            clearStaleVendorRates();
+            computeGrandTotal();
+            return;
+        }
+
+        if (vendorCatalogSupplier !== supplier) {
+            fetch(`/manager/api/vendor-items?vendor_name=${encodeURIComponent(supplier)}`)
+                .then(response => response.json())
+                .then(items => {
+                    if (currentRequestToken !== vendorRequestToken) return;
+                    vendorCatalog = Array.isArray(items) ? items : [];
+                    vendorCatalogSupplier = supplier;
+                    for (let i = 1; i <= 6; i++) {
+                        const itemEl = document.querySelector(`[name="item_${i}"]`);
+                        const itemName = (itemEl ? itemEl.value : '').trim();
+                        if (!itemName) continue;
+                        const match = vendorCatalog.find(item => String(item.item_name || '').trim().toLowerCase() === itemName.toLowerCase());
+                        applyVendorMatchForRow(i, match || null);
+                    }
+                    computeGrandTotal();
+                })
+                .catch(() => {
+                    if (currentRequestToken !== vendorRequestToken) return;
+                    vendorCatalog = [];
+                    vendorCatalogSupplier = supplier;
+                    for (let i = 1; i <= 6; i++) {
+                        const itemEl = document.querySelector(`[name="item_${i}"]`);
+                        if (itemEl && itemEl.value.trim()) {
+                            applyVendorMatchForRow(i, null);
+                        }
+                    }
+                    computeGrandTotal();
+                });
+            return;
+        }
+
+        for (let i = 1; i <= 6; i++) {
+            const itemEl = document.querySelector(`[name="item_${i}"]`);
+            const itemName = (itemEl ? itemEl.value : '').trim();
+            if (!itemName) continue;
+            const match = vendorCatalog.find(item => String(item.item_name || '').trim().toLowerCase() === itemName.toLowerCase());
+            applyVendorMatchForRow(i, match || null);
+        }
+        computeGrandTotal();
+    }
+
+    const supplierInput = document.querySelector('input[name="supplier"]');
+    for (let i = 1; i <= 6; i++) {
+        const itemEl = document.querySelector(`[name="item_${i}"]`);
+        if (itemEl) {
+            itemEl.addEventListener('input', () => {
+                applyItemMasterForRow(i);
+                if (supplierInput && supplierInput.value.trim()) syncVendorRateLookup();
+            });
+            itemEl.addEventListener('change', () => {
+                applyItemMasterForRow(i);
+                if (supplierInput && supplierInput.value.trim()) syncVendorRateLookup();
+            });
+        }
+    }
+    if (supplierInput) {
+        supplierInput.addEventListener('input', syncVendorRateLookup);
+        supplierInput.addEventListener('change', syncVendorRateLookup);
+        syncVendorRateLookup();
+
+    }
+});
+</script>
+
+<!-- Auto-calculate Bill Amount (Qty x Rate) -->
+<script>
+function parseNumber(v){
+    if(!v) return 0;
+    const n = parseFloat(String(v).replace(/,/g, ''));
+    return Number.isNaN(n) ? 0 : n;
+}
+
+function computeBill(i){
+    const qtyEl = document.querySelector(`[name="qty_${i}"]`);
+    const rateEl = document.querySelector(`[name="rate_${i}"]`);
+    const billEl = document.querySelector(`[name="bill_amount_${i}"]`);
+    if(!qtyEl || !rateEl || !billEl) return;
+    const qty = parseNumber(qtyEl.value);
+    const rate = parseNumber(rateEl.value);
+    const bill = (qty * rate);
+    billEl.value = bill ? bill.toFixed(2) : '';
+    computeGrandTotal();
+}
+
+document.addEventListener('DOMContentLoaded', function(){
+    for(let i=1;i<=6;i++){
+        const qty = document.querySelector(`[name="qty_${i}"]`);
+        const rate = document.querySelector(`[name="rate_${i}"]`);
+        if(qty){ qty.addEventListener('input', ()=> computeBill(i)); qty.addEventListener('change', ()=> computeBill(i)); }
+        if(rate){ rate.addEventListener('input', ()=> computeBill(i)); rate.addEventListener('change', ()=> computeBill(i)); }
+        const bill = document.querySelector(`[name="bill_amount_${i}"]`);
+        if(bill){ bill.addEventListener('input', ()=> computeGrandTotal()); }
+        // compute initial
+        computeBill(i);
+    }
+    // compute grand total on load
+    computeGrandTotal();
+    const form = document.getElementById('req-form');
+    if (form) {
+        form.addEventListener('submit', function () {
+            for (let i = 1; i <= 6; i++) computeBill(i);
+        });
+    }
+});
+
+function computeGrandTotal(){
+    let total = 0;
+    for(let i=1;i<=6;i++){
+        const billEl = document.querySelector(`[name="bill_amount_${i}"]`);
+        if(!billEl) continue;
+        const v = parseNumber(billEl.value);
+        total += v;
+    }
+    const out = total ? total.toFixed(2) : '';
+    const footer = document.getElementById('bill_amount_total');
+    const hidden = document.getElementById('grand_total_hidden');
+    if(footer) footer.value = out;
+    if(hidden) hidden.value = out;
+}
+
+// Allow manual adjustment of the total in the footer
+document.addEventListener('DOMContentLoaded', function(){
+    const footer = document.getElementById('bill_amount_total');
+    if(footer){
+        footer.addEventListener('input', function(){
+            const v = parseNumber(this.value);
+            const hidden = document.getElementById('grand_total_hidden');
+            if(hidden) hidden.value = v ? v.toFixed(2) : '';
+        });
+    }
+});
+</script>
+
+<!-- Print Styles -->
+<style>
+.canon-print{ display:none; }
+#req-form input, #req-form select, #req-form textarea { text-align: center; }
+#req-form table th, #req-form table td:not(.text-right) { text-align: center; }
+#req-form table td.text-right, #req-form table tr td strong { text-align: right; }
+
+.print-only { display: none; }
+
+.print-header {
+    display: none;
+}
+
+@media print {
+    @page { 
+        size: A5 landscape; 
+        margin: 10mm; 
+    }
+    body * { 
+        visibility: hidden; 
+    }
+    #print-area, #print-area * { 
+        visibility: visible; 
+    }
+    #print-area { 
+        position: absolute; 
+        left: 0; 
+        top: 0; 
+        width: 100%; 
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+    #print-area > div {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 2px 2px !important;
+        border-radius: 0 !important;
+    }
+    .no-print { 
+        display: none !important; 
+    }
+    .print-only { 
+        display: block; 
+    }
+    .print-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        width: 100%;
+        margin-top: 0 !important;
+        margin-bottom: 2px;
+    }
+    .print-company {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    body.print-canon .canon-print {
+        flex: 0 0 auto;
+    }
+    .print-logo { 
+        max-height: 28px !important; 
+    }
+
+    
+    #print-area h2 {
+        font-size: 14px !important;
+        margin-bottom: 2px !important;
+    }
+    #print-area label {
+        font-size: 11px !important;
+        margin-bottom: 1px !important;
+    }
+    #print-area input, #print-area select {
+        padding: 2px 4px !important;
+        font-size: 12px !important;
+        height: 24px !important;
+        border-color: #000000 !important;
+    }
+    #print-area input[type="number"] {
+        appearance: textfield !important;
+        -moz-appearance: textfield !important;
+    }
+    #print-area input[type="number"]::-webkit-inner-spin-button,
+    #print-area input[type="number"]::-webkit-outer-spin-button {
+        appearance: none !important;
+        -webkit-appearance: none !important;
+        margin: 0 !important;
+    }
+    #print-area input[list] {
+        appearance: none !important;
+        -moz-appearance: none !important;
+        -webkit-appearance: none !important;
+        background-image: none !important;
+        padding-right: 0 !important;
+    }
+    #print-area input[list]::-webkit-calendar-picker-indicator {
+        display: none !important;
+        opacity: 0 !important;
+        width: 0 !important;
+        margin: 0 !important;
+    }
+    #print-area select {
+        appearance: none !important;
+        -moz-appearance: none !important;
+        -webkit-appearance: none !important;
+        background-image: none !important;
+    }
+    #print-area table {
+        font-size: 12px !important;
+        border: 1px solid #000 !important;
+        table-layout: auto !important;
+        width: auto !important;
+        max-width: 100% !important;
+    }
+    #print-area th, #print-area td {
+        padding: 2px 4px !important;
+        border: 1px solid #000 !important;
+        text-align: center !important;
+        vertical-align: middle !important;
+    }
+    #print-area table input {
+        border: none !important;
+        background: transparent !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        height: 22px !important;
+        font-size: 12px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        text-align: center !important;
+        text-indent: 0 !important;
+    }
+    #print-area table select {
+        border: none !important;
+        background: transparent !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        height: 22px !important;
+        font-size: 12px !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        text-align: center !important;
+        text-align-last: center !important;
+    }
+    .print-only.mt-6 {
+        margin-top: 6px !important;
+    }
+
+    .canon-print{ display:none !important; }
+    body.print-canon .canon-print{
+        display:grid !important;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        justify-content:end;
+        width: 53%;
+        column-gap:12px;
+        row-gap:2px;
+        padding-right: 4px;
+        margin-bottom:0px;
+    }
+
+    body.print-canon .for-box { grid-column: 1; grid-row: 1; }
+    body.print-canon .article-box { grid-column: 2; grid-row: 1; }
+    body.print-canon .file-box { grid-column: 1; grid-row: 2; }
+    body.print-canon .month-box { grid-column: 2; grid-row: 2; }
+
+    .for-box, .file-box, .article-box, .month-box {
+        display:flex;
+        justify-content:flex-start;
+        align-items:center;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    .for-box label, .file-box label, .article-box label, .month-box label {
+        font-weight:bold;
+        font-size: 16px !important;
+        white-space:nowrap;
+        padding-left: 2px;
+    }
+
+/* Using 'ch' units makes the input width dynamically scale based on text length */
+    .for-box input {
+        width: 18ch;
+        font-size: 18px !important;
+        line-height: 1.2 !important;
+        border: none !important;
+        background: transparent !important;
+        text-align: left;
+        white-space: nowrap;
+    }
+    .file-box input {
+        width: 12ch;
+        font-size: 18px !important;
+        line-height: 1.2 !important;
+        border: none !important;
+        background: transparent !important;
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .article-box input {
+        width: 22ch;
+        font-size: 18px !important;
+        line-height: 1.2 !important;
+        border: none !important;
+        background: transparent !important;
+        text-align: left;
+        white-space: nowrap;
+    }
+
+    .month-box input {
+        width: 16ch;
+        font-size: 18px !important;
+        line-height: 1.2 !important;
+        border: none !important;
+        background: transparent !important;
+        text-align: left;
+        white-space: nowrap;
+        padding-right: 2px;
+    }
+}
+</style>
+{% endblock %}

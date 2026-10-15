@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+    <div class="mx-auto max-w-6xl space-y-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+            <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-indigo-300">Canon Registry</p>
+            <h1 class="mt-2 text-3xl font-black">Departments</h1>
+            <p class="mt-2 text-sm text-slate-300">Manage departments and their store rooms for accessory stock locations.</p>
+        </header>
+
+        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <h2 class="text-xl font-black text-slate-900">Add Department</h2>
+            <form method="post" class="mt-4 flex flex-col gap-3 sm:flex-row">
+                <input type="text" name="name" required maxlength="100" placeholder="Department name" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold focus:border-indigo-400 focus:outline-none">
+                <button type="submit" class="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-indigo-700">Add Department</button>
+            </form>
+        </section>
+        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <h2 class="text-xl font-black text-slate-900">Departments &amp; Store Rooms</h2>
+            <div class="mt-4 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="border-b border-slate-200 text-left text-[11px] uppercase tracking-wider text-slate-500">
+                        <tr><th class="p-3">S.No</th><th class="p-3">Department</th><th class="p-3">Store Rooms</th>{% if not read_only_profile %}<th class="p-3 text-right">Actions</th>{% endif %}</tr>
+                    </thead>
+                    <tbody>
+                        {% for department in departments %}
+                        <tr class="border-b border-slate-100 align-top">
+                            <td class="p-3 text-slate-500">{{ loop.index }}</td>
+                            <td class="p-3 font-bold text-slate-800">{{ department.name }}</td>
+                            <td class="p-3">
+                                <div class="flex flex-wrap gap-2">
+                                    {% for store_room in department.store_rooms %}
+                                    <span class="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                                        {{ store_room.name }}
+                                        {% if not read_only_profile %}
+                                        <form method="post" class="inline" onsubmit="return confirm('Delete this store room?');">
+                                            <input type="hidden" name="delete_store_room_id" value="{{ store_room.id }}">
+                                            <button type="submit" aria-label="Delete {{ store_room.name }}" class="font-black text-rose-600 hover:text-rose-800">&times;</button>
+                                        </form>
+                                        {% endif %}
+                                    </span>
+                                    {% else %}
+                                    <span class="text-xs text-slate-400">No store rooms configured</span>
+                                    {% endfor %}
+                                </div>
+                                {% if not read_only_profile %}
+                                <form method="post" class="mt-3 flex flex-wrap gap-2">
+                                    <input type="hidden" name="add_store_room_department_id" value="{{ department.id }}">
+                                    <input type="text" name="store_room_name" required maxlength="100" placeholder="New store room name" class="min-w-48 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs focus:border-indigo-400 focus:outline-none">
+                                    <button type="submit" class="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-indigo-700">Add Room</button>
+                                </form>
+                                {% endif %}
+                            </td>
+                            {% if not read_only_profile %}
+                            <td class="p-3 text-right">
+                                <form method="post" class="inline" onsubmit="return confirm('Delete this department?');">
+                                    <input type="hidden" name="delete_department_id" value="{{ department.id }}">
+                                    <button type="submit" class="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700">Delete</button>
+                                </form>
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="{% if read_only_profile %}3{% else %}4{% endif %}" class="p-8 text-center text-slate-500">No departments added yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

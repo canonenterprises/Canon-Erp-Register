@@ -1,0 +1,277 @@
+{% extends 'base.html' %}
+{% block content %}
+{% include 'navbar.html' %}
+<div class="max-w-6xl mx-auto p-6 pt-20 md:pt-20" id="print-area">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+        
+
+        <div class="serial-print">
+            <div class="serial-box">
+                <label class="block text-xs font-bold">Serial No</label>
+                <input
+                    type="text"
+                    name="serial_no"
+                    value="{{ serial_no or '' }}"
+                    readonly
+                    class="border rounded p-1 w-40 text-right bg-slate-100"
+                >
+            </div>
+        </div>
+
+
+
+            <!-- Header -->
+        <div class="print-only mb-4 md:mb-0">
+            <img src="{{ url_for('static', filename='canon logo black.webp') }}" alt="Canon Logo" class="h-14 w-auto print-logo">
+            <p class="text-xs mt-2">
+                Akhter & Iqbal Compound, Block-C, Ground Floor, L/3, Block-22,<br>
+                F.B. Industrial Area, Opp.Edhi Home, Karachi.<br>
+                Ph. 36342557
+            </p>
+        </div>
+        
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h2 class="text-2xl font-extrabold text-slate-800 mb-2 pt-2">Receiving Challan - Canon Copy</h2>
+            </div>
+            <span class="px-3 py-1 rounded-full bg-emerald-100 text-black-700 text-m font-bold no-print">Serial No:  {{ serial_no }}</span>
+        </div>
+
+        <!-- Top Info -->
+        <form method="POST" enctype="multipart/form-data" action="{{ url_for('receiving_challan', job_no=selected_job) }}" class="space-y-6">
+            <input type="hidden" name="challan_id" value="{{ editing_challan.id if editing_challan else '' }}">
+            <input type="hidden" name="job_no" value="{{ selected_job or '' }}">
+            <input type="hidden" name="serial_no" value="{{ serial_no or '' }}">
+
+            <div class="grid grid-cols-3 gap-4 mb-6">
+                <div><label class="block text-sm font-bold text-slate-500">Serial No.</label><input type="text" name="serial_no_display" value="{{ serial_no or '' }}" readonly class="w-full border rounded-lg p-2 text-xl text-emerald-700 font-bold bg-slate-100" required></div>
+                <div><label class="block text-sm font-bold text-slate-500">Received Date</label><input type="date" name="recv_date" value="{{ editing_challan.recv_date if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
+                <div><label class="block text-sm font-bold text-slate-500">Messers (Supplier)</label><input type="text" name="suppliers" value="{{ editing_challan.suppliers if editing_challan and editing_challan.suppliers else (order.name if order else '') }}" class="w-full border rounded-lg p-2" required></div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div><label class="block text-sm font-bold text-slate-500">Width</label><input type="text" name="width" value="{{ editing_challan.width if editing_challan and editing_challan.width else (order.fab_width if order else '') }}" class="w-full border rounded-lg p-2" required></div>
+                <div><label class="block text-sm font-bold text-slate-500">Fabric For</label><input type="text" name="fabric_for" value="{{ editing_challan.fabric_for if editing_challan and editing_challan.fabric_for else (order.style if order else '') }}" class="w-full border rounded-lg p-2" required></div>
+                <div><label class="block text-sm font-bold text-slate-500">Used FILE No</label><input type="text" name="used_file_no" value="{{ editing_challan.used_file_no if editing_challan and editing_challan.used_file_no else (order.file_no if order else '') }}" class="w-full border rounded-lg p-2 bg-slate-50" readonly required></div>
+                <div><label class="block text-sm font-bold text-slate-500">Fabric Quality</label><input type="text" name="fabric_quality" value="{{ editing_challan.fabric_quality if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
+            </div>        
+
+
+        <!-- Fabric Details -->
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div>
+                <label class="block text-sm font-bold text-slate-500">Deptt / Place</label>
+                <select name="place" class="w-full border rounded-lg p-2" required>
+                    <option value="">Select department</option>
+                    {% for department in departments %}
+                    <option value="{{ department.name }}" {% if editing_challan and editing_challan.place == department.name %}selected{% endif %}>{{ department.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div><label class="block text-sm font-bold text-slate-500">Reciever's Name</label><input type="text" name="reciever_name" value="{{ editing_challan.reciever_name if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>        
+            <div><label class="block text-sm font-bold text-slate-500">Reciever's Signature</label><input type="text" name="reciever_signature" value="" readonly class="w-full border rounded-lg p-2"></div>
+
+        </div>
+        <div class="grid grid-cols-3 gap-4 mb-6 pt-4"></div>
+
+        <!-- Quantities -->
+        <div class="grid grid-cols-4 gap-4 mb-6">
+            <div><label class="block text-sm font-bold text-slate-500">Per Dozen Consumption</label><input type="text" name="per_dozen_consumption" value="{{ editing_challan.per_dozen_consumption if editing_challan and editing_challan.per_dozen_consumption else (order.usage if order else '') }}" class="w-full border rounded-lg p-2" required></div>
+            <div><label class="block text-sm font-bold text-slate-500">Required CTN / Bails</label><input type="text" name="required_ctn_bails" value="{{ editing_challan.required_ctn_bails if editing_challan and editing_challan.required_ctn_bails else (order.total_ctn if order else '') }}" class="w-full border rounded-lg p-2" required></div>
+            <div><label class="block text-sm font-bold text-slate-500">Received From</label><input type="text" name="received_from" value="{{ editing_challan.received_from if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
+            <div>
+                <label class="block text-sm font-bold text-slate-500">Challan No.</label>
+                <div class="flex w-full">
+                    <span class="flex items-center rounded-l-lg border border-r-0 bg-slate-100 px-3 font-bold text-slate-600">CH-</span>
+                    <input type="text" name="challan_no" class="w-full rounded-r-lg border p-2" value="{{ (editing_challan.challan_no|replace('CH-', '', 1)|replace('C-', '', 1)) if editing_challan and editing_challan.challan_no else '' }}" inputmode="numeric" pattern="[0-9]+" required>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-5 gap-4 mb-6">
+            <div><label class="block text-sm font-bold text-slate-500">Meter = 100 CM</label><input type="text" name="meter_to_cm" value="{{ editing_challan.meter_to_cm if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
+            <div>
+                <label class="block text-sm font-bold text-slate-500">Fabric Quantity A</label>
+                <input type="number" id="fabric_qty_a" name="fabric_qty_a" value="{{ editing_challan.fabric_qty_a if editing_challan else '' }}" class="w-full border rounded-lg p-2">
+            </div>
+            <div><label class="block text-sm font-bold text-slate-500">Fabric Quantity B</label><input type="number" id="fabric_qty_b" name="fabric_qty_b" value="{{ editing_challan.fabric_qty_b if editing_challan else '' }}" class="w-full border rounded-lg p-2"></div>
+            <div><label class="block text-sm font-bold text-slate-500">Received Cut Pcs</label><input type="number" id="received_cut_pcs" name="received_cut_pcs" value="{{ editing_challan.received_cut_pcs if editing_challan else '' }}" class="w-full border rounded-lg p-2"></div>
+            <div><label class="block text-sm font-bold text-slate-500">Total</label><input type="number" id="total" name="total" value="{{ editing_challan.total if editing_challan else '' }}" class="w-full border rounded-lg p-2 bg-slate-100 cursor-not-allowed" readonly></div>
+        </div>
+
+        <!-- Delivery Details -->
+        <div class="grid grid-cols-4 gap-4 mb-6">
+            <div><label class="block text-sm font-bold text-slate-500">Rolls</label><input type="number" name="rolls" value="{{ editing_challan.rolls if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
+            <div><label class="block text-sm font-bold text-slate-500">Vehicle No.</label><input type="text" name="vehicle_no" value="{{ editing_challan.vehicle_no if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
+            <div><label class="block text-sm font-bold text-slate-500">Delivered By</label><input type="text" name="delivered_by" value="{{ editing_challan.delivered_by if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
+            <div><label class="block text-sm font-bold text-slate-500">Driver Cell No.</label><input type="text" name="driver_cell_no" value="{{ editing_challan.driver_cell_no if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
+        </div>
+
+        <div class="no-print mb-6">
+                <label class="block text-sm font-bold text-slate-500">Upload Challan Picture</label>
+                <input type="file" name="image_file" accept="image/png,image/jpeg,image/webp" class="w-full border rounded-lg p-2">
+                {% if editing_challan and editing_challan.image_file %}
+                <a href="{{ editing_challan.image_file }}" target="_blank" rel="noopener" class="inline-block mt-2 px-3 py-1 rounded bg-indigo-600 text-white text-xs font-bold">View Uploaded Picture</a>
+                {% endif %}
+            </div>
+
+        <!-- Action Buttons -->
+        <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end sm:items-center sm:gap-3 no-print">
+            <a href="{{ url_for('saved_receiving_challans', job_no=selected_job) }}" class="w-full sm:w-auto text-center px-5 py-2 rounded-lg bg-slate-950 text-white text-xs font-bold">View Saved Receiving Challans</a>
+            <button type="button" id="print-btn" onclick="openReceivingChallanPrint()" class="w-full sm:w-auto px-5 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed" disabled>Print Receiving Challan</button>
+            <button type="submit" class="w-full sm:w-auto px-5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold">{{ 'Update Receiving Challan' if editing_challan else 'Save Receiving Challan' }}</button>
+        </div>
+        </form>
+
+
+        <!-- Signature + Timestamp -->
+        <div class="print-only mt-12">
+            <p class="text-sm">Receiver Signature: ______________________</p>
+            <p class="mt-6 text-xs text-slate-500 text-right">
+                Printed on: <span id="print-time"></span>
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Print Script -->
+<script>
+function getNumericValue(id) {
+    const el = document.getElementById(id);
+    if (!el) return 0;
+    const raw = el.value.trim();
+    if (raw === '') return 0;
+    const value = parseFloat(raw);
+    return Number.isNaN(value) ? 0 : value;
+}
+
+function calculateAndValidateTotal() {
+    const totalValue = getNumericValue('fabric_qty_a') + getNumericValue('fabric_qty_b') + getNumericValue('received_cut_pcs');
+    const totalField = document.getElementById('total');
+    const printButton = document.getElementById('print-btn');
+    const isValid = totalValue > 0;
+
+    if (totalField) {
+        totalField.value = totalValue.toString();
+    }
+
+    if (printButton) {
+        printButton.disabled = !isValid;
+    }
+
+    return isValid;
+}
+
+function validateReceivingChallanForm(event) {
+    if (!calculateAndValidateTotal()) {
+        alert('Total cannot be zero. Please enter at least one value in Fabric Quantity A, Fabric Quantity B, or Received Cut Pcs.');
+        if (event) event.preventDefault();
+        return false;
+    }
+    return true;
+}
+
+function openReceivingChallanPrint() {
+    if (!calculateAndValidateTotal()) {
+        alert('Total cannot be zero. Please enter at least one value in Fabric Quantity A, Fabric Quantity B, or Received Cut Pcs.');
+        return;
+    }
+
+    const jobNo = encodeURIComponent(document.querySelector('input[name="job_no"]')?.value || '');
+    const serialNo = encodeURIComponent(document.querySelector('input[name="serial_no"]')?.value || '');
+    const url = '/manager/receiving-challan/print?job_no=' + jobNo + '&serial_no=' + serialNo;
+    window.open(url, '_blank');
+}
+
+function printSlip() {
+    if (!calculateAndValidateTotal()) {
+        alert('Total cannot be zero. Please enter at least one value in Fabric Quantity A, Fabric Quantity B, or Received Cut Pcs.');
+        return;
+    }
+
+    const now = new Date();
+    const options = {
+        weekday: 'long', year: 'numeric', month: 'long',
+        day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true,
+        timeZone: 'Asia/Karachi'
+    };
+    document.getElementById('print-time').textContent = now.toLocaleString('en-US', options);
+    window.print();
+}
+</script>
+
+<script>
+// Auto-fill today's date for empty date inputs when the page loads
+document.addEventListener('DOMContentLoaded', function () {
+    const today = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Karachi',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).format(new Date());
+    document.querySelectorAll('input[type="date"]').forEach(function (el) {
+        if (!el.value || el.value.trim() === '') {
+            el.value = today;
+        }
+    });
+
+    ['fabric_qty_a', 'fabric_qty_b', 'received_cut_pcs'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', calculateAndValidateTotal);
+        }
+    });
+
+    calculateAndValidateTotal();
+});
+</script>
+
+<!-- Print Styles -->
+<style>
+.print-only { display: none; }
+
+@media print {
+    @page { size: A5 landscape; margin: 15mm; scale: 0.7; }
+    body * { visibility: hidden; }
+    #print-area, #print-area * { visibility: visible; }
+    #print-area { position: relative; width: 100%; }
+
+    .no-print { display: none !important; }
+    .print-only { justify-content: flex-start; display: block; }
+}
+
+
+.serial-print{
+    display:none;
+}
+
+
+@media print{
+.serial-print{
+    display:flex !important;
+    justify-content:flex-end;
+    width:100%;
+    margin-bottom:10px;
+}
+
+.serial-box{
+    display:flex;
+    align-items:center;
+    gap:8px;          /* space between label and input */
+}
+
+.serial-box label{
+    font-weight:bold;
+    white-space:nowrap;
+}
+
+.serial-box input{
+    width:100px;
+    border:none !important;
+    background:transparent !important;
+    text-align:right;
+}
+
+}
+</style>
+{% endblock %}

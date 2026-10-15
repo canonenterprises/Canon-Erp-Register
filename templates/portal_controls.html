@@ -1,0 +1,280 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8 md:pb-20">
+    <div class="mx-auto max-w-4xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-6 sm:p-8">
+        <header class="rounded-2xl bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">Master controls</p>
+                    <h1 class="mt-2 text-3xl font-black tracking-tight">Portal Controls</h1>
+                    <p class="mt-2 text-sm text-slate-300">Choose each profile's primary portal, then grant only permitted additional portals. Owner access is never assignable.</p>
+                </div>
+                <a href="{{ url_for('owner_dashboard') }}" class="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/20">
+                    <i class="fa-solid fa-arrow-left"></i> Owner dashboard
+                </a>
+            </div>
+        </header>
+
+        <section class="rounded-2xl border border-cyan-100 bg-cyan-50/40 p-5 shadow-sm sm:p-6">
+            <div class="mb-5">
+                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600">New profile</p>
+                <h2 class="mt-1 text-xl font-black text-slate-900">Create portal profile</h2>
+            </div>
+            <form method="post" class="grid gap-4 sm:grid-cols-2">
+                <input type="hidden" name="action" value="create">
+                <label class="block text-sm font-bold text-slate-600">
+                    Profile name
+                    <input type="text" name="name" required placeholder="e.g. Production Manager" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-medium text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100">
+                </label>
+                <label class="block text-sm font-bold text-slate-600">
+                    Primary portal
+                    <select name="role" data-role-toggle="create" required class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-medium text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100">
+                        <option value="">Select primary portal</option>
+                        {% for role_value, role_label in profile_role_options %}
+                        <option value="{{ role_value }}">{{ role_label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="block text-sm font-bold text-slate-600">
+                    User ID
+                    <input type="text" name="username" required autocomplete="username" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-medium text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100">
+                </label>
+                <label class="block text-sm font-bold text-slate-600">
+                    Password
+                    <input type="text" name="password" required autocomplete="new-password" class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-3 font-medium text-slate-900 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100">
+                </label>
+                <fieldset class="sm:col-span-2 rounded-xl border border-slate-200 p-4">
+                    <legend class="px-1 text-sm font-bold text-slate-700">Portal access</legend>
+                    <p class="mb-3 text-xs text-slate-500">The primary portal is always included. Production &amp; Payroll profiles cannot receive Operations &amp; Logistics or Coordinator access. Operations &amp; Logistics profiles cannot receive Production &amp; Payroll or Owner access.</p>
+                    <div class="flex flex-wrap gap-x-6 gap-y-3">
+                        {% for portal, label in portal_options %}
+                        <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <input type="checkbox" name="portal_access" value="{{ portal }}" data-portal-access="create" data-portal-key="{{ portal }}" class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500">
+                            {{ label }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+                <fieldset class="sm:col-span-2 rounded-xl border border-slate-200 p-4">
+                    <legend class="px-1 text-sm font-bold text-slate-700">Page access</legend>
+                    <p class="mb-3 text-xs text-slate-500">Choose which pages this profile can open within its assigned portals.</p>
+                    <div class="grid gap-x-5 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {% for page_key, page_label, page_portals in page_access_options %}
+                        <label data-page-access-label="create" class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <input type="checkbox" name="page_access" value="{{ page_key }}" data-page-access="create" data-page-portals="{{ page_portals|join(',') }}" data-page-depends-on="{{ 'fabric' if page_key == 'fabric_reports' else '' }}" {% if page_key != 'fabric_reports' %}checked{% endif %} class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500">
+                            {{ page_label }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+                <fieldset data-special-access-group="create" hidden class="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+                    <legend class="px-1 text-sm font-bold text-slate-700">Special access</legend>
+                    <p class="mb-3 text-xs text-slate-500">Grant additional report sections within Fabric Ledger.</p>
+                    <div class="flex flex-wrap gap-x-6 gap-y-3">
+                        {% for access_key, access_label, access_portals in special_access_options %}
+                        <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                            <input type="checkbox" name="special_access" value="{{ access_key }}" data-special-access="create" data-special-portals="{{ access_portals|join(',') }}" class="rounded border-slate-300 text-amber-600 focus:ring-amber-500">
+                            {{ access_label }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </fieldset>
+                <div class="sm:col-span-2 sm:flex sm:justify-end">
+                    <button type="submit" class="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-3 text-sm font-bold text-white shadow-sm hover:bg-cyan-700">
+                        <i class="fa-solid fa-user-plus"></i> Create profile
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-100 px-5 py-4 sm:px-6">
+                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Profiles</p>
+                <h2 class="mt-1 text-xl font-black text-slate-900">Portal profiles</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[1080px] text-left text-sm">
+                    <thead class="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        <tr>
+                            <th class="px-4 py-3">Profile name</th>
+                            <th class="px-4 py-3">User ID</th>
+                            <th class="px-4 py-3">Password</th>
+                            <th class="px-4 py-3">Access level</th>
+                            <th class="px-4 py-3">Assigned portals</th>
+                            <th class="px-4 py-3 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for account in accounts %}
+                        {% if editing_account and editing_account.id == account.id %}
+                        <form id="edit-account-{{ account.id }}" method="post">
+                            <input type="hidden" name="action" value="update">
+                            <input type="hidden" name="account_id" value="{{ account.id }}">
+                        </form>
+                        <tr class="bg-cyan-50/50">
+                            <td class="px-4 py-3"><input form="edit-account-{{ account.id }}" name="name" required value="{{ account.name }}" class="w-full rounded-lg border border-slate-300 px-2 py-2"></td>
+                            <td class="px-4 py-3"><input form="edit-account-{{ account.id }}" name="username" required value="{{ account.username }}" class="w-full rounded-lg border border-slate-300 px-2 py-2"></td>
+                            <td class="px-4 py-3"><input form="edit-account-{{ account.id }}" name="password" required value="{{ account.password }}" class="w-full rounded-lg border border-slate-300 px-2 py-2"></td>
+                            <td class="px-4 py-3">
+                                <select form="edit-account-{{ account.id }}" name="role" data-role-toggle="{{ account.id }}" required class="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 font-bold text-slate-700">
+                                    {% for role_value, role_label in profile_role_options %}
+                                    <option value="{{ role_value }}" {% if account.role == role_value %}selected{% endif %}>{{ role_label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td class="px-4 py-3">
+                                <div class="space-y-2">
+                                    {% for portal, label in portal_options %}
+                                    <label class="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                        <input form="edit-account-{{ account.id }}" type="checkbox" name="portal_access" value="{{ portal }}" data-portal-access="{{ account.id }}" data-portal-key="{{ portal }}" {% if portal in account_portal_access[account.id] %}checked{% endif %} class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500">
+                                        {{ label }}
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                                <div class="mt-3 border-t border-slate-200 pt-3">
+                                    <p class="mb-2 text-[10px] font-black uppercase tracking-wider text-slate-500">Page access</p>
+                                    <div class="grid gap-x-3 gap-y-2 sm:grid-cols-2">
+                                        {% for page_key, page_label, page_portals in page_access_options %}
+                                        <label data-page-access-label="{{ account.id }}" class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                            <input form="edit-account-{{ account.id }}" type="checkbox" name="page_access" value="{{ page_key }}" data-page-access="{{ account.id }}" data-page-portals="{{ page_portals|join(',') }}" data-page-depends-on="{{ 'fabric' if page_key == 'fabric_reports' else '' }}" {% if page_key in account_page_access[account.id] %}checked{% endif %} class="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500">
+                                            {{ page_label }}
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                <fieldset data-special-access-group="{{ account.id }}" hidden class="mt-3 rounded-lg border border-amber-200 bg-amber-50/40 p-3">
+                                    <legend class="px-1 text-[10px] font-black uppercase tracking-wider text-slate-500">Special access</legend>
+                                    <div class="space-y-2">
+                                        {% for access_key, access_label, access_portals in special_access_options %}
+                                        <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
+                                            <input form="edit-account-{{ account.id }}" type="checkbox" name="special_access" value="{{ access_key }}" data-special-access="{{ account.id }}" data-special-portals="{{ access_portals|join(',') }}" {% if access_key in account_page_access[account.id] %}checked{% endif %} class="rounded border-slate-300 text-amber-600 focus:ring-amber-500">
+                                            {{ access_label }}
+                                        </label>
+                                        {% endfor %}
+                                    </div>
+                                </fieldset>
+                            </td>
+                            <td class="px-4 py-3 text-right whitespace-nowrap">
+                                <button form="edit-account-{{ account.id }}" type="submit" class="rounded-lg bg-cyan-600 px-3 py-2 text-xs font-bold text-white">Save</button>
+                                <a href="{{ url_for('portal_controls') }}" class="ml-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-600">Cancel</a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td class="px-4 py-4 font-bold text-slate-900">{{ account.name }}</td>
+                            <td class="px-4 py-4 text-slate-600">{{ account.username }}</td>
+                            <td class="px-4 py-4 font-mono text-slate-600">{{ account.password }}</td>
+                            <td class="px-4 py-4">
+                                <div class="font-bold text-slate-800">{{ profile_role_labels.get(account.role, account.role.replace('_', ' ')) }}</div>
+                            </td>
+                            <td class="px-4 py-4">
+                                <div class="mt-2 flex flex-wrap gap-1.5">
+                                    {% for portal, label in portal_options %}
+                                    {% if portal in account_portal_access[account.id] %}
+                                    <span class="rounded-md bg-cyan-50 px-2 py-1 text-[10px] font-bold text-cyan-800">{{ label }}</span>
+                                    {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </td>
+                            <td class="px-4 py-4 text-right whitespace-nowrap">
+                                <a href="{{ url_for('portal_controls', edit_id=account.id) }}" class="rounded-lg bg-cyan-600 px-3 py-2 text-xs font-bold text-white">Edit</a>
+                                <form method="post" class="ml-1 inline" onsubmit="return confirm('Delete this portal profile?');">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="account_id" value="{{ account.id }}">
+                                    <button type="submit" class="rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-600">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% else %}
+                        <tr><td colspan="6" class="px-4 py-8 text-center text-slate-500">No portal profiles created yet.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <p class="text-xs text-slate-500"><i class="fa-solid fa-lock mr-1"></i> The owner account cannot be changed from this page.</p>
+    </div>
+</div>
+<script>
+    function syncPortalAccess(roleSelect) {
+        const profileKey = roleSelect.dataset.roleToggle;
+        const profiles = {
+            manager: { base: 'manager', allowed: ['manager', 'stock', 'challan', 'accounts'] },
+            operations_manager: { base: 'operations', allowed: ['operations', 'stock', 'challan', 'accounts'] },
+            assistant_manager: { base: 'assistant_manager', allowed: ['assistant_manager', 'stock', 'challan'] },
+            stock: { base: 'stock', allowed: ['stock', 'accounts', 'challan'] },
+            accounts: { base: 'accounts', allowed: ['stock', 'accounts', 'challan'] },
+            challan: { base: 'challan', allowed: ['stock', 'accounts', 'challan'] },
+        };
+        const profile = profiles[roleSelect.value] || { base: '', allowed: [] };
+        const previousBase = roleSelect.dataset.currentBase;
+        if (previousBase && previousBase !== profile.base) {
+            document.querySelectorAll(`[data-portal-access="${profileKey}"]`).forEach((checkbox) => {
+                if (checkbox.dataset.portalKey === previousBase) checkbox.checked = false;
+            });
+        }
+        document.querySelectorAll(`[data-portal-access="${profileKey}"]`).forEach((checkbox) => {
+            const isBasePortal = checkbox.dataset.portalKey === profile.base;
+            const isAllowed = profile.allowed.includes(checkbox.dataset.portalKey);
+            const accessLabel = checkbox.closest('label');
+            accessLabel.hidden = !isAllowed;
+            accessLabel.style.display = isAllowed ? '' : 'none';
+            checkbox.disabled = isBasePortal || !isAllowed;
+            if (isBasePortal) checkbox.checked = true;
+            else if (!isAllowed) checkbox.checked = false;
+        });
+        roleSelect.dataset.currentBase = profile.base;
+        syncPageAccess(profileKey);
+    }
+
+    function syncPageAccess(profileKey) {
+        const grantedPortals = new Set(
+            Array.from(document.querySelectorAll(`[data-portal-access="${profileKey}"]`))
+                .filter((checkbox) => checkbox.checked)
+                .map((checkbox) => checkbox.dataset.portalKey)
+        );
+        document.querySelectorAll(`[data-page-access="${profileKey}"]`).forEach((checkbox) => {
+            const parentPage = checkbox.dataset.pageDependsOn;
+            const parentEnabled = !parentPage || Array.from(document.querySelectorAll(`[data-page-access="${profileKey}"]`))
+                .some((pageCheckbox) => pageCheckbox.value === parentPage && pageCheckbox.checked);
+            const canAccessPage = parentEnabled && checkbox.dataset.pagePortals.split(',').some((portal) => grantedPortals.has(portal));
+            const pageLabel = checkbox.closest('label');
+            pageLabel.hidden = !canAccessPage;
+            pageLabel.style.display = canAccessPage ? '' : 'none';
+            checkbox.disabled = !canAccessPage;
+            if (!canAccessPage) checkbox.checked = false;
+        });
+
+        const fabricPageEnabled = Array.from(document.querySelectorAll(`[data-page-access="${profileKey}"]`))
+            .some((checkbox) => checkbox.value === 'fabric' && checkbox.checked);
+        const specialAccess = Array.from(document.querySelectorAll(`[data-special-access="${profileKey}"]`));
+        const canAccessSpecial = fabricPageEnabled && specialAccess.some((checkbox) =>
+            checkbox.dataset.specialPortals.split(',').some((portal) => grantedPortals.has(portal))
+        );
+        document.querySelectorAll(`[data-special-access-group="${profileKey}"]`).forEach((group) => {
+            group.hidden = !canAccessSpecial;
+        });
+        specialAccess.forEach((checkbox) => {
+            const label = checkbox.closest('label');
+            label.hidden = !canAccessSpecial;
+            label.style.display = canAccessSpecial ? '' : 'none';
+            checkbox.disabled = !canAccessSpecial;
+            if (!canAccessSpecial) checkbox.checked = false;
+        });
+    }
+
+    document.querySelectorAll('[data-role-toggle]').forEach((roleSelect) => {
+        syncPortalAccess(roleSelect);
+        roleSelect.addEventListener('change', () => syncPortalAccess(roleSelect));
+    });
+    document.querySelectorAll('[data-portal-access]').forEach((checkbox) => {
+        checkbox.addEventListener('change', () => syncPageAccess(checkbox.dataset.portalAccess));
+    });
+    document.querySelectorAll('[data-page-access]').forEach((checkbox) => {
+        checkbox.addEventListener('change', () => syncPageAccess(checkbox.dataset.pageAccess));
+    });
+</script>
+{% endblock %}

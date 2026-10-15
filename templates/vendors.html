@@ -1,0 +1,288 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 mb-16 sm:-m-6 sm:mb-16 sm:p-6 md:-m-8 md:mb-16 md:p-8">
+    <div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-8">
+
+        <!-- Header -->
+        <div class="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+                <p class="text-xs font-black uppercase tracking-[0.2em] text-emerald-600">Canon Registry</p>
+                <h1 class="mt-1 text-3xl font-black tracking-tight text-slate-900">Vendor Management System</h1>
+                <p class="mt-1 text-sm text-slate-500">
+                    Manage suppliers, contacts, vendor codes and material relationships from one place.
+                </p>
+            </div>
+
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ url_for('item_list') }}"
+                   class="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-sky-700">
+                    ITEM LIST
+                </a>
+                <a href="{{ url_for('manager_dashboard', tab='list') }}"
+                   class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100">
+                    DASHBOARD
+                </a>
+            </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Total Vendors</p>
+                <p class="mt-2 text-3xl font-black text-slate-900">{{ vendors|length }}</p>
+                <p class="mt-1 text-xs text-slate-500">Supplier profiles</p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Materials Listed</p>
+                <p class="mt-2 text-3xl font-black text-slate-900">{{ total_vendor_items }}</p>
+                <p class="mt-1 text-xs text-slate-500">Across all vendors</p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Priced Materials</p>
+                <p class="mt-2 text-3xl font-black text-slate-900">{{ priced_vendor_items }}</p>
+                <p class="mt-1 text-xs text-slate-500">Unit rates available</p>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <p class="text-xs font-bold uppercase tracking-wide text-slate-500">Missing Contact</p>
+                <p class="mt-2 text-3xl font-black text-slate-900">{{ vendors_missing_contact }}</p>
+                <p class="mt-1 text-xs text-slate-500">Profiles need attention</p>
+            </div>
+        </div>
+
+        <!-- Add Vendor -->
+        <div class="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="flex flex-col gap-2 border-b border-slate-200 bg-slate-900 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h2 class="text-lg font-black text-white">Add New Vendor</h2>
+                    <p class="text-sm text-slate-300">Create a supplier profile for your vendor directory.</p>
+                </div>
+                <span class="rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-bold text-emerald-300">VENDOR MASTER</span>
+            </div>
+
+            <form method="POST" class="p-6">
+                <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
+
+                    <div>
+                        <label class="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600">
+                            Vendor Name <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" name="vendor_name" required
+                               placeholder="e.g. ABC Textile Mills"
+                               class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                    </div>
+
+                    <div>
+                        <label class="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600">
+                            Vendor Code
+                        </label>
+                        <input type="text" name="vendor_code"
+                               placeholder="e.g. VEN-001"
+                               class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                    </div>
+
+                    <div>
+                        <label class="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600">
+                            Contact Person
+                        </label>
+                        <input type="text" name="contact_person"
+                               placeholder="Primary contact"
+                               class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                    </div>
+
+                    <div>
+                        <label class="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600">
+                            Phone
+                        </label>
+                        <input type="tel" name="phone"
+                               placeholder="+92 3XX XXXXXXX"
+                               class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                    </div>
+
+                    <div>
+                        <label class="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600">
+                            Email
+                        </label>
+                        <input type="email" name="email"
+                               placeholder="vendor@example.com"
+                               class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                    </div>
+
+                    <div>
+                        <label class="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600">
+                            Address
+                        </label>
+                        <input type="text" name="address"
+                               placeholder="Vendor business address"
+                               class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                    </div>
+
+                    <div class="md:col-span-2 xl:col-span-3">
+                        <label class="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600">Notes</label>
+                        <textarea name="notes" rows="2" placeholder="Payment terms, delivery notes, or other vendor details" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"></textarea>
+                    </div>
+                </div>
+
+                <div class="mt-6 flex flex-col gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:justify-end">
+                    <button type="reset"
+                            class="rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50">
+                        Clear Form
+                    </button>
+                    <button type="submit"
+                            class="rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-black text-white shadow-sm hover:bg-emerald-700">
+                        + Save Vendor
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Vendor Directory -->
+        <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div class="border-b border-slate-200 p-5">
+                <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                        <h2 class="text-xl font-black text-slate-900">Vendor Directory</h2>
+                        <p class="mt-1 text-sm text-slate-500">Search and manage your registered suppliers.</p>
+                    </div>
+
+                    <div class="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+                           <input id="vendorSearch" type="search"
+                               placeholder="Search vendor, code, contact, material..."
+                               class="w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-100 sm:w-80">
+                        <select id="vendorFilter"
+                                class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 outline-none focus:border-sky-500">
+                            <option value="all">All Vendors</option>
+                            <option value="with-contact">With Contact</option>
+                            <option value="without-contact">Missing Contact</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {% if vendors %}
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                        <tr>
+                            <th class="px-5 py-4 font-black">Vendor</th>
+                            <th class="px-5 py-4 font-black">Code</th>
+                            <th class="px-5 py-4 font-black">Contact</th>
+                            <th class="px-5 py-4 font-black">Phone</th>
+                            <th class="px-5 py-4 font-black">Email</th>
+                            <th class="px-5 py-4 text-right font-black">Materials</th>
+                            <th class="px-5 py-4 text-right font-black">Action</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="vendorTableBody" class="divide-y divide-slate-100">
+                        {% for vendor in vendors %}
+                        <tr class="vendor-row transition hover:bg-slate-50"
+                            data-search="{{ (vendor.name ~ ' ' ~ (vendor.code or '') ~ ' ' ~ (vendor.contact_person or '') ~ ' ' ~ (vendor.phone or '') ~ ' ' ~ (vendor.email or '') ~ ' ' ~ (vendor.address or '') ~ ' ' ~ (vendor.items|map(attribute='item_name')|join(' ')))|lower }}"
+                            data-contact="{{ 'yes' if vendor.contact_person else 'no' }}">
+
+                            <td class="px-5 py-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-sm font-black text-emerald-700">
+                                        {{ vendor.name[:1]|upper }}
+                                    </div>
+                                    <div>
+                                        <p class="font-black text-slate-800">{{ vendor.name }}</p>
+                                        <p class="text-xs text-slate-400">Supplier</p>
+                                    </div>
+                                </div>
+                            </td>
+
+                            <td class="px-5 py-4">
+                                {% if vendor.code %}
+                                <span class="rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-700">
+                                    {{ vendor.code }}
+                                </span>
+                                {% else %}
+                                <span class="text-slate-400">—</span>
+                                {% endif %}
+                            </td>
+
+                            <td class="px-5 py-4 text-slate-700">
+                                {{ vendor.contact_person or '—' }}
+                            </td>
+
+                            <td class="px-5 py-4 text-slate-600">
+                                {{ vendor.phone or '—' }}
+                            </td>
+
+                            <td class="px-5 py-4 text-slate-600">
+                                {{ vendor.email or '—' }}
+                            </td>
+
+                            <td class="px-5 py-4 text-right font-bold text-slate-700">{{ vendor.items|length }}</td>
+
+                            <td class="px-5 py-4">
+                                <div class="flex justify-end gap-2">
+                                    <a href="{{ url_for('vendor_detail', vendor_id=vendor.id) }}"
+                                       class="rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white hover:bg-sky-700">
+                                        OPEN PROFILE
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="noSearchResults" class="hidden px-6 py-12 text-center">
+                <div class="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-xl">⌕</div>
+                <p class="font-bold text-slate-700">No vendors found</p>
+                <p class="mt-1 text-sm text-slate-500">Try another search or filter.</p>
+            </div>
+
+            {% else %}
+            <div class="px-6 py-14 text-center">
+                <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">🏢</div>
+                <h3 class="text-lg font-black text-slate-800">No vendors yet</h3>
+                <p class="mx-auto mt-1 max-w-md text-sm text-slate-500">
+                    Add your first supplier using the vendor form above.
+                </p>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<script>
+(function () {
+    const search = document.getElementById('vendorSearch');
+    const filter = document.getElementById('vendorFilter');
+    const rows = Array.from(document.querySelectorAll('.vendor-row'));
+    const empty = document.getElementById('noSearchResults');
+
+    if (!search || !filter) return;
+
+    function applyVendorFilter() {
+        const query = search.value.trim().toLowerCase();
+        const selected = filter.value;
+        let visible = 0;
+
+        rows.forEach(function (row) {
+            const matchesSearch = !query || row.dataset.search.includes(query);
+            const matchesFilter =
+                selected === 'all' ||
+                (selected === 'with-contact' && row.dataset.contact === 'yes') ||
+                (selected === 'without-contact' && row.dataset.contact === 'no');
+
+            const show = matchesSearch && matchesFilter;
+            row.classList.toggle('hidden', !show);
+            if (show) visible++;
+        });
+
+        if (empty) empty.classList.toggle('hidden', visible !== 0);
+    }
+
+    search.addEventListener('input', applyVendorFilter);
+    filter.addEventListener('change', applyVendorFilter);
+})();
+</script>
+{% endblock %}

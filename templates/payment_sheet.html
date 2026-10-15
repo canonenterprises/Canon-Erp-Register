@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="space-y-8">
+    <!-- Search/Filter Top Panel -->
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+        <div class="flex items-center space-x-3 mb-6">
+            <div class="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shadow-sm">
+                <i class="fa-solid fa-wallet text-lg"></i>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-slate-900">Payroll Ledger Sheet</h3>
+                <p class="text-xs text-slate-400">Worker ka naam select karke auto-generated khata check karein</p>
+            </div>
+        </div>
+
+        {% if session.get('role') == 'owner' %}
+        <form method="POST" class="flex flex-col md:flex-row gap-4 items-end">
+            <div class="flex-grow">
+                <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Worker List</label>
+                <select name="worker_name" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-emerald-500 focus:bg-white transition-all cursor-pointer">
+                    <option value="">-- Worker Select Karein --</option>
+                    {% for worker in workers %}
+                        <option value="{{ worker }}" {% if worker == selected_worker %}selected{% endif %}>{{ worker }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="w-full md:w-48 py-3 px-6 bg-slate-900 text-white font-medium text-sm rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center shadow-sm">
+                <i class="fa-solid fa-magnifying-glass me-2"></i> Hisab Nikalein
+            </button>
+        </form>
+        {% else %}
+        <div class="p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
+            <p class="text-sm text-emerald-800 font-medium"><i class="fa-solid fa-lock me-2"></i> Aap secure worker account se logged in hain. Aapka personal khata niche load kar diya gaya hai.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if selected_worker %}
+    <!-- High-End Summary Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold text-slate-400 uppercase">Selected Worker</p>
+                <h4 class="text-xl font-bold text-slate-800 mt-1">{{ selected_worker }}</h4>
+            </div>
+            <div class="w-11 h-11 bg-slate-50 text-slate-500 rounded-full flex items-center justify-center text-lg"><i class="fa-regular fa-user"></i></div>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold text-slate-400 uppercase">Total Completed Pieces</p>
+                <h4 class="text-xl font-bold text-indigo-600 mt-1">{{ total_pcs }} Pcs</h4>
+            </div>
+            <div class="w-11 h-11 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center text-lg"><i class="fa-solid fa-cubes"></i></div>
+        </div>
+        <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+            <div>
+                <p class="text-xs font-semibold text-slate-400 uppercase">Net Payout Amount</p>
+                <h4 class="text-xl font-bold text-emerald-600 mt-1">Rs. {{ total_amount }}</h4>
+            </div>
+            <div class="w-11 h-11 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center text-lg"><i class="fa-solid fa-money-bill-wave"></i></div>
+        </div>
+    </div>
+
+    <!-- Data Table Statement Card -->
+    <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-900 text-white text-xs font-semibold uppercase tracking-wider">
+                        <th class="py-4 px-6">Date</th>
+                        <th class="py-4 px-6">File No</th>
+                        <th class="py-4 px-6">Cut No</th>
+                        <th class="py-4 px-6">Article ID</th>
+                        <th class="py-4 px-6">Operation</th>
+                        <th class="py-4 px-6">Pcs Worked</th>
+                        <th class="py-4 px-6">Rate (Auto)</th>
+                        <th class="py-4 px-6 text-right">Amount</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-sm text-slate-600">
+                    {% for row in worker_rows %}
+                    <tr class="hover:bg-slate-50/80 transition-colors">
+                        <td class="py-4 px-6 font-medium text-slate-500">{{ row.date|format_ddmmyyyy if row.date else '' }}</td>
+                        <td class="py-4 px-6"><span class="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium">{{ row.file_no }}</span></td>
+                        <td class="py-4 px-6"><span class="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium">{{ row.cut_no }}</span></td>
+                        <td class="py-4 px-6 font-semibold text-slate-800">{{ row.article_id }}</td>
+                        <td class="py-4 px-6"><span class="px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-medium">{{ row.operation }}</span></td>
+                        <td class="py-4 px-6 font-medium text-slate-900">{{ row.pcs }}</td>
+                        <td class="py-4 px-6">Rs. {{ row.rate }}</td>
+                        <td class="py-4 px-6 text-right font-bold text-emerald-600">Rs. {{ row.amount }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <!-- Empty State -->
+    <div class="bg-white rounded-2xl border border-dashed border-slate-200 p-12 text-center">
+        <div class="w-16 h-16 bg-slate-50 text-slate-400 rounded-full flex items-center justify-center text-2xl mx-auto mb-4"><i class="fa-solid fa-user-check"></i></div>
+        <p class="text-slate-500 text-sm">Upar panel se kisi worker ka naam select karke 'Hisab Nikalein' par click karein.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

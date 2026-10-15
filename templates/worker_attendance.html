@@ -1,0 +1,347 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+    <div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div><p class="text-[10px] font-bold uppercase tracking-[0.22em] text-cyan-300">Canon Registry</p><h1 class="mt-2 text-3xl font-black">Worker Attendance</h1><p class="mt-2 text-sm text-slate-300">Record monthly attendance, overtime, and early leave.</p></div>
+                <span class="rounded-full border border-white/15 bg-white/10 px-3 py-2 text-xs font-bold">{{ 'Read-only' if read_only_profile else 'Management access' }}</span>
+            </div>
+        </header>
+
+        {% if selected_worker %}
+        <section id="month-selector-section" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <form method="get" class="flex items-center gap-3">
+                {% if selected_worker %}<input type="hidden" name="worker_id" value="{{ selected_worker.id }}">{% endif %}
+                <input type="hidden" name="year" value="{{ selected_year }}">
+                <label for="top-month" class="text-xs font-black uppercase tracking-wider text-slate-500">Select Month</label>
+                <select id="top-month" name="month" class="input max-w-xs" onchange="this.form.submit()">
+                    {% for number, name in months %}
+                    <option value="{{ number }}" {% if number == selected_month %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+        </section>
+        {% endif %}
+
+        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <form method="get" class="flex flex-col gap-3 sm:flex-row sm:items-end"><input type="hidden" name="portal" value="{{ attendance_portal }}">
+                <div class="flex-1"><label for="worker-search" class="mb-1 block text-xs font-bold uppercase text-slate-500">Search Worker</label><input id="worker-search" name="q" value="{{ search }}" placeholder="Name, ID, employment type, role, phone, age, or CNIC" class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm"></div>
+                <button class="rounded-xl bg-slate-950 px-5 py-3 text-xs font-bold text-white">Search</button>
+            </form>
+            {% if search and not workers %}<p class="mt-4 text-sm text-slate-500">No workers found.</p>{% endif %}
+            {% if workers %}<div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{% for worker in workers %}<a href="{{ url_for('worker_attendance', worker_id=worker.id, year=selected_year, month=selected_month, q=search) }}" class="rounded-xl border px-4 py-3 transition hover:border-cyan-400 hover:bg-cyan-50 {% if selected_worker and selected_worker.id == worker.id %}border-cyan-500 bg-cyan-50{% else %}border-slate-200{% endif %}"><strong class="block text-sm text-slate-900">{{ worker.name or 'Unnamed worker' }}</strong><span class="text-xs text-slate-500">{{ worker.worker_code or 'No code' }}{% if worker.role or worker.employement %} | {{ worker.employment_type }} | {{ worker.role }} | {{ worker.sub_designation }}{% endif %}</span></a>{% endfor %}</div>{% endif %}
+        </section>
+ 
+        {% if not selected_worker %}<div class="rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-900">Search and select a worker to enter attendance.</div>{% else %}
+        <section class="grid gap-6 lg:grid-cols-[1fr_1.25fr]">
+            <div class="space-y-6">
+            <div id="selected-worker-card" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><p class="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600">Selected worker</p><h2 class="mt-1 text-2xl font-black text-slate-900">{{ selected_worker.name }}</h2><p class="mt-1 text-sm text-slate-500">{{ selected_worker.worker_code or 'No worker code' }}{% if selected_worker.role or selected_worker.sub_designation %} | {{ selected_worker.role or selected_worker.sub_designation }}{% endif %}</p></div>
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div class="flex items-center justify-between"><div><p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600">Yearly summary</p><h2 class="mt-1 text-xl font-black text-slate-900">{{ selected_year }} Attendance</h2></div><select class="rounded-lg border border-slate-200 px-2 py-2 text-xs font-bold" onchange="window.location='{{ url_for('worker_attendance', worker_id=selected_worker.id) }}&year=' + this.value + '&month={{ selected_month }}'">{% for year in years %}<option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>{% endfor %}</select></div><div class="mt-5 grid grid-cols-2 gap-3"><div class="rounded-xl bg-slate-50 p-3"><span>Factory days</span><strong>{{ yearly_summary.factory_days }}</strong></div><div class="rounded-xl bg-emerald-50 p-3"><span>Present</span><strong>{{ yearly_summary.present_days }}</strong></div><div class="rounded-xl bg-rose-50 p-3"><span>Absent</span><strong>{{ yearly_summary.absent_days }}</strong></div><div class="rounded-xl bg-cyan-50 p-3"><span>Overtime</span><strong>{{ '%.2f'|format(yearly_summary.overtime_hours) }} h</strong></div><div class="rounded-xl bg-indigo-50 p-3"><span>Night</span><strong>{{ '%.2f'|format(yearly_summary.night_hours) }} h</strong></div><div class="rounded-xl bg-rose-50 p-3"><span>Late</span><strong>{{ yearly_summary.late_days }}</strong></div><div class="rounded-xl bg-emerald-50 p-3"><span>On Time</span><strong>{{ yearly_summary.on_time_days }}</strong></div><div class="rounded-xl bg-amber-50 p-3"><span>Early leave</span><strong>{{ '%.2f'|format(yearly_summary.early_leave_hours) }} h</strong></div></div></div>
+            </div>
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><p class="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600">Daily entry</p><h2 class="mt-1 text-xl font-black text-slate-900">{{ months[selected_month - 1][1] }} {{ selected_year }} attendance</h2><div class="mt-3 flex flex-wrap gap-3 text-xs font-bold text-slate-600"><span class="rounded-md bg-orange-100 px-2 py-1 text-orange-800">Sunday</span><span class="rounded-md bg-orange-200 px-2 py-1 text-orange-900">Public holiday</span></div><form method="post" class="mt-5"><input type="hidden" name="worker_id" value="{{ selected_worker.id }}"><input type="hidden" name="month" value="{{ selected_month }}"><input type="hidden" name="year" value="{{ selected_year }}"><div class="worker-attendance-table-scroll"><table class="w-full min-w-[760px] text-sm"><thead class="border-b border-slate-200 text-left text-[10px] uppercase tracking-wider text-slate-400"><tr><th class="px-3 py-3">Date</th><th class="px-3 py-3">P/A/H</th><th class="px-3 py-3">Late Hours</th><th class="px-3 py-3">Early Hours</th><th class="px-3 py-3">Overtime</th><th class="px-3 py-3">Night Hours</th></tr></thead><tbody>{% for day in range(1, days_in_selected_month + 1) %}{% set date_key = '%04d-%02d-%02d'|format(selected_year, selected_month, day) %}{% set daily = daily_records.get(date_key) %}{% set calendar_label = holiday_dates.get(date_key) or ('Sunday' if date_key in sunday_dates else '') %}<tr class="border-b border-slate-100 {% if date_key in holiday_dates %}attendance-holiday-row{% elif date_key in sunday_dates %}attendance-sunday-row{% endif %}" title="{{ calendar_label }}"><td class="px-3 py-2 font-bold text-slate-700" data-calendar-label="{{ calendar_label }}">{{ date_key }}</td><td class="px-3 py-2"><select name="attendance_status_{{ day }}" class="input" {% if readonly %}disabled{% endif %}><option value="P" {% if not daily or daily.status == 'P' %}selected{% endif %}>P</option><option value="A" {% if daily and daily.status == 'A' %}selected{% endif %}>A</option><option value="H" {% if daily and daily.status == 'H' %}selected{% endif %}>H</option></select>{% if readonly %}<input type="hidden" name="attendance_status_{{ day }}" value="{{ daily.status if daily else 'P' }}">{% endif %}</td><td class="px-3 py-2"><input name="late_hours_{{ day }}" type="number" min="0" step="0.01" value="{{ '%.2f'|format(daily.late_hours) if daily else '0.00' }}" class="input" {% if readonly %}readonly{% endif %}></td><td class="px-3 py-2"><input name="early_hours_{{ day }}" type="number" min="0" step="0.01" value="{{ '%.2f'|format(daily.early_hours) if daily else '0.00' }}" class="input" {% if readonly %}readonly{% endif %}></td><td class="px-3 py-2"><input name="overtime_hours_{{ day }}" type="number" min="0" step="0.01" value="{{ '%.2f'|format(daily.overtime_hours) if daily else '0.00' }}" class="input" {% if readonly %}readonly{% endif %}></td><td class="px-3 py-2"><input name="night_hours_{{ day }}" type="number" min="0" step="0.01" value="{{ '%.2f'|format(daily.night_hours) if daily else '0.00' }}" class="input" {% if readonly %}readonly{% endif %}></td></tr>{% endfor %}</tbody></table></div>{% if readonly %}<p class="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Assistant Manager access is read-only for attendance.</p>{% else %}<button class="mt-4 w-full rounded-xl bg-emerald-600 px-5 py-3 text-xs font-black text-white">Save Attendance</button>{% endif %}</form></div>
+        </section>
+
+        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><p class="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-600">Attendance history</p><h2 class="mt-1 text-xl font-black text-slate-900">{{ selected_worker.name }} records</h2><div class="mt-4 overflow-x-auto"><table class="w-full min-w-[800px] text-left text-sm"><thead class="border-b border-slate-200 text-[10px] uppercase text-slate-400"><tr><th class="px-3 py-3">Month</th><th class="px-3 py-3">Factory Days</th><th class="px-3 py-3">Absent</th><th class="px-3 py-3">Present</th><th class="px-3 py-3">Overtime</th><th class="px-3 py-3">Night</th><th class="px-3 py-3">Early Leave</th><th class="px-3 py-3">Action</th></tr></thead><tbody>{% for record in history %}<tr class="border-b border-slate-100"><td class="px-3 py-3 font-bold">{{ months[record.month - 1][1] }} {{ record.year }}</td><td class="px-3 py-3">{{ record.factory_operating_days }}</td><td class="px-3 py-3">{{ record.absent_days }}</td><td class="px-3 py-3">{{ record.present_days }}</td><td class="px-3 py-3">{{ '%.2f'|format(record.overtime_hours) }} h</td><td class="px-3 py-3">{{ '%.2f'|format(record.night_hours or 0) }} h</td><td class="px-3 py-3">{{ '%.2f'|format(record.early_leave_hours) }} h</td><td class="px-3 py-3"><a class="font-bold text-cyan-700" href="{{ url_for('worker_attendance', worker_id=selected_worker.id, year=record.year, month=record.month) }}">Edit</a></td></tr>{% else %}<tr><td colspan="8" class="px-3 py-8 text-center text-slate-500">No attendance records found for this worker.</td></tr>{% endfor %}</tbody></table></div></section>
+        <section id="monthly-progress" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div class="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-600">Monthly progress</p>
+                    <h2 class="mt-1 text-xl font-black text-slate-900">{{ months[selected_month - 1][1] }} {{ selected_year }}</h2>
+                </div>
+                <form method="get" class="flex items-end gap-2">
+                    <input type="hidden" name="worker_id" value="{{ selected_worker.id }}">
+                    <input type="hidden" name="year" value="{{ selected_year }}">
+                    <label class="text-xs font-bold text-slate-500">Month<select name="month" class="input mt-1" onchange="this.form.submit()">{% for number, name in months %}<option value="{{ number }}" {% if number == selected_month %}selected{% endif %}>{{ name }}</option>{% endfor %}</select></label>
+                </form>
+            </div>
+            <div class="mt-5 grid items-start gap-6 md:grid-cols-2">
+                <div class="min-w-0 space-y-6">
+                    <div>
+                    <div class="mb-1 flex justify-between text-xs font-bold"><span class="text-emerald-700">Present days</span><span>{{ existing.present_days if existing else 0 }} / {{ existing.factory_operating_days if existing else 0 }}</span></div>
+                    <div class="h-3 overflow-hidden rounded-full bg-rose-100"><div class="h-full rounded-full bg-emerald-500" style="width: {{ ((existing.present_days / existing.factory_operating_days * 100) if existing and existing.factory_operating_days else 0) }}%"></div></div>
+                    <div class="mt-1 text-right text-xs text-rose-700">Absent: {{ existing.absent_days if existing else 0 }}</div>
+                    </div>
+                    <div>
+                    <div class="mb-1 flex justify-between text-xs font-bold"><span class="text-cyan-700">On Time days</span><span>{{ existing.on_time_days if existing else 0 }} / {{ existing.factory_operating_days if existing else 0 }}</span></div>
+                    <div class="h-3 overflow-hidden rounded-full bg-amber-100"><div class="h-full rounded-full bg-cyan-500" style="width: {{ ((existing.on_time_days / existing.factory_operating_days * 100) if existing and existing.factory_operating_days else 0) }}%"></div></div>
+                    <div class="mt-1 text-right text-xs text-amber-700">Late: {{ existing.late_days if existing else 0 }}</div>
+                    </div>
+                </div>
+                <div class="relative flex h-64 min-w-0 flex-col items-center justify-center rounded-2xl bg-slate-50 p-4">
+                    <p class="mb-2 text-center text-xs font-bold uppercase tracking-wider text-slate-500">Monthly hours</p>
+                    <div class="relative h-full min-h-0 w-full"><canvas id="attendance-hours-chart" aria-label="Overtime, night, and early leave hours"></canvas></div>
+                </div>
+            </div>
+        </section>
+
+        {% endif %}
+    </div>
+</div>
+<style>.label{display:block;margin-bottom:.35rem;font-size:.7rem;font-weight:800;text-transform:uppercase;color:#64748b}.input{width:100%;border:1px solid #e2e8f0;border-radius:.75rem;padding:.7rem;font-size:.875rem} .grid .rounded-xl span{display:block;font-size:.7rem;color:#64748b}.grid .rounded-xl strong{display:block;margin-top:.2rem;font-size:1.15rem;color:#0f172a}.attendance-sunday-row>td{background-color:#fef08a !important}.attendance-holiday-row>td{background-color:#fed7aa !important}</style>
+<script>document.addEventListener('DOMContentLoaded',function(){const factory=document.getElementById('factory-days');const absent=document.getElementById('absent-days');const present=document.getElementById('present-days');const nightInput=document.querySelector('input[name="night_hours"]');if(nightInput){const lateField=document.createElement('div');lateField.innerHTML='<label class="label">Late days</label><input id="late-days" name="late_days" type="number" min="0" step="1" required value="{{ existing.late_days if existing else 0 }}" class="input">';const onTimeField=document.createElement('div');onTimeField.innerHTML='<label class="label">On Time days (automatic)</label><input id="on-time-days" type="number" readonly value="{{ existing.on_time_days if existing else 0 }}" class="input bg-slate-100 font-bold">';nightInput.closest('div').after(lateField,onTimeField)}const late=document.getElementById('late-days');const onTime=document.getElementById('on-time-days');function update(){const days=Number(factory&&factory.value)||0;const missed=Number(absent&&absent.value)||0;present.value=Math.max(0,days-missed);if(onTime){const lateDays=Number(late&&late.value)||0;onTime.value=Math.max(0,days-lateDays)}}if(factory&&absent&&present){factory.addEventListener('input',update);absent.addEventListener('input',update);update()}if(factory&&late&&onTime){factory.addEventListener('input',update);late.addEventListener('input',update);update()}const historyTable=document.querySelector('table');if(historyTable){const headers=historyTable.querySelectorAll('thead th');const nightHeader=Array.from(headers).find(function(header){return header.textContent.trim()==='Night'});if(nightHeader){const lateHeader=document.createElement('th');lateHeader.className='px-3 py-3';lateHeader.textContent='Late';const onTimeHeader=document.createElement('th');onTimeHeader.className='px-3 py-3';onTimeHeader.textContent='On Time';nightHeader.after(lateHeader,onTimeHeader);const historyRows=historyTable.querySelectorAll('tbody tr');const values={{ history|map(attribute='late_days')|list|tojson }};const onTimeValues={{ history|map(attribute='on_time_days')|list|tojson }};historyRows.forEach(function(row,index){if(row.children.length===8){const lateCell=document.createElement('td');lateCell.className='px-3 py-3';lateCell.textContent=values[index]||0;const onTimeCell=document.createElement('td');onTimeCell.className='px-3 py-3';onTimeCell.textContent=onTimeValues[index]||0;row.children[5].after(lateCell,onTimeCell)}})}}});</script>
+<script>document.addEventListener('DOMContentLoaded',function(){const progress=Array.from(document.querySelectorAll('section')).find(function(section){return section.textContent.includes('Monthly progress')});const history=Array.from(document.querySelectorAll('section')).find(function(section){return section.textContent.includes('Attendance history')});if(progress&&history){history.parentNode.insertBefore(progress,history)}});</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const monthSelector = document.getElementById('month-selector-section');
+    const selectedWorkerCard = document.getElementById('selected-worker-card');
+    if (monthSelector && selectedWorkerCard) selectedWorkerCard.appendChild(monthSelector);
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const portal = '{{ attendance_portal }}';
+    if (!portal) return;
+
+    document.querySelectorAll('a[href*="/worker-attendance"]').forEach(function (link) {
+        const url = new URL(link.href, window.location.origin);
+        url.searchParams.set('portal', portal);
+        link.href = url.toString();
+    });
+
+    document.querySelectorAll('form').forEach(function (form) {
+        if (form.querySelector('input[name="portal"]')) return;
+        if ((form.method || 'get').toLowerCase() === 'post') {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'portal';
+            input.value = portal;
+            form.appendChild(input);
+        } else {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'portal';
+            input.value = portal;
+            form.appendChild(input);
+        }
+    });
+
+    if (portal === 'salaried' || portal === 'office_staff' || portal === 'staff') {
+        const factoryDays = document.getElementById('factory-days');
+        if (factoryDays) {
+            factoryDays.value = '{{ days_in_selected_month }}';
+            factoryDays.readOnly = true;
+            factoryDays.classList.add('bg-slate-100', 'font-bold');
+            const label = factoryDays.previousElementSibling;
+            if (label) label.textContent = 'Days in selected month (automatic)';
+        }
+    }
+
+    document.addEventListener('change', function (event) {
+        const select = event.target;
+        const onchange = select.getAttribute('onchange') || '';
+        if (!select.matches('select') || !onchange.includes('window.location')) return;
+
+        event.stopImmediatePropagation();
+        const url = new URL(window.location.href);
+        url.searchParams.set(select.name === 'month' ? 'month' : 'year', select.value);
+        url.searchParams.set('portal', portal);
+        window.location.href = url.toString();
+    }, true);
+
+    if (portal !== 'labour') return;
+
+    ['overtime_hours', 'night_hours', 'early_leave_hours'].forEach(function (name) {
+        const input = document.querySelector('input[name="' + name + '"]');
+        if (input) {
+            input.required = false;
+            input.value = input.value || '0';
+            input.closest('div').style.display = 'none';
+        }
+    });
+
+    const chart = document.getElementById('attendance-hours-chart');
+    if (chart) chart.closest('.relative.flex').style.display = 'none';
+
+    document.querySelectorAll('.grid .rounded-xl').forEach(function (card) {
+        const label = card.querySelector('span');
+        if (label && ['Overtime', 'Night', 'Early leave'].includes(label.textContent.trim())) {
+            card.style.display = 'none';
+        }
+    });
+
+    document.querySelectorAll('section').forEach(function (section) {
+        if (!section.textContent.includes('Attendance history')) return;
+        const headers = Array.from(section.querySelectorAll('th'));
+        ['Overtime', 'Night', 'Early Leave'].forEach(function (label) {
+            const index = headers.findIndex(function (header) {
+                return header.textContent.trim() === label;
+            });
+            if (index >= 0) {
+                section.querySelectorAll('tr').forEach(function (row) {
+                    if (row.children[index]) row.children[index].style.display = 'none';
+                });
+            }
+        });
+    });
+});
+</script>
+<style>
+.attendance-status-cell { text-align: center; font-weight: 900; text-transform: uppercase; }
+.status-present { background-color: #dcfce7; border-color: #22c55e; color: #166534; }
+.status-absent { background-color: #fee2e2; border-color: #ef4444; color: #991b1b; }
+.status-holiday { background-color: #e5e7eb; border-color: #6b7280; color: #374151; }
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const dailyTable = document.querySelector('table:has(select[name^="attendance_status_"])');
+    if (dailyTable) {
+        dailyTable.classList.add('daily-attendance-table');
+        dailyTable.querySelectorAll('tbody tr').forEach(function (row, index) {
+            const dateCell = row.firstElementChild;
+            if (dateCell) {
+                dateCell.textContent = String(index + 1).padStart(2, '0');
+                const calendarLabel = dateCell.dataset.calendarLabel;
+                if (calendarLabel) {
+                    const label = document.createElement('span');
+                    label.className = 'ml-2 text-[10px] font-black uppercase text-orange-800';
+                    label.textContent = calendarLabel;
+                    dateCell.appendChild(label);
+                }
+            }
+        });
+    }
+
+    const isPerDayWorker = '{{ selected_worker.employment_type|upper if selected_worker else '' }}' === 'PER DAY';
+    document.querySelectorAll('select[name^="attendance_status_"]').forEach(function (select) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = select.name;
+        input.maxLength = 1;
+        input.autocomplete = 'off';
+        input.className = 'input attendance-status-cell';
+        const row = select.closest('tr');
+        if (isPerDayWorker && row && row.matches('.attendance-sunday-row, .attendance-holiday-row')) {
+            select.value = 'A';
+            input.readOnly = true;
+        }
+        input.value = (select.value || 'P').toUpperCase();
+        if (select.disabled) input.readOnly = true;
+
+        function updateStatusColor() {
+            input.value = input.value.toUpperCase();
+            input.classList.remove('status-present', 'status-absent', 'status-holiday');
+            if (input.value === 'P') input.classList.add('status-present');
+            if (input.value === 'A') input.classList.add('status-absent');
+            if (input.value === 'H') input.classList.add('status-holiday');
+        }
+
+        input.addEventListener('keydown', function (event) {
+            if (event.key !== 'Tab') return;
+            const statusInputs = Array.from(document.querySelectorAll('.attendance-status-cell'));
+            const currentIndex = statusInputs.indexOf(input);
+            const nextIndex = event.shiftKey ? currentIndex - 1 : currentIndex + 1;
+            if (nextIndex < 0 || nextIndex >= statusInputs.length) return;
+            event.preventDefault();
+            statusInputs[nextIndex].focus();
+            statusInputs[nextIndex].select();
+        });
+
+        input.addEventListener('keydown', function (event) {
+            const allowedKeys = ['Backspace', 'Delete', 'Tab', 'ArrowLeft', 'ArrowRight', 'Home', 'End'];
+            if (!allowedKeys.includes(event.key) && !['P', 'A', 'H'].includes(event.key.toUpperCase())) {
+                event.preventDefault();
+            }
+        });
+        input.addEventListener('input', function () {
+            const value = input.value.toUpperCase();
+            input.value = ['P', 'A', 'H'].includes(value) ? value : '';
+            updateStatusColor();
+        });
+        input.addEventListener('paste', function (event) {
+            const value = (event.clipboardData.getData('text') || '').trim().toUpperCase();
+            if (!['P', 'A', 'H'].includes(value)) event.preventDefault();
+        });
+
+        select.replaceWith(input);
+        updateStatusColor();
+    });
+});
+</script>
+<style>
+.daily-attendance-table { min-width: 680px !important; font-size: .8rem; }
+.worker-attendance-table-scroll { max-height: 70vh; overflow: auto; -webkit-overflow-scrolling: touch; }
+.worker-attendance-table-scroll thead th { position: sticky; top: 0; z-index: 20; background-color: #f1f5f9; }
+.daily-attendance-table th,
+.daily-attendance-table td { padding: .35rem .5rem; }
+.daily-attendance-table .input { padding: .35rem .5rem; font-size: .75rem; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const chartCanvas = document.getElementById('attendance-hours-chart');
+    if (!chartCanvas || typeof Chart === 'undefined') return;
+
+    new Chart(chartCanvas, {
+        type: 'pie',
+        data: {
+            labels: ['Early Leave', 'Overtime', 'Night'],
+            datasets: [{
+                data: [
+                    {{ existing.early_leave_hours if existing else 0 }},
+                    {{ existing.overtime_hours if existing else 0 }},
+                    {{ existing.night_hours if existing else 0 }}
+                ],
+                backgroundColor: ['#f59e0b', '#06b6d4', '#6366f1'],
+                borderColor: '#ffffff',
+                borderWidth: 3,
+                hoverOffset: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: { usePointStyle: true, boxWidth: 9, color: '#475569' }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function (context) {
+                            return context.label + ': ' + Number(context.raw).toFixed(2) + ' h';
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    if (!{{ 'true' if read_only_profile else 'false' }}) return;
+
+    const savedDates = new Set({{ daily_records.keys()|list|tojson }});
+    const attendanceForm = document.querySelector('form[method="post"]');
+    const attendanceTable = document.querySelector('.daily-attendance-table');
+    if (!attendanceForm || !attendanceTable) return;
+
+    const year = attendanceForm.querySelector('input[name="year"]').value;
+    const month = attendanceForm.querySelector('input[name="month"]').value.padStart(2, '0');
+    attendanceTable.querySelectorAll('tbody tr').forEach(function (row, index) {
+        const date = `${year}-${month}-${String(index + 1).padStart(2, '0')}`;
+        const isSaved = savedDates.has(date);
+        row.querySelectorAll('input, select').forEach(function (field) {
+            if (field.name.startsWith('attendance_status_')) field.readOnly = isSaved;
+            else field.disabled = isSaved;
+        });
+    });
+
+    const notice = Array.from(attendanceForm.querySelectorAll('p')).find(function (paragraph) {
+        return paragraph.textContent.includes('Manager access is read-only for attendance.');
+    });
+    if (notice) notice.textContent = 'Saved attendance days are locked. New dates can be entered.';
+    if (!attendanceForm.querySelector('button[type="submit"]')) {
+        const saveButton = document.createElement('button');
+        saveButton.type = 'submit';
+        saveButton.className = 'mt-4 w-full rounded-xl bg-emerald-600 px-5 py-3 text-xs font-black text-white';
+        saveButton.textContent = 'Save New Attendance';
+        attendanceForm.appendChild(saveButton);
+    }
+    document.querySelectorAll('a[href*="worker-attendance"]').forEach(function (link) {
+        if (link.textContent.trim() === 'Edit') link.textContent = 'View';
+    });
+});
+</script>
+{% endblock %}

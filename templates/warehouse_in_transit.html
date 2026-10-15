@@ -1,0 +1,188 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 bg-slate-50 p-4 pb-32 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
+  <div class="mx-auto max-w-7xl space-y-6">
+    <header class="flex flex-col gap-4 rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:flex-row sm:items-center sm:justify-between sm:p-8">
+      <div>
+        <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-300">Warehouse</p>
+        <h1 class="mt-2 text-3xl font-black">In Transit to Warehouse</h1>
+        <p class="mt-2 text-sm text-slate-300">Place produced PCS into a department store room. Only placed stock becomes available for dispatch.</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        <a href="{{ url_for('warehouse_portal') }}" class="rounded-lg border border-white/30 px-4 py-2 text-sm font-bold text-white hover:bg-white/10">Warehouse Dispatch</a>
+        <a href="{{ url_for('stock_portal') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Stock Portal</a>
+      </div>
+    </header>
+
+    <label class="block rounded-xl border border-slate-200 bg-white p-4 text-sm font-bold text-slate-700 shadow-sm">
+      Search warehouse stock
+      <input id="warehouse-live-search" type="search" placeholder="Search order, party, article, quality, room, rack or shelf" class="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 font-normal text-slate-900 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-100">
+    </label>
+
+    <section class="space-y-4 rounded-2xl border border-amber-200 bg-white p-5 shadow-sm sm:p-6">
+      <div>
+        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-700">Awaiting placement</p>
+        <h2 class="mt-1 text-xl font-black text-slate-900">Produced PCS in transit</h2>
+      </div>
+      {% for row in transit_rows %}
+      <article class="warehouse-search-item rounded-xl border border-slate-200 bg-slate-50 p-4" data-search="{{ (row.order.job_no ~ ' ' ~ (row.order.name or '') ~ ' ' ~ (row.order.article_name or row.order.article or '') ~ ' ' ~ row.quality)|lower }}">
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div><p class="text-[10px] font-bold uppercase text-slate-400">Order</p><p class="mt-1 font-black text-indigo-700">{{ row.order.job_no }}</p><p class="text-xs text-slate-600">{{ row.order.name or 'Unnamed party' }} · {{ row.order.article_name or row.order.article or 'Unnamed article' }}</p></div>
+          <div><p class="text-[10px] font-bold uppercase text-slate-400">Quality</p><p class="mt-1 font-black {% if row.quality == 'AQ' %}text-sky-700{% else %}text-amber-700{% endif %}">{{ row.quality }}</p></div>
+          <div><p class="text-[10px] font-bold uppercase text-slate-400">Produced</p><p class="mt-1 font-black text-slate-800">{{ '{:,.0f}'.format(row.produced_pcs) }} PCS</p></div>
+          <div><p class="text-[10px] font-bold uppercase text-slate-400">In Transit</p><p class="mt-1 font-black text-amber-700">{{ '{:,.2f}'.format(row.transit_pcs) }} PCS</p></div>
+          <div><p class="text-[10px] font-bold uppercase text-slate-400">Packet Equivalent</p><p class="mt-1 font-black text-slate-800">{{ '{:,.2f}'.format(row.transit_packets) }}{% if row.order.pcs_poly|float > 0 %} packets{% else %} packets (PCS/packet not set){% endif %}</p></div>
+        </div>
+        <button type="button" class="warehouse-place-toggle mt-4 w-full rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800 hover:bg-amber-100" aria-expanded="false">
+          Place in warehouse
+        </button>
+        <form method="post" class="warehouse-place-form mt-4 hidden grid gap-3 rounded-xl border border-amber-100 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
+          <input type="hidden" name="order_id" value="{{ row.order.job_no }}">
+          <input type="hidden" name="quality" value="{{ row.quality }}">
+          <label class="text-xs font-bold text-slate-600">PCS to place
+            <input type="number" name="quantity" min="0.01" max="{{ row.transit_pcs }}" step="0.01" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          </label>
+          <label class="text-xs font-bold text-slate-600">Warehouse location
+            <select name="location_type" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="FLOOR">Floor</option>
+              <option value="RACK_SHELF">Rack/Shelf</option>
+              <option value="CABINET">Cabinet</option>
+              <option value="CUPBOARD">Cupboard</option>
+            </select>
+          </label>
+          <label class="text-xs font-bold text-slate-600">Department
+            <select name="department" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              <option value="">Select department</option>
+              {% for department in departments %}<option value="{{ department.name }}">{{ department.name }}</option>{% endfor %}
+            </select>
+          </label>
+          <label class="text-xs font-bold text-slate-600">Gala (optional)
+            <input type="text" name="gala" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          </label>
+          <div class="flex items-end"><button type="submit" class="w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-black text-white hover:bg-amber-700">Place in Warehouse</button></div>
+        </form>
+      </article>
+      {% else %}
+      <div class="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center text-sm font-semibold text-slate-500">No produced PCS are waiting for warehouse placement.</div>
+      {% endfor %}
+      <p class="warehouse-search-empty hidden rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-8 text-center text-sm font-semibold text-slate-500">No in-transit items match your search.</p>
+    </section>
+
+    <section class="overflow-hidden rounded-2xl border border-violet-200 bg-white shadow-sm">
+      <div class="border-b border-violet-200 bg-violet-50 px-5 py-4">
+        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-700">Warehouse stock</p>
+        <h2 class="mt-1 text-lg font-black text-slate-900">Placed packets and their locations</h2>
+      </div>
+      <div class="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
+        {% for location in warehouse_locations %}
+        <article class="warehouse-search-item rounded-xl border border-slate-200 p-4" data-search="{{ (location.location.order_id ~ ' ' ~ location.location.quality ~ ' ' ~ (location.order.name if location.order else '') ~ ' ' ~ (location.order.article_name or location.order.article if location.order else '') ~ ' ' ~ location.location.department ~ ' ' ~ location.location.room ~ ' ' ~ (location.location.gala or '') ~ ' ' ~ (location.location.location_type or '') ~ ' ' ~ (location.location.rack_no or '') ~ ' ' ~ (location.location.shelf_no or ''))|lower }}">
+          <div class="flex items-start justify-between gap-3">
+            <div><p class="font-black text-indigo-700">{{ location.location.order_id }}</p><p class="text-xs font-bold text-slate-600">{{ location.location.quality }}</p></div>
+            <p class="text-right font-black text-violet-700">{{ '{:,.2f}'.format(location.location.quantity) }} PCS{% if location.packets > 0 %}<span class="block text-xs font-semibold text-slate-500">{{ '{:,.2f}'.format(location.packets) }} packets</span>{% endif %}</p>
+          </div>
+          {% if location.order %}<p class="mt-1 text-xs text-slate-600">{{ location.order.name or 'Unnamed party' }} · {{ location.order.article_name or location.order.article or 'Unnamed article' }}</p>{% endif %}
+          <p class="mt-2 text-sm font-semibold text-slate-800">{{ location.location.department }} · {{ location.location.room }}{% if location.location.gala %} · Gala {{ location.location.gala }}{% endif %}</p>
+          <p class="mt-1 text-xs text-slate-500">{{ location.location.location_type|replace('_', '/')|title }}{% if location.location.location_type == 'RACK_SHELF' and location.location.rack_no and location.location.shelf_no %} · Rack {{ location.location.rack_no }} · Shelf {{ location.location.shelf_no }}{% endif %}</p>
+          {% if location.can_relocate %}
+          <button type="button" class="warehouse-relocate-toggle mt-4 w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-black text-amber-800 hover:bg-amber-100" aria-expanded="false">Relocate</button>
+          <form method="post" action="{{ url_for('relocate_warehouse_finished_goods', location_id=location.location.id) }}" class="warehouse-relocate-form mt-3 hidden space-y-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+            <p class="text-xs font-black uppercase tracking-wide text-amber-800">Move all remaining PCS to</p>
+            <label class="block text-xs font-bold text-slate-600">Department
+              <select name="department" required class="warehouse-department-select mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                <option value="">Select department</option>
+                {% for department in departments %}<option value="{{ department.name }}">{{ department.name }}</option>{% endfor %}
+              </select>
+            </label>
+            <label class="block text-xs font-bold text-slate-600">Store room
+              <select name="room" required disabled class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"><option value="">Select department first</option></select>
+            </label>
+            <label class="block text-xs font-bold text-slate-600">Location type
+              <select name="location_type" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                <option value="RACK_SHELF">Rack/Shelf</option>
+                <option value="FLOOR">Floor</option>
+                <option value="CABINET">Cabinet</option>
+                <option value="CUPBOARD">Cupboard</option>
+              </select>
+            </label>
+            <label class="block text-xs font-bold text-slate-600">Gala (optional)
+              <input type="text" name="gala" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+            </label>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="text-xs font-bold text-slate-600">Rack no.
+                <input type="text" name="rack_no" placeholder="e.g. 4" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+              </label>
+              <label class="text-xs font-bold text-slate-600">Shelf no.
+                <input type="text" name="shelf_no" placeholder="e.g. 2" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+              </label>
+            </div>
+            <button type="submit" class="w-full rounded-lg bg-amber-600 px-3 py-2 text-sm font-black text-white hover:bg-amber-700">Save New Location</button>
+          </form>
+          {% endif %}
+        </article>
+        {% else %}
+        <div class="rounded-xl border border-dashed border-slate-300 px-6 py-10 text-center text-sm font-semibold text-slate-500 sm:col-span-2 xl:col-span-3">No finished goods have been placed in the warehouse yet.</div>
+        {% endfor %}
+        <p class="warehouse-search-empty hidden rounded-xl border border-dashed border-slate-300 px-6 py-8 text-center text-sm font-semibold text-slate-500 sm:col-span-2 xl:col-span-3">No placed warehouse stock matches your search.</p>
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+  const warehouseDepartmentRooms = {{ department_store_rooms|tojson }};
+  const warehouseSearchInput = document.getElementById('warehouse-live-search');
+  if (warehouseSearchInput) {
+    document.querySelectorAll('section').forEach(function (section) {
+      const searchItems = Array.from(section.querySelectorAll('.warehouse-search-item'));
+      if (!searchItems.length) return;
+      const emptyMessage = section.querySelector('.warehouse-search-empty');
+      warehouseSearchInput.addEventListener('input', function () {
+        const query = warehouseSearchInput.value.trim().toLowerCase();
+        let visibleCount = 0;
+        searchItems.forEach(function (item) {
+          const matches = (item.dataset.search || '').includes(query);
+          item.classList.toggle('hidden', !matches);
+          if (matches) visibleCount += 1;
+        });
+        if (emptyMessage) emptyMessage.classList.toggle('hidden', visibleCount > 0);
+      });
+    });
+  }
+  document.querySelectorAll('.warehouse-relocate-toggle').forEach(function (button) {
+    button.addEventListener('click', function () {
+      const form = button.nextElementSibling;
+      const isOpen = form && !form.classList.contains('hidden');
+      if (!form) return;
+      form.classList.toggle('hidden', isOpen);
+      button.setAttribute('aria-expanded', String(!isOpen));
+    });
+  });
+  document.querySelectorAll('.warehouse-place-toggle').forEach(function (button) {
+    button.addEventListener('click', function () {
+      const form = button.nextElementSibling;
+      if (!form) return;
+      const isOpen = !form.classList.contains('hidden');
+      form.classList.toggle('hidden', isOpen);
+      button.setAttribute('aria-expanded', String(!isOpen));
+    });
+  });
+  document.querySelectorAll('.warehouse-department-select').forEach(function (departmentSelect) {
+    const form = departmentSelect.form;
+    const roomSelect = form && form.elements.namedItem('room');
+    if (!roomSelect) return;
+
+    function updateRooms() {
+      const rooms = warehouseDepartmentRooms[(departmentSelect.value || '').trim().toLowerCase()] || [];
+      roomSelect.replaceChildren(new Option(
+        rooms.length ? 'Select store room' : 'No rooms configured',
+        ''
+      ));
+      rooms.forEach(function (room) {
+        roomSelect.add(new Option(room, room));
+      });
+      roomSelect.disabled = rooms.length === 0;
+    }
+    departmentSelect.addEventListener('change', updateRooms);
+    updateRooms();
+  });
+</script>
+{% endblock %}

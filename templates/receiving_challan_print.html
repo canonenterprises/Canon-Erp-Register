@@ -1,0 +1,271 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="print-page-container">
+    
+    <!-- Top Right Serial Number -->
+    <div class="serial-header">
+        <span class="serial-label">Serial No:</span>
+        <span class="serial-value">{{ challan.serial_no or '-' }}</span>
+    </div>
+
+    <!-- Company Logo & Header Info -->
+    <div class="company-header">
+        <img src="{{ url_for('static', filename='canon logo black.webp') }}" alt="Canon Logo" class="print-logo">
+        <p class="company-address">
+            Akhter & Iqbal Compound, Block-C, Ground Floor, L/3, Block-22,<br>
+            F.B. Industrial Area, Opp.Edhi Home, Karachi.<br>
+            Ph. 36342557
+        </p>
+    </div>
+
+    <h2 class="challan-title">Receiving Challan - Canon Copy</h2>
+
+    <!-- Styled & Bordered Print Table -->
+<table class="canon-print-table">
+        <tr>
+            <td rowspan="4" colspan="2" class="fabric-sample-cell">
+                <div class="fabric-sample-text">FABRIC SAMPLE</div>
+            </td>
+            <td class="label-cell">PER DOZ CONSUMPTION</td>
+            <td class="value-cell">{{ challan.per_dozen_consumption or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">REQUIRED CTN / BAILS</td>
+            <td class="value-cell">{{ challan.required_ctn_bails or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">RECEIVED FROM.</td>
+            <td class="value-cell">{{ challan.received_from or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">CHALLAN NO.</td>
+            <td class="value-cell">{{ challan.challan_no or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">RECEIVED DATE :</td>
+            <td class="value-cell">{{ challan.recv_date|format_ddmmyyyy if challan.recv_date else '-' }}</td>
+            <td class="label-cell">METER = 100 CM.</td>
+            <td class="value-cell">{{ challan.meter_to_cm or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">MESSERS.</td>
+            <td class="value-cell">{{ challan.suppliers or '-' }}</td>
+            <td class="label-cell">FABRIC QUANTITY A.</td>
+            <td class="value-cell">{{ challan.fabric_qty_a or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">FABRIC QUALITY.</td>
+            <td class="value-cell">{{ challan.fabric_quality or '-' }}</td>
+            <td class="label-cell">FABRIC QUANTITY B.</td>
+            <td class="value-cell">{{ challan.fabric_qty_b or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">WIDTH.</td>
+            <td class="value-cell">{{ challan.width or '-' }}</td>
+            <td class="label-cell">RECEIVED CUT PCS.</td>
+            <td class="value-cell">{{ challan.received_cut_pcs or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">FABRIC FOR.</td>
+            <td class="value-cell">{{ challan.fabric_for or '-' }}</td>
+            <td class="label-cell">TOTAL.</td>
+            <td class="value-cell total-highlight">{{ challan.total or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">USED FILE NO.</td>
+            <td class="value-cell">{{ challan.used_file_no or '-' }}</td>
+            <td class="label-cell">ROLLS.</td>
+            <td class="value-cell">{{ challan.rolls or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">DEPTT / PLACE</td>
+            <td class="value-cell">{{ challan.place or '-' }}</td>
+            <td class="label-cell">VEHICLE NO.</td>
+            <td class="value-cell">{{ challan.vehicle_no or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">RECEIVER NAME.</td>
+            <td class="value-cell">{{ challan.reciever_name or '-' }}</td>
+            <td class="label-cell">DELIVERED BY.</td>
+            <td class="value-cell">{{ challan.delivered_by or '-' }}</td>
+        </tr>
+        <tr>
+            <td class="label-cell">RECEIVER SIGN.</td>
+            <td class="value-cell"></td>
+            <td class="label-cell">DRIVER CELL NO.</td>
+            <td class="value-cell">{{ challan.driver_cell_no or '-' }}</td>
+        </tr>
+        <tr>
+            <td colspan="4" class="canon-copy-footer">CANON COPY</td>
+        </tr>
+    </table>
+
+    <!-- Footer Signatures & Print timestamp -->
+    <div class="print-footer-info">
+        <p class="receiver-sign-line pt-2">Signature: ______________________</p>
+        <p>Printed on: <span id="print-time"></span></p>
+    </div>
+</div>
+
+<!-- Auto trigger print dialog when page loads -->
+<script>
+window.addEventListener('DOMContentLoaded', function() {
+    const now = new Date();
+    const options = { 
+        weekday: 'long', year: 'numeric', month: 'long', 
+        day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true 
+    };
+    document.getElementById('print-time').textContent = now.toLocaleString('en-US', options);
+    
+    // Automatically open print dialog
+    window.print();
+});
+</script>
+
+<style>
+/* Dedicated Print Page Styles with Enhanced Borders & Professional Styling */
+body {
+    background-color: #ffffff !important;
+    margin: 0;
+    padding: 0;
+}
+
+.print-page-container {
+    max-width: 190mm;
+    margin: 0 auto;
+    padding: 6mm;
+    background: #ffffff;
+    font-family: Arial, sans-serif;
+    color: #000;
+}
+
+.serial-header {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 2px;
+    font-size: 11px;
+}
+
+.serial-label {
+    font-weight: bold;
+    color: #334155;
+}
+
+.serial-value {
+    font-weight: bold;
+    font-size: 13px;
+    color: #0f172a;
+}
+
+.company-header {
+    margin-bottom: 4px;
+}
+
+.print-logo {
+    height: 34px;
+    width: auto;
+    margin-bottom: 2px;
+}
+
+.company-address {
+    font-size: 9px;
+    line-height: 1.2;
+    color: #475569;
+}
+
+.challan-title {
+    font-size: 16px;
+    font-weight: 800;
+    text-align: center;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #0f172a;
+    border-bottom: 2px solid #0f172a;
+    padding-bottom: 3px;
+}
+
+.canon-print-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 2px solid #0f172a;
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.canon-print-table td {
+    border: 1px solid #475569;
+    padding: 3px 7px;
+    font-size: 10px;
+    vertical-align: middle;
+}
+
+.label-cell {
+    font-weight: 700;
+    font-size: 12px;
+    width: 25%;
+    color: #1e293b;
+    background-color: #f1f5f9;
+    letter-spacing: 0.2px;
+}
+
+.value-cell {
+    font-weight: 600;
+    font-size: 12px;
+    width: 25%;
+    color: #0f172a;
+    background-color: #ffffff;
+}
+
+.total-highlight {
+    font-weight: 800;
+    color: #047857;
+    background-color: #ecfdf5;
+}
+
+.empty-filler-cell {
+    background-color: #f8fafc;
+    height: 24px;
+}
+
+
+.canon-copy-footer {
+    text-align: center;
+    font-weight: 800;
+    font-size: 11px;
+    padding: 5px;
+    letter-spacing: 2px;
+    background-color: #0f172a;
+    color: #ffffff;
+    border-top: 2px solid #0f172a;
+}
+
+.print-footer-info {
+    margin-top: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 10px;
+}
+
+.receiver-sign-line {
+    font-weight: bold;
+    color: #1e293b;
+}
+
+.fabric-sample-cell {
+    text-align: center;
+    font-weight: 700;
+    color: #0f172a;
+    position: relative;
+}
+
+
+@page {
+    size: A5 landscape;
+    margin: 0mm;
+}
+</style>
+{% endblock %}

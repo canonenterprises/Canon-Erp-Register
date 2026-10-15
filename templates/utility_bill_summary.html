@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
+  <div class="mx-auto max-w-7xl space-y-6 rounded-lg border border-slate-300 bg-white p-5 shadow-sm sm:p-8">
+    <header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
+      <div><p class="text-xs font-bold uppercase text-sky-700">Accounts · Utility allocation</p><h1 class="mt-1 text-3xl font-black text-slate-950">Bill Summary</h1><p class="mt-2 text-sm text-slate-500">Combine meter charges into one utility bill register entry.</p></div>
+      <a href="{{ url_for('accounts_utility_bills') }}" class="inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Utility Bills</a>
+    </header>
+
+    {% if view == 'invoice' and summary and summary.invoice_no %}
+    <div class="flex flex-wrap items-center justify-between gap-3 border-y border-emerald-200 bg-emerald-50 px-4 py-3 text-sm"><p class="font-bold text-emerald-900">Invoice {{ summary.invoice_no }} is ready.</p><a href="{{ url_for('print_utility_bill_summary', summary_id=summary.id, document_type='invoice') }}" target="_blank" class="inline-flex items-center gap-2 rounded-md bg-emerald-700 px-4 py-2 font-bold text-white"><i class="fa-solid fa-print" aria-hidden="true"></i> Open Invoice</a></div>
+    {% endif %}
+
+    <section class="space-y-4">
+      <div><h2 class="text-xl font-black">{{ 'Edit bill summary' if summary else 'Create bill summary' }}</h2>{% if bill %}<p class="mt-1 text-sm text-slate-600">{{ bill.company }} · {{ bill.utility_type }} · {{ bill.provider }} · {{ bill.billing_period }}</p>{% endif %}</div>
+      <form method="post" enctype="multipart/form-data" class="space-y-5" id="bill-summary-form">
+        <input type="hidden" name="action" value="save_summary" data-summary-action>
+        {% if summary %}<input type="hidden" name="summary_id" value="{{ summary.id }}">{% endif %}
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label class="text-xs font-bold uppercase text-slate-500">Utility type<select name="utility_type" required class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm">{% for utility_type in utility_types %}<option value="{{ utility_type }}" {% if bill and bill.utility_type == utility_type %}selected{% elif not bill and utility_type == 'Electricity' %}selected{% endif %}>{{ utility_type }}</option>{% endfor %}</select></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Company<select name="company" required class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="Canon" {% if not bill or bill.company == 'Canon' %}selected{% endif %}>Canon</option><option value="Haram" {% if bill and bill.company == 'Haram' %}selected{% endif %}>Haram</option></select></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Provider<input name="provider" value="{{ bill.provider if bill else '' }}" maxlength="150" required placeholder="Utility company or combined bill name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Account / consumer no.<input name="account_reference" value="{{ bill.account_reference if bill else '' }}" maxlength="100" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Billing month<input type="month" name="billing_period" value="{{ bill.billing_period if bill else current_month }}" required class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Bill date<input type="date" name="bill_date" value="{{ bill.bill_date if bill else today }}" required class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Due date<input type="date" name="due_date" value="{{ bill.due_date if bill else '' }}" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label class="text-xs font-bold uppercase text-slate-500">Summary title<input name="title" value="{{ summary.title if summary else (bill.provider if bill else 'Utility Bill Summary') }}" maxlength="200" required class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Invoice to<input name="invoice_to" value="{{ summary.invoice_to if summary else '' }}" maxlength="200" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm" placeholder="Customer or department"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Invoice date<input type="date" name="invoice_date" value="{{ summary.invoice_date if summary and summary.invoice_date else today }}" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
+        </div>
+        <label class="block max-w-xl text-xs font-bold uppercase text-slate-600">Cheque image <span class="text-rose-700">Required to create invoice</span>
+          <input type="file" name="cheque_image" accept="image/png,image/jpeg,image/webp" data-cheque-image data-existing="{{ 'true' if summary and summary.cheque_image else 'false' }}" class="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:font-bold">
+          {% if summary and summary.cheque_image %}<span class="mt-1 block text-xs font-medium normal-case text-emerald-700">Cheque image uploaded. Select another file to replace it.</span>{% endif %}
+        </label>
+        <div class="overflow-x-auto border-y border-slate-200">
+          <table class="w-full min-w-[1500px] text-left text-xs" id="summary-rows-table">
+            <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-600"><tr><th class="px-2 py-2">Meter No.</th><th class="px-2 py-2">Bill No.</th><th class="px-2 py-2">Location</th><th class="px-2 py-2">Previous</th><th class="px-2 py-2">Present</th><th class="px-2 py-2">Units</th><th class="px-2 py-2">Rate / Unit</th><th class="px-2 py-2">Adjustment</th><th class="px-2 py-2">Fuel</th><th class="px-2 py-2">Surcharge</th><th class="px-2 py-2">Tariff Diff.</th><th class="px-2 py-2">Maintenance</th><th class="px-2 py-2">Water</th><th class="px-2 py-2">Row Total</th><th class="px-2 py-2"></th></tr></thead>
+            <tbody data-summary-rows>
+              {% for item in summary_rows %}
+              <tr class="border-t border-slate-100">
+                <td class="p-1"><input name="meter_no" value="{{ item.meter_no or '' }}" required placeholder="Meter" class="w-24 rounded border border-slate-300 px-2 py-1.5"></td>
+                <td class="p-1"><input name="bill_no" value="{{ item.bill_no or '' }}" placeholder="Bill no." class="w-24 rounded border border-slate-300 px-2 py-1.5"></td>
+                <td class="p-1"><input name="location" value="{{ item.location or '' }}" placeholder="Location" class="w-32 rounded border border-slate-300 px-2 py-1.5"></td>
+                {% for field in ['previous_reading', 'present_reading', 'units', 'rate', 'adjustment', 'fuel_charges', 'additional_surcharge', 'tariff_difference', 'maintenance_charges', 'water_charges'] %}
+                <td class="p-1"><input name="{{ field }}" type="number" step="0.01" value="{{ item[field] if item and item[field] is defined else '' }}" class="w-24 rounded border border-slate-300 px-2 py-1.5" aria-label="{{ field|replace('_', ' ')|title }}"></td>
+                {% endfor %}
+                <td class="summary-row-total px-2 py-1 text-right font-bold">{{ '{:,.2f}'.format(item.total or 0) if item else '0.00' }}</td>
+                <td class="p-1"><button type="button" data-remove-summary-row class="rounded border border-slate-300 px-2 py-1.5 font-bold text-slate-600" aria-label="Remove row">×</button></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <button type="button" data-add-summary-row class="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add meter row</button>
+          <p class="text-sm font-bold text-slate-700">Summary total: <span data-summary-total class="text-lg text-slate-950">PKR {{ '{:,.2f}'.format(summary.total_amount if summary else 0) }}</span></p>
+        </div>
+        <label class="block max-w-3xl text-xs font-bold uppercase text-slate-500">Notes<textarea name="notes" maxlength="500" rows="2" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm">{{ summary.notes if summary else '' }}</textarea></label>
+        <div class="flex flex-wrap gap-2 border-t border-slate-200 pt-4">
+          <button type="submit" data-save-summary class="inline-flex items-center gap-2 rounded-md bg-sky-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-sky-800"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Summary</button>
+          {% if summary %}
+          <button type="submit" data-create-summary-invoice class="inline-flex items-center gap-2 rounded-md bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><i class="fa-solid fa-file-invoice" aria-hidden="true"></i> {{ 'Update Invoice' if summary.invoice_no else 'Create Invoice' }}</button>
+          <a href="{{ url_for('print_utility_bill_summary', summary_id=summary.id, document_type='summary') }}" target="_blank" class="inline-flex items-center gap-2 rounded-md border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Summary</a>
+          {% if summary.invoice_no %}<a href="{{ url_for('print_utility_bill_summary', summary_id=summary.id, document_type='invoice') }}" target="_blank" class="inline-flex items-center gap-2 rounded-md border border-emerald-700 px-4 py-2.5 text-sm font-bold text-emerald-800"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Invoice · {{ summary.invoice_no }}</a>{% endif %}
+          {% endif %}
+        </div>
+      </form>
+    </section>
+
+    {% if summaries and not summary %}
+    <section class="space-y-3 border-t border-slate-200 pt-5">
+      <h2 class="text-xl font-black">Saved summaries</h2>
+      <div class="overflow-x-auto border-y border-slate-200"><table class="w-full min-w-[700px] text-left text-sm"><thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-3 py-2">Title</th><th class="px-3 py-2">Utility bill</th><th class="px-3 py-2">Date</th><th class="px-3 py-2 text-right">Total</th><th class="px-3 py-2">Invoice</th><th></th></tr></thead><tbody class="divide-y divide-slate-100">
+        {% for item in summaries %}<tr><td class="px-3 py-2 font-bold">{{ item.title }}</td><td class="px-3 py-2">{{ item.utility_bill.utility_type }} · {{ item.utility_bill.provider }} · {{ item.utility_bill.billing_period }}</td><td class="px-3 py-2">{{ item.created_at.strftime('%d-%m-%Y') }}</td><td class="px-3 py-2 text-right">PKR {{ '{:,.2f}'.format(item.total_amount) }}</td><td class="px-3 py-2">{{ item.invoice_no or 'Not created' }}</td><td class="px-3 py-2"><a href="{{ url_for('accounts_utility_bill_summary', summary_id=item.id) }}" class="font-bold text-sky-800 hover:underline">Open</a></td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+    {% endif %}
+  </div>
+</div>
+<script>
+(function () {
+  const form = document.getElementById('bill-summary-form');
+  const rows = document.querySelector('[data-summary-rows]');
+  if (!form || !rows) return;
+  const numericNames = ['previous_reading', 'present_reading', 'units', 'rate', 'adjustment', 'fuel_charges', 'additional_surcharge', 'tariff_difference', 'maintenance_charges', 'water_charges'];
+  const money = value => Number.isFinite(value) ? value.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
+  form.querySelector('[data-save-summary]')?.addEventListener('click', () => {
+    form.querySelector('[data-summary-action]').value = 'save_summary';
+    const recipient = form.querySelector('[name="invoice_to"]');
+    if (recipient) {
+      recipient.required = false;
+      recipient.setCustomValidity('');
+    }
+    const chequeImage = form.querySelector('[data-cheque-image]');
+    if (chequeImage) {
+      chequeImage.required = false;
+      chequeImage.setCustomValidity('');
+    }
+  });
+  function updateTotals() {
+    let grandTotal = 0;
+    rows.querySelectorAll('tr').forEach(row => {
+      const values = {};
+      numericNames.forEach(name => values[name] = Number(row.querySelector(`[name="${name}"]`).value) || 0);
+      const units = values.units || Math.max(0, values.present_reading - values.previous_reading);
+      const total = units * values.rate + values.adjustment + values.fuel_charges + values.additional_surcharge + values.tariff_difference + values.maintenance_charges + values.water_charges;
+      grandTotal += total;
+      row.querySelector('.summary-row-total').textContent = money(total);
+    });
+    form.querySelector('[data-summary-total]').textContent = `PKR ${money(grandTotal)}`;
+  }
+  rows.addEventListener('input', updateTotals);
+  rows.addEventListener('click', event => {
+    const removeButton = event.target.closest('[data-remove-summary-row]');
+    if (!removeButton) return;
+    if (rows.querySelectorAll('tr').length > 1) removeButton.closest('tr').remove();
+    updateTotals();
+  });
+  form.querySelector('[data-add-summary-row]').addEventListener('click', () => {
+    const row = rows.querySelector('tr').cloneNode(true);
+    row.querySelectorAll('input').forEach(input => input.value = '');
+    row.querySelector('.summary-row-total').textContent = '0.00';
+    rows.appendChild(row);
+  });
+  form.querySelector('[data-create-summary-invoice]')?.addEventListener('click', () => {
+    form.querySelector('[data-summary-action]').value = 'create_invoice';
+    const recipient = form.querySelector('[name="invoice_to"]');
+    if (recipient) recipient.required = true;
+    const chequeImage = form.querySelector('[data-cheque-image]');
+    if (chequeImage) chequeImage.required = chequeImage.dataset.existing !== 'true';
+  });
+  form.addEventListener('submit', () => {
+    if (form.querySelector('[data-summary-action]').value !== 'create_invoice') return;
+    const recipient = form.querySelector('[name="invoice_to"]');
+    if (recipient && !recipient.value.trim()) recipient.setCustomValidity('Enter who this invoice is for.');
+    const chequeImage = form.querySelector('[data-cheque-image]');
+    if (chequeImage && chequeImage.dataset.existing !== 'true' && !chequeImage.value) chequeImage.setCustomValidity('Upload the cheque image before generating the invoice.');
+  });
+  form.querySelector('[name="invoice_to"]')?.addEventListener('input', event => event.target.setCustomValidity(''));
+  form.querySelector('[data-cheque-image]')?.addEventListener('change', event => event.target.setCustomValidity(''));
+  updateTotals();
+}());
+</script>
+{% endblock %}

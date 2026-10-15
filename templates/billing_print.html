@@ -1,0 +1,621 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="invoice-page mx-auto max-w-5xl px-4 py-6 print:p-0">
+
+  <!-- ACTIONS -->
+  <div class="mb-5 flex justify-between print:hidden">
+    <a href="{{ url_for('billing_portal', invoice_id=invoice.id) }}"
+       class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">
+      <i class="fa-solid fa-arrow-left"></i>
+      Billing
+    </a>
+
+    <button type="button"
+            onclick="window.print()"
+            class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">
+      <i class="fa-solid fa-print"></i>
+      Print
+    </button>
+  </div>
+
+
+  <!-- INVOICE -->
+  <article class="invoice bg-white text-slate-900 shadow-sm print:shadow-none">
+
+    <!-- BLUE TITLE -->
+    <div class="invoice-title">
+      SALES INVOICE
+    </div>
+
+
+    <!-- ================= INVOICE DETAILS ================= -->
+    <div class="invoice-meta">
+      <div><strong>Invoice No:</strong><span>{{ invoice.invoice_no }}</span></div>
+      <div><strong>Bill No:</strong><span>{{ bill.bill_no if bill else '-' }}</span></div>
+      <div><strong>Invoice Date:</strong><span>{{ invoice.invoice_date | format_ddmmyyyy }}</span></div>
+      <div><strong>Challan(s):</strong><span>{% for challan in invoice.billing_challans %}{{ format_challan_number(challan.challan_no) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></div>
+      <div><strong>Challan(s):</strong><span>{% for challan in invoice.billing_challans %}{{ format_challan_number(challan.challan_no) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></div>
+    </div>
+
+
+    <!-- ================= COMPANY / CUSTOMER DETAILS ================= -->
+    <section class="top-information">
+      <div class="bill-box">
+        <h3>SUPPLIER</h3>
+        <div class="customer-name">{{ company_name }}</div>
+        {% if company_location %}<div>{{ company_location }}</div>{% endif %}
+        <div class="customer-detail"><strong>GST / NTN No:</strong>1530045-5</div>
+      </div>
+
+      <div class="bill-box">
+        <h3>BUYER</h3>
+        <div class="customer-name">
+          {{ invoice.party_name }}
+        </div>
+
+        {% if invoice.party_address %}
+        <div>{{ invoice.party_address }}</div>
+        {% endif %}
+
+        {% if invoice.party_city %}
+        <div>{{ invoice.party_city }}</div>
+        {% endif %}
+
+        {% if invoice.party_ntn %}
+        <div class="customer-detail">
+          <strong>GST / NTN No.:</strong>
+          {{ invoice.party_ntn }}
+        </div>
+        {% endif %}
+
+        {% if invoice.sales_tax_no %}
+        <div class="customer-detail">
+          <strong>Sales Tax No.:</strong>
+          {{ invoice.sales_tax_no }}
+        </div>
+        {% endif %}
+
+      </div>
+    </section>
+
+
+    <!-- ================= ITEMS ================= -->
+
+    {% set total_quantity = namespace(value=0) %}
+
+    {% for line in invoice.lines %}
+      {% set total_quantity.value = total_quantity.value + line.quantity %}
+    {% endfor %}
+
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th>Description of Services</th>
+          <th class="qty">Qty (PCS)</th>
+          <th class="price">Unit Price (Rs.)</th>
+          <th class="amount">Value Of Goods (Rs.)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Stitching Charges</strong></td>
+          <td class="center">{{ '{:,.2f}'.format(total_quantity.value) }}</td>
+          <td class="right">{{ '{:,.2f}'.format(invoice.subtotal / total_quantity.value if total_quantity.value else 0) }}</td>
+          <td class="right">{{ '{:,.2f}'.format(invoice.subtotal) }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+
+    <!-- ================= TOTALS ================= -->
+
+    <section class="totals-area">
+
+      <div class="amount-words">
+
+        <h3>Amount in Words:</h3>
+
+        <p>
+          {{ amount_in_words }}
+        </p>
+
+      </div>
+
+      <div class="totals-box">
+
+        <div class="total-row">
+          <span>Sub Total</span>
+          <strong>
+            {{ '{:,.2f}'.format(invoice.subtotal) }}
+          </strong>
+        </div>
+
+        <div class="total-row">
+          <span>
+            Sales Tax ({{ '{:,.2f}'.format(invoice.tax_rate) }}%)
+          </span>
+          <strong>
+            {{ '{:,.2f}'.format(invoice.tax_amount) }}
+          </strong>
+        </div>
+
+        {% if invoice.further_tax_amount > 0 %}
+        <div class="total-row">
+          <span>
+            Further Tax on Unregistered Person ({{ '{:,.2f}'.format(invoice.further_tax_rate) }}%)
+          </span>
+          <strong>
+            {{ '{:,.2f}'.format(invoice.further_tax_amount) }}
+          </strong>
+        </div>
+        {% endif %}
+
+        <div class="total-final">
+          <span>Total Amount (Rs.)</span>
+          <strong>
+            {{ '{:,.2f}'.format(invoice.total) }}
+          </strong>
+        </div>
+
+      </div>
+
+    </section>
+
+
+
+    <!-- ================= FOOTER ================= -->
+
+    <footer class="invoice-footer">
+
+      <div class="thank-you">
+        <strong>Thank you for your business!</strong>
+        <br>
+        {{ 'HARAM ENTERPRISES' if selected_shipper == 'Haram' else 'CANON ENTERPRISES' }}
+        <div class="footer-line"></div>
+      </div>
+
+      <div class="signature">
+
+        <img src="{{ url_for('static', filename='signature.jpeg') }}"
+             alt="Authorized signature"
+             class="signature-image">
+        <div class="signature-line"></div>
+
+        <strong>Authorized Signature</strong>
+
+        <span>
+          {{ 'HARAM ENTERPRISES' if selected_shipper == 'Haram' else 'CANON ENTERPRISES' }}
+        </span>
+
+      </div>
+
+    </footer>
+
+    <div class="computer-generated-note">
+      This is a computer generated invoice and does not require a physical signature.
+    </div>
+
+    <div class="print-timestamp">
+      Printed on: <span id="billing-print-timestamp"></span>
+    </div>
+
+  </article>
+
+</div>
+
+<script>
+(function () {
+  const timestamp = document.getElementById('billing-print-timestamp');
+  if (!timestamp) return;
+
+  function updatePrintTimestamp() {
+    timestamp.textContent = new Date().toLocaleString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  }
+
+  updatePrintTimestamp();
+  window.addEventListener('beforeprint', updatePrintTimestamp);
+}());
+</script>
+
+<style>
+
+/* =========================================================
+   INVOICE BASE
+========================================================= */
+
+.invoice {
+  width: 100%;
+  max-width: 950px;
+  margin: auto;
+  padding: 32px;
+  border: 1px solid #cbd5e1;
+  font-family: Arial, Helvetica, sans-serif;
+  background: white;
+}
+
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+/* =========================================================
+   TITLE
+========================================================= */
+
+.invoice-title {
+  margin-top: 18px;
+  padding: 13px 20px;
+  background: #b7955c;
+  color: #000;
+  text-align: center;
+  font-size: 27px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+
+/* =========================================================
+   TOP INFORMATION
+========================================================= */
+
+.top-information {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.bill-box {
+  background: #f1f6fa;
+  padding: 17px;
+  min-height: 155px;
+}
+
+.invoice-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+  padding: 12px 16px;
+  background: #f1f6fa;
+  font-size: 13px;
+}
+
+.invoice-meta div {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.invoice-meta strong {
+  color: #b7955c;
+}
+
+.bill-box h3,
+.amount-words h3,
+.tax-breakdown h3,
+.terms h3 {
+  margin: 0 0 9px;
+  color: #b7955c;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.customer-name {
+  margin-bottom: 5px;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.customer-detail {
+  margin-top: 18px;
+}
+
+/* =========================================================
+   ITEMS TABLE
+========================================================= */
+
+.items-table {
+  width: 100%;
+  margin-top: 22px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 14px;
+}
+
+.items-table th:first-child,
+.items-table td:first-child {
+  width: 40%;
+}
+
+.items-table thead {
+  background:#b7955c;
+  color: #000;
+}
+
+.items-table th {
+  padding: 11px 8px;
+  border-right: 1px solid rgba(255,255,255,.35);
+  font-size: 14px;
+  text-align: center;
+}
+
+.items-table td {
+  padding: 12px 8px;
+  border: 1px solid #d7dee5;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.items-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.items-table .sr {
+  width: 45px;
+  text-align: center;
+}
+
+.items-table .qty {
+  width: 15%;
+  text-align: center;
+}
+
+.items-table .price {
+  width: 22.5%;
+  text-align: center;
+}
+
+.items-table .amount {
+  width: 22.5%;
+  text-align: center;
+}
+
+.center {
+  text-align: center;
+}
+
+.right {
+  text-align: center;
+}
+
+
+/* =========================================================
+   TOTALS
+========================================================= */
+
+.totals-area {
+  display: flex;
+  align-items: stretch;
+  gap: 18px;
+  margin-top: 12px;
+}
+
+.totals-box {
+  width: 420px;
+  flex: 0 0 420px;
+  border: 1px solid #d5dde5;
+}
+
+.total-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid #d5dde5;
+  font-size: 13px;
+}
+
+.total-final {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: #b7955c;
+  color: #000;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+
+.amount-words {
+  flex: 1;
+  padding: 16px;
+  background: #eef5fa;
+  min-height: 125px;
+}
+
+.amount-words p {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+/* =========================================================
+   TERMS
+========================================================= */
+
+.terms {
+  margin-top: 20px;
+}
+
+.terms ol {
+  margin: 7px 0 0;
+  padding-left: 22px;
+  font-size: 11px;
+  line-height: 1.9;
+}
+
+
+/* =========================================================
+   FOOTER
+========================================================= */
+
+.invoice-footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: end;
+  gap: 25px;
+  margin-top: 35px;
+}
+
+.thank-you {
+  color: #000;
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.footer-line {
+  margin-top: 10px;
+  width: 100%;
+  border-bottom: 2px solid #b7955c;
+}
+
+.stamp {
+  display: flex;
+  justify-content: center;
+}
+
+.invoice-stamp {
+  display: block;
+  width: 105px;
+  height: 105px;
+  object-fit: contain;
+}
+
+.signature {
+  text-align: center;
+  color: #000;
+  font-size: 10px;
+}
+
+.signature-image {
+  display: block;
+  width: 150px;
+  height: 65px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.signature-line {
+  margin-bottom: 7px;
+  border-bottom: 1px solid #b7955c;
+}
+
+.signature strong,
+.signature span {
+  display: block;
+}
+
+.computer-generated-note {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.04em;
+}
+
+.print-timestamp {
+  margin-top: 10px;
+  text-align: right;
+  font-size: 11px;
+  color: #0f172a;
+}
+
+
+/* =========================================================
+   PRINT
+========================================================= */
+
+@media print {
+
+  @page {
+    size: A4;
+    margin: 8mm;
+    margin-left: 10mm;
+  }
+
+  body {
+    background: white !important;
+  }
+
+  .invoice-page {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .invoice {
+    max-width: none !important;
+    min-height: calc(297mm - 16mm);
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 8px !important;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .invoice,
+  .invoice * {
+    color: #000 !important;
+    border-color: #000 !important;
+  }
+
+  .invoice-title {
+    color: black !important;
+    margin-top: 12px;
+    padding: 10px;
+    font-size: 23px;
+  }
+
+  .top-information {
+    margin-top: 12px;
+  }
+
+  .invoice-meta {
+    margin-top: 12px;
+  }
+
+  .items-table {
+    margin-top: 15px;
+  }
+
+  .items-table td {
+    padding: 8px 6px;
+  }
+
+  .items-table th,
+  .items-table td {
+    border: 1px solid #000 !important;
+  }
+
+  .amount-words,
+  .totals-box,
+  .bill-box,
+  .invoice-meta {
+    border: 1px solid #000 !important;
+  }
+
+  .terms {
+    margin-top: 15px;
+  }
+
+  .invoice-footer {
+    margin-top: auto;
+  }
+
+}
+
+</style>
+
+{% endblock %}

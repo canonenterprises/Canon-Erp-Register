@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="max-w-4xl mx-auto p-6" id="print-area">
+    <div class="bg-white rounded p-6">
+        <!-- Header -->
+        <div class="flex items-center gap-6 mb-6">
+            {% if worker.picture %}
+                <img src="{{ url_for('static', filename='uploads/' ~ worker.picture) }}" alt="pic" class="h-24 w-24 object-cover rounded-full">
+            {% endif %}
+            <div>
+                <h1 class="text-4xl font-bold">{{ worker.name }}</h1>
+            </div>
+        </div>
+
+        <!-- Personal Details -->
+        <h2 class="text-2xl font-semibold pt-6 mb-2 border-b pb-1">Employee Personal Details</h2>
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div><strong>Full Legal Name:</strong> {{ worker.name or '-' }}</div>
+            <div><strong>Date of Birth:</strong> {{ worker.dob|format_ddmmyyyy if worker.dob else '-' }}</div>
+            <div><strong>Age:</strong> {{ worker.age if worker.age is not none else '-' }}</div>
+            <div><strong>CNIC:</strong> {{ worker.cnic or '-' }}</div>
+            <div><strong>Blood Group:</strong> {{ worker.blood_group or '-' }}</div>
+            <div><strong>Gender:</strong> {{ worker.gender or '-' }}</div>
+            <div><strong>Marital Status:</strong> {{ worker.marital_status or '-' }}</div>
+            <div><strong>Phone:</strong> {{ worker.phone or '-' }}</div>
+            <div><strong>WhatsApp Number:</strong> {{ worker.whatsapp_number or '-' }}</div>
+            <div><strong>Emergency Number:</strong> {{ worker.emergency_number or '-' }}</div>
+            <div><strong>Nationality:</strong> {{ worker.nationality or '-' }}</div>
+            <div><strong>Address:</strong> {{ worker.address or '-' }}</div>
+            <div><strong>City:</strong> {{ worker.city or '-' }}</div>
+            <div><strong>State:</strong> {{ worker.state or '-' }}</div>
+        </div>
+
+        <!-- Employment Details -->
+        <h2 class="text-2xl font-semibold pt-6 mb-2 border-b pb-1">Employment Details</h2>
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div><strong>Worker ID:</strong> {{ worker.worker_code or '-' }}</div>
+            <div><strong>Employment Status:</strong> {{ worker.status or 'Active' }}</div>
+            <div><strong>Employment Type:</strong> {{ worker.employment_type or '-' }}</div>
+            <div><strong>Designation:</strong> {{ worker.role or '-' }}</div>
+            <div><strong>Sub Designation:</strong> {{ worker.sub_designation or '-' }}</div>
+            <div><strong>Department:</strong> {{ worker.department or '-' }}</div>
+            <div><strong>Referred By:</strong> {{ worker.referred_by or '-' }}</div>
+            <div><strong>Hired By:</strong> {{ worker.hired_by or '-' }}</div>
+            <div><strong>Hiring Date:</strong> {{ worker.joining_date|format_ddmmyyyy if worker.joining_date else '-' }}</div>
+            <div><strong>Salary:</strong> {% if worker.salary is not none %}{{ '%.2f'|format(worker.salary) }}{% else %}-{% endif %}</div>
+            <div><strong>Attendance Allowance:</strong> {% if worker.attendance_allowance is not none %}{{ '%.2f'|format(worker.attendance_allowance) }}{% else %}-{% endif %}</div>
+            <div><strong>Supervisor:</strong> {{ worker.supervisor or '-' }}</div>
+            <div><strong>HOD:</strong> {{ worker.hod or '-' }}</div>
+        </div>
+
+        <!-- Educational Background -->
+        <h2 class="text-2xl font-semibold pt-6 mb-2 border-b pb-1">Educational Background</h2>
+        <table class="w-full text-sm border-collapse border mb-6">
+            <thead class="bg-slate-100">
+                <tr>
+                    <th class="border p-2">Degree</th>
+                    <th class="border p-2">Field</th>
+                    <th class="border p-2">Institution</th>
+                    <th class="border p-2">Completion Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in worker.education_entries %}
+                <tr>
+                    <td class="border p-2">{{ entry.degree or '-' }}</td>
+                    <td class="border p-2">{{ entry.field_of_study or '-' }}</td>
+                    <td class="border p-2">{{ entry.institution or '-' }}</td>
+                    <td class="border p-2">{{ entry.completion_date|format_ddmmyyyy if entry.completion_date else '-' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="p-4 text-center text-slate-500">No education records available.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- Print Button -->
+        <div class="mt-6 text-right no-print">
+            <button onclick="window.print()" class="px-4 py-2 bg-slate-900 text-white rounded">Print</button>
+        </div>
+    </div>
+</div>
+
+<style>
+@media print {
+    @page {
+        size: A4 portrait;   /* or landscape if your table is wide */
+        margin: 10mm;        /* reduce default margins */
+    }
+
+    body {
+        margin: 0;
+        padding: 0;
+    }
+
+    #print-area {
+        width: calc(210mm - 20mm);   /* A4 width minus margins */
+        min-height: calc(297mm - 20mm); /* A4 height minus margins */
+        margin: auto;
+        box-sizing: border-box;
+        page-break-inside: avoid;
+    }
+
+    /* Prevent sections from splitting */
+    .section, table, tr, td, th {
+        page-break-inside: avoid;
+        page-break-after: auto;
+    }
+
+    .no-print {
+        display: none !important;
+    }
+
+    /* Optional: shrink font slightly to fit */
+    #print-area {
+        font-size: 14px;
+    }
+}
+</style>
+
+{% endblock %}

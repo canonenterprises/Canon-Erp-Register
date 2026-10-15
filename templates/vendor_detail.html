@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 mb-16 sm:-m-6 sm:mb-16 sm:p-6 md:-m-8 md:mb-16 md:p-8">
+    <div class="mx-auto max-w-6xl bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+        <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <p class="text-xs font-bold uppercase tracking-widest text-emerald-600">Vendor</p>
+                <h1 class="mt-1 text-3xl font-black text-slate-900">{{ vendor.name }}</h1>
+            </div>
+            <a href="{{ url_for('vendors') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Vendors</a>
+        </div>
+
+        <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div class="rounded-xl border border-slate-200 p-4"><p class="text-xs font-bold uppercase text-slate-500">Materials</p><p class="mt-1 text-2xl font-black text-slate-900">{{ material_count }}</p></div>
+            <div class="rounded-xl border border-slate-200 p-4"><p class="text-xs font-bold uppercase text-slate-500">Priced</p><p class="mt-1 text-2xl font-black text-slate-900">{{ priced_material_count }}</p></div>
+            <div class="col-span-2 rounded-xl border border-slate-200 p-4 sm:col-span-1"><p class="text-xs font-bold uppercase text-slate-500">Primary Contact</p><p class="mt-1 truncate text-sm font-bold text-slate-900">{{ vendor.contact_person or vendor.phone or vendor.email or 'Not provided' }}</p></div>
+        </div>
+
+        <details class="mb-6 rounded-xl border border-slate-200 bg-slate-50">
+            <summary class="cursor-pointer px-4 py-3 text-sm font-bold text-slate-800">Edit vendor profile</summary>
+            <form method="POST" class="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                <input type="hidden" name="action" value="update_vendor">
+                <label class="text-xs font-bold text-slate-600">Vendor name<input name="vendor_name" value="{{ vendor.name }}" maxlength="150" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"></label>
+                <label class="text-xs font-bold text-slate-600">Vendor code<input name="vendor_code" value="{{ vendor.code or '' }}" maxlength="50" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"></label>
+                <label class="text-xs font-bold text-slate-600">Contact person<input name="contact_person" value="{{ vendor.contact_person or '' }}" maxlength="150" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"></label>
+                <label class="text-xs font-bold text-slate-600">Phone<input type="tel" name="phone" value="{{ vendor.phone or '' }}" maxlength="50" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"></label>
+                <label class="text-xs font-bold text-slate-600">Email<input type="email" name="email" value="{{ vendor.email or '' }}" maxlength="150" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"></label>
+                <label class="text-xs font-bold text-slate-600">Address<input name="address" value="{{ vendor.address or '' }}" maxlength="255" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"></label>
+                <label class="text-xs font-bold text-slate-600 sm:col-span-2 lg:col-span-3">Notes<textarea name="notes" rows="2" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">{{ vendor.notes or '' }}</textarea></label>
+                <div class="sm:col-span-2 lg:col-span-3 flex justify-end"><button class="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800">Save profile</button></div>
+            </form>
+        </details>
+
+        <form method="POST" class="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-white p-5 md:grid-cols-6">
+            <input type="hidden" name="action" value="{{ 'update_item' if selected_item else 'add_item' }}">
+            {% if selected_item %}<input type="hidden" name="vendor_item_id" value="{{ selected_item.id }}">{% endif %}
+            <div>
+                <label class="mb-1 block text-sm font-bold uppercase text-slate-600">Item Name</label>
+                <input id="item_name" type="text" name="item_name" value="{{ selected_item.item_name if selected_item else '' }}" list="item-master-list" class="w-full rounded-lg border p-2.5" autocomplete="off" required>
+                <datalist id="item-master-list">
+                    {% for master_item in item_master %}
+                    <option value="{{ master_item.item_name }}"></option>
+                    {% endfor %}
+                </datalist>
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-bold uppercase text-slate-600">Material</label>
+                <input id="material" type="text" name="material" value="{{ selected_item.material if selected_item else '' }}" class="w-full rounded-lg border p-2.5">
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-bold uppercase text-slate-600">Size</label>
+                <input id="size" type="text" name="size" value="{{ selected_item.size if selected_item else '' }}" class="w-full rounded-lg border p-2.5">
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-bold uppercase text-slate-600">Contents per pack / bundle / roll</label>
+                <input type="number" min="0" step="0.01" name="pack_qty" class="w-full rounded-lg border p-2.5" value="{{ selected_item.pack_qty if selected_item else 0 }}">
+                <p class="mt-1 text-xs text-slate-500">For example: 4 cones per bundle or 100 meters per roll.</p>
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-bold uppercase text-slate-600">Unit</label>
+                <input id="unit" type="text" name="unit" value="{{ selected_item.unit if selected_item else '' }}" list="unit-list" autocomplete="off" class="w-full rounded-lg border p-2.5">
+                <datalist id="unit-list">
+                    <option value="CM"></option><option value="MM"></option><option value="INCH"></option><option value="METER"></option><option value="ROLL"></option><option value="PCS"></option><option value="BUNDLE"></option><option value="CONE"></option><option value="PACK"></option><option value="BOX"></option><option value="CARTON"></option><option value="PAIR"></option><option value="KG"></option><option value="GM"></option><option value="MG"></option><option value="DOZENS"></option>
+                </datalist>
+            </div>
+            <div>
+                <label class="mb-1 block text-sm font-bold uppercase text-slate-600">Pack Price</label>
+                <input type="number" min="0" step="0.01" name="pack_price" class="w-full rounded-lg border p-2.5" value="{{ selected_item.pack_price if selected_item else 0 }}">
+            </div>
+            <div class="md:col-span-6 flex flex-wrap justify-end gap-3 pt-5">
+                <button type="submit" class="rounded-lg bg-emerald-700 px-5 py-2.5 font-bold text-white hover:bg-emerald-800">{{ 'Update Material' if selected_item else 'Add Material' }}</button>
+                {% if selected_item %}<a href="{{ url_for('vendor_detail', vendor_id=vendor.id) }}" class="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-bold text-slate-700">Cancel</a>{% endif %}
+            </div>
+        </form>
+        <div class="mt-8">
+            <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div><h2 class="text-xl font-black text-slate-900">Vendor Material List</h2><p class="mt-1 text-sm text-slate-500">{{ items|length }} linked material(s)</p></div>
+                {% if items %}<input id="vendor-item-search" type="search" placeholder="Search materials" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm sm:max-w-xs">{% endif %}
+            </div>
+            {% if items %}
+            <div class="overflow-x-auto rounded-xl border border-slate-200">
+                <table class="min-w-full text-left text-sm">
+                    <thead class="bg-slate-100 text-slate-700">
+                        <tr>
+                            <th class="px-3 py-2 font-bold">Item</th>
+                            <th class="px-3 py-2 font-bold">Material / Size</th>
+                            <th class="px-3 py-2 font-bold">Pack</th>
+                            <th class="px-3 py-2 font-bold">Pack Price</th>
+                            <th class="px-3 py-2 font-bold">Unit Rate</th>
+                            <th class="px-3 py-2 text-right font-bold">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vendor-item-rows">
+                        {% for item in items %}
+                        <tr class="vendor-item-row border-t border-slate-200" data-search="{{ (item.item_name ~ ' ' ~ (item.material or '') ~ ' ' ~ (item.size or '') ~ ' ' ~ (item.unit or ''))|lower }}">
+                            <td class="px-3 py-2 font-semibold text-slate-800">{{ item.item_name }}</td>
+                            <td class="px-3 py-2 text-slate-600">{{ item.material or '-' }}{% if item.size %}<span class="block text-xs text-slate-400">{{ item.size }}</span>{% endif %}</td>
+                            <td class="px-3 py-2 text-slate-600">{% if (item.unit or '')|upper in ('ROLL', 'ROLLS') %}{{ item.pack_qty or 0 }} m / roll{% else %}{{ item.pack_qty or 0 }} {{ item.unit or '' }}{% endif %}</td>
+                            <td class="px-3 py-2 text-slate-600">{{ '%.2f'|format(item.pack_price or 0) }}</td>
+                            <td class="px-3 py-2 font-bold text-slate-900">{{ '%.2f'|format(item.rate or 0) }} <span class="text-xs font-normal text-slate-500">/ {{ 'roll' if (item.unit or '')|upper in ('ROLL', 'ROLLS') else item.unit or '-' }}</span></td>
+                            <td class="px-3 py-2"><div class="flex justify-end gap-2">
+                                <a href="{{ url_for('vendor_detail', vendor_id=vendor.id, edit_item=item.id) }}" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">Edit</a>
+                                <form method="post" onsubmit="return confirm('Remove this material from the vendor?')"><input type="hidden" name="action" value="delete_item"><input type="hidden" name="vendor_item_id" value="{{ item.id }}"><button class="rounded-md border border-rose-200 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50">Remove</button></form>
+                            </div></td>
+                        </tr>
+                        {% endfor %}
+                        <tr id="vendor-item-empty" hidden><td colspan="6" class="px-3 py-8 text-center text-slate-500">No materials match this search.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-slate-500">This vendor has no saved material items yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<script type="application/json" id="vendor-item-master-data">{{ item_master_data | tojson }}</script>
+<script>
+    const itemMaster = JSON.parse(document.getElementById('vendor-item-master-data').textContent);
+    const itemNameInput = document.getElementById('item_name');
+    const materialInput = document.getElementById('material');
+    const sizeInput = document.getElementById('size');
+    const unitInput = document.getElementById('unit');
+
+    function loadItemMasterValues() {
+        const itemName = itemNameInput.value.trim().toLowerCase();
+        const match = itemMaster.find(item => String(item.item_name || '').trim().toLowerCase() === itemName);
+        if (match) {
+            materialInput.value = match.material || '';
+            sizeInput.value = match.size || '';
+            unitInput.value = match.unit || '';
+        } else if (!itemName) {
+            materialInput.value = '';
+            sizeInput.value = '';
+            unitInput.value = '';
+        }
+    }
+
+    itemNameInput.addEventListener('input', loadItemMasterValues);
+    itemNameInput.addEventListener('change', loadItemMasterValues);
+
+    const vendorItemSearch = document.getElementById('vendor-item-search');
+    if (vendorItemSearch) {
+        const rows = Array.from(document.querySelectorAll('.vendor-item-row'));
+        const emptyRow = document.getElementById('vendor-item-empty');
+        vendorItemSearch.addEventListener('input', function () {
+            const query = vendorItemSearch.value.trim().toLowerCase();
+            let visible = 0;
+            rows.forEach(function (row) {
+                const matches = row.dataset.search.includes(query);
+                row.hidden = !matches;
+                if (matches) visible += 1;
+            });
+            if (emptyRow) emptyRow.hidden = visible > 0;
+        });
+    }
+</script>
+{% endblock %}

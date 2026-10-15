@@ -1,0 +1,455 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen bg-slate-50 p-4 pb-32 sm:p-8 print:bg-white print:p-0 print:pb-0">
+  <div class="mx-auto max-w-7xl space-y-8 rounded-xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 sm:p-10 print:space-y-0 print:border-none print:shadow-none print:p-0">
+    
+    <!-- Main Header (Only prints on the first page) -->
+    <header class="border-b-2 border-slate-800 pb-6 print:mb-4 print:border-b-[1px] print:border-slate-400 print:pb-2">
+      <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-xs font-black uppercase tracking-widest text-slate-500 print:text-[10px]">Article Fabric & Shipment Summary</p>
+          <h1 class="mt-1 text-3xl font-black uppercase text-slate-900 print:text-xl">{{ party_name or 'Party Summary' }}</h1>
+        </div>
+        <a href="{{ url_for('fabric_ledger') }}" class="no-print inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:text-slate-900">
+          &larr; Back to Fabric Ledger
+        </a>
+      </div>
+    </header>
+
+    {% if not party_name %}
+    <!-- Party Selection Form -->
+    <section class="no-print rounded-2xl border border-slate-200 bg-slate-50/50 p-6 shadow-sm">
+      <form method="get" class="grid gap-4 md:grid-cols-[1fr_auto] md:items-end">
+        <label class="text-xs font-bold uppercase tracking-widest text-slate-600">
+          Select Party
+          <select name="party_name" required class="mt-2 block w-full rounded-lg border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm focus:border-slate-900 focus:ring-slate-900">
+            <option value="">-- Choose a party --</option>
+            {% for party in party_names %}<option value="{{ party }}">{{ party }}</option>{% endfor %}
+          </select>
+        </label>
+        <button type="submit" class="rounded-lg bg-slate-900 px-6 py-3 text-sm font-bold tracking-wide text-white shadow-md transition-colors hover:bg-slate-800">
+          Load Data
+        </button>
+      </form>
+    </section>
+    
+    {% else %}
+    <!-- Date Filters -->
+    <div class="no-print rounded-2xl border border-slate-200 bg-slate-50 p-5 shadow-sm">
+      <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div class="flex items-center gap-2 text-sm">
+          <span class="font-bold uppercase tracking-widest text-slate-500">Active Party:</span>
+          <span class="rounded-md bg-slate-200 px-2.5 py-1 font-bold text-slate-800">{{ party_name }}</span>
+        </div>
+        
+        <form method="get" class="flex flex-wrap items-end gap-4">
+          <input type="hidden" name="party_name" value="{{ party_name }}">
+          <label class="text-xs font-bold uppercase tracking-widest text-slate-600">
+            Start Date
+            <input type="date" name="start_date" value="{{ request.args.get('start_date', '') }}" class="mt-2 block rounded-lg border-slate-300 bg-white px-4 py-2.5 text-sm shadow-sm">
+          </label>
+          <label class="text-xs font-bold uppercase tracking-widest text-slate-600">
+            End Date
+            <input type="date" name="end_date" value="{{ request.args.get('end_date', '') }}" class="mt-2 block rounded-lg border-slate-300 bg-white px-4 py-2.5 text-sm shadow-sm">
+          </label>
+          <button type="submit" class="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-bold text-white shadow-md transition-colors hover:bg-slate-800">
+            Apply Filter
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Articles List -->
+    <div class="space-y-12 print:space-y-0">
+      {% for row in rows %}
+      <section class="article-section flex flex-col overflow-hidden rounded-xl border border-slate-300 bg-white shadow-sm print:mb-0 print:rounded-none print:border-none print:shadow-none">
+        <div class="print-header hidden print:block print:border-b-[1px] print:border-slate-400 print:pb-2 print:pt-0 print:mb-3">
+          <p class="text-[16px] font-black uppercase tracking-[0.25em] text-slate-500">Article Fabric &amp; Shipment Summary</p>
+          <h1 class="mt-1 text-[40px] font-black uppercase text-slate-900">{{ party_name or 'Party Summary' }}</h1>
+          {% if request.args.get('start_date') or request.args.get('end_date') %}
+          <p class="mt-1 text-[18px] font-bold uppercase text-slate-700 print:mt-0 print:text-[18px]">{{ request.args.get('start_date')|format_ddmmyyyy if request.args.get('start_date') else 'Beginning' }} - {{ request.args.get('end_date')|format_ddmmyyyy if request.args.get('end_date') else 'Present' }}</p>
+          {% endif %}
+        </div>
+        
+        <!-- Article Header -->
+        <div class="flex items-center justify-between gap-3 bg-slate-900 px-6 py-4 print:border-b-[1.5px] print:border-slate-900 print:bg-slate-100 print:py-1.5">
+          <h2 class="min-w-0 flex-1 text-left text-xl font-black uppercase tracking-wide text-white print:text-[25px] print:text-slate-900">
+            {{ row.article_name or row.article }}{% if row.article_style or row.article_color %} - {{ row.article_style or '' }}{% if row.article_style and row.article_color %} - {% endif %}{{ row.article_color or '' }}{% endif %}
+          </h2>
+          <button type="button" onclick="printArticleSection(this)" aria-label="Print {{ row.article_name or row.article }}" class="no-print inline-flex shrink-0 items-center gap-2 rounded-md border border-slate-500 px-3 py-2 text-sm font-bold text-white hover:bg-slate-800">
+            <i class="fa-solid fa-print" aria-hidden="true"></i><span>Print</span>
+          </button>
+        </div>
+
+        <!-- Consumption Input (Screen) & Text (Print) -->
+        <div class="border-b border-slate-100 bg-slate-50/50 px-6 py-4 print:border-none print:bg-white print:px-1 print:py-1.5">
+          <!-- Screen Form -->
+          <form method="get" class="no-print flex flex-wrap items-end justify-end gap-3">
+            <input type="hidden" name="party_name" value="{{ party_name }}">
+            <label class="flex items-center gap-3 text-xs font-bold uppercase tracking-widest text-slate-600">
+              <span>Consumption</span>
+              <input type="number" step="0.01" min="0.01" name="article_consumption_{{ row.article_key }}" value="{{ row.article_consumption or '' }}" placeholder="0.00" class="w-32 rounded-lg border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-900 shadow-sm">
+            </label>
+            <button type="submit" class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-700">
+              SAVE
+            </button>
+          </form>
+          <!-- Print Only Text -->
+          <div class="hidden text-[16px] font-bold text-slate-800 print:block items-center text-center">
+            CONSUMPTION: <span class="text-slate-900">{{ row.article_consumption or 'Not Set' }} MTR/DOZ</span>
+          </div>
+        </div>
+
+        <!-- Tables Layout: Stacked on screen, SIDE-BY-SIDE on print to fit A4 Landscape -->
+        <div class="flex flex-col gap-6 p-6 print:flex-row print:items-start print:gap-3 print:p-0 print:pt-2">
+          
+          <!-- Fabric Received Table (60% width on print) -->
+          <div class="flex w-full flex-col print:w-[50%]">
+            <h3 class="mb-3 text-xs font-black uppercase tracking-widest text-slate-500 print:mb-1 print:text-[10px]">Fabric Received / Requirement</h3>
+            <div class="overflow-x-auto rounded-xl ring-1 ring-slate-200 print:overflow-visible print:rounded-none print:ring-0">
+              <table class="w-full text-sm print:text-[10px]">
+                <thead class="bg-slate-100">
+                  <tr class="text-center font-bold uppercase text-slate-700">
+                    <th class="whitespace-nowrap px-3 py-3 print:px-1 print:py-1">Date</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 px-3 py-3 print:px-1 print:py-1">Ch No.</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 px-3 py-3 print:px-1 print:py-1">Width</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 px-3 py-3 print:px-1 print:py-1">Fab A</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 px-3 py-3 print:px-1 print:py-1">Fab B</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 px-3 py-3 print:px-1 print:py-1">Fab C</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 bg-slate-200/50 px-3 py-3 text-slate-900 print:px-1 print:py-1">Total</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 px-3 py-3 print:px-1 print:py-1">Req/Doz</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 px-3 py-3 print:px-1 print:py-1">REQ BAILS</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 bg-white">
+                  <!-- Opening Balance -->
+                  <tr class="bg-amber-50/90 font-black text-amber-900 ring-1 ring-amber-200 print:bg-amber-50 print:text-slate-900">
+                    <td class="px-3 py-2.5 text-center uppercase tracking-wide text-amber-900 print:px-1 print:py-1">O/B</td>
+                    <td class="border-l border-amber-200 px-3 py-2.5 text-center text-amber-900 print:px-1 print:py-1">—</td>
+                    <td class="border-l border-amber-200 px-3 py-2.5 text-center text-amber-900 print:px-1 print:py-1">—</td>
+                    <td class="border-l border-amber-200 px-3 py-2.5 text-center text-amber-900 print:px-1 print:py-1">{{ '{:,.1f}'.format(row.opening_totals.fabric_a or 0.0) }}</td>
+                    <td class="border-l border-amber-200 px-3 py-2.5 text-center text-amber-900 print:px-1 print:py-1">{{ '{:,.1f}'.format(row.opening_totals.fabric_b or 0.0) }}</td>
+                    <td class="border-l border-amber-200 px-3 py-2.5 text-center text-amber-900 print:px-1 print:py-1">{{ '{:,.1f}'.format(row.opening_totals.fabric_c or 0.0) }}</td>
+                    <td class="border-l border-amber-200 px-3 py-2.5 text-center font-bold text-amber-900 print:px-1 print:py-1">{{ '{:,.2f}'.format(row.opening_meter) }}</td>
+                    <td class="border-l border-amber-200 px-3 py-2.5 text-center text-amber-900 print:px-1 print:py-1">
+                      {% if row.article_consumption and row.qty_per_bail %}
+                        {{ '{:,.2f}'.format(row.opening_meter / row.article_consumption) }}
+                      {% else %} <span class="text-slate-400">—</span> {% endif %}
+                    </td>
+                    <td class="border-l border-amber-200 px-3 py-2.5 text-center font-bold text-amber-900 print:px-1 print:py-1">
+                      {% if row.article_consumption and row.qty_per_bail %}
+                        {{ '{:,.2f}'.format((row.opening_meter / row.article_consumption) / row.qty_per_bail) }}
+                      {% else %} <span class="text-slate-400">—</span> {% endif %}
+                    </td>
+                  </tr>
+                  
+                  <!-- Main Records -->
+                  {% for entry in row.records.values() | sort(attribute='date') %}
+                  <tr class="hover:bg-slate-50 print:hover:bg-transparent">
+                    <td class="whitespace-nowrap px-3 py-2.5 text-center font-semibold text-slate-700 print:px-1 print:py-1">{{ entry.date | format_ddmmyy }}</td>
+                    <td class="border-l border-slate-200 px-3 py-2.5 text-center print:px-1 print:py-1">{{ entry.challan_no or '—' }}</td>
+                    <td class="border-l border-slate-200 px-3 py-2.5 text-center print:px-1 print:py-1">{{ entry.width or '—' }}"</td>
+                    <td class="border-l border-slate-200 px-3 py-2.5 text-center print:px-1 print:py-1">{{ '{:,.1f}'.format(entry.fabric_a) }}</td>
+                    <td class="border-l border-slate-200 px-3 py-2.5 text-center print:px-1 print:py-1">{{ '{:,.1f}'.format(entry.fabric_b) }}</td>
+                    <td class="border-l border-slate-200 px-3 py-2.5 text-center print:px-1 print:py-1">{{ '{:,.1f}'.format(entry.fabric_c) }}</td>
+                    <td class="border-l border-slate-200 bg-slate-50/50 px-3 py-2.5 text-center font-bold text-slate-900 print:px-1 print:py-1">{{ '{:,.1f}'.format(entry.total) }}</td>
+                    <td class="border-l border-slate-200 px-3 py-2.5 text-center print:px-1 print:py-1">{{ '{:,.2f}'.format(entry.req_per_dozen) }}</td>
+                    <td class="border-l border-slate-200 px-3 py-2.5 text-center font-semibold print:px-1 print:py-1">{{ '{:,.2f}'.format(entry.req_bail) }}</td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="9" class="px-3 py-8 text-center italic text-slate-400 print:py-2">No fabric receipt entries found.</td></tr>
+                  {% endfor %}
+                </tbody>
+                <tfoot class="border-t-2 border-slate-800 bg-slate-100 font-black print:border-t-2 print:border-slate-900">
+                  <tr class="text-slate-900">
+                    <td class="px-3 py-3 text-center uppercase tracking-wider print:px-1 print:py-1.5">Total</td>
+                    <td class="border-l border-slate-300 px-3 py-3 text-center text-slate-400 print:px-1 print:py-1.5">—</td>
+                    <td class="border-l border-slate-300 px-3 py-3 text-center text-slate-400 print:px-1 print:py-1.5">—</td>
+                    <td class="border-l border-slate-300 px-3 py-3 text-center print:px-1 print:py-1.5">{{ '{:,.1f}'.format(row.totals.fabric_a) }}</td>
+                    <td class="border-l border-slate-300 px-3 py-3 text-center print:px-1 print:py-1.5">{{ '{:,.1f}'.format(row.totals.fabric_b) }}</td>
+                    <td class="border-l border-slate-300 px-3 py-3 text-center print:px-1 print:py-1.5">{{ '{:,.1f}'.format(row.totals.fabric_c) }}</td>
+                    <td class="border-l border-slate-300 bg-slate-200/50 px-3 py-3 text-center print:px-1 print:py-1.5">{{ '{:,.1f}'.format(row.totals.total) }}</td>
+                    <td class="border-l border-slate-300 px-3 py-3 text-center print:px-1 print:py-1.5">{{ '{:,.2f}'.format(row.totals.req_per_dozen) }}</td>
+                    <td class="border-l border-slate-300 px-3 py-3 text-center text-indigo-900 print:px-1 print:py-1.5 print:text-slate-900">{{ '{:,.2f}'.format(row.totals.req_bail) }}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          <!-- Shipment Table (40% width on print) -->
+          <div class="mt-4 flex w-full flex-col print:mt-0 print:w-[50%]">
+            <h3 class="mb-3 text-xs font-black uppercase tracking-widest text-slate-500 print:mb-1 print:text-[10px]">Shipment in Fabric & Bails</h3>
+            <div class="overflow-x-auto rounded-xl ring-1 ring-slate-200 print:overflow-visible print:rounded-none print:ring-0">
+              <table class="w-full text-sm print:text-[10px]">
+                <thead class="bg-slate-100">
+                  <tr class="text-center font-bold uppercase text-slate-700">
+                    <th class="whitespace-nowrap px-3 py-3 print:px-1 print:py-1">Date</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 px-3 py-3 print:px-1 print:py-1">Ch. No</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 px-3 py-3 print:px-1 print:py-1">Type</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 px-3 py-3 print:px-1 print:py-1">Shipment</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 bg-slate-200/50 px-3 py-3 text-slate-900 print:px-1 print:py-1">Bal Bails</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 px-3 py-3 print:px-1 print:py-1">Fab-Use</th>
+                    <th class="whitespace-nowrap border-l border-slate-200 bg-slate-200/50 px-3 py-3 text-slate-900 print:px-1 print:py-1">Fab-Bal</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200 bg-white">
+                  {% for item in row.shipment_rows %}
+                  <tr class="hover:bg-slate-50 print:hover:bg-transparent {% if item.date == 'O/B' %}bg-amber-50/90 font-black text-amber-900 ring-1 ring-amber-200 print:bg-amber-50{% endif %}">
+                    <td class="whitespace-nowrap px-3 py-2.5 text-center print:px-1 print:py-1">{{ item.date | format_ddmmyy }}</td>
+                    <td class="whitespace-nowrap border-l border-slate-200 px-3 py-2.5 text-center text-slate-500 print:px-1 print:py-1">
+                      {% if item.date == 'O/B' %}—{% else %}{{ item.challan_no }}{% endif %}
+                    </td>
+                    <td class="whitespace-nowrap border-l border-slate-200 px-3 py-2.5 text-center font-bold print:px-1 print:py-1">
+                      {% if item.date == 'O/B' %}—{% else %}{{ item.shipment_type or 'C/P' }}{% endif %}
+                    </td>
+                    <td class="whitespace-nowrap border-l border-slate-200 px-3 py-2.5 text-right print:px-1 print:py-1">
+                      {% if item.date == 'O/B' %} <span class="block text-center text-slate-400">—</span>
+                      {% else %} {{ '{:,.2f}'.format(item.shipment_bails) }} {% endif %}
+                    </td>
+                    <td class="whitespace-nowrap border-l border-slate-200 bg-slate-50/50 px-3 py-2.5 text-right font-bold text-slate-900 print:px-1 print:py-1">{{ '{:,.2f}'.format(item.balance_bails) }}</td>
+                    <td class="whitespace-nowrap border-l border-slate-200 px-3 py-2.5 text-right print:px-1 print:py-1">
+                      {% if item.date == 'O/B' %} <span class="block text-center text-slate-400">—</span>
+                      {% else %} {{ '{:,.2f}'.format(item.fab_use) }} {% endif %}
+                    </td>
+                    <td class="whitespace-nowrap border-l border-slate-200 bg-slate-50/50 px-3 py-2.5 text-right font-bold text-slate-900 print:px-1 print:py-1">{{ '{:,.2f}'.format(item.fab_bal) }}</td>
+                  </tr>
+                  {% else %}
+                  <tr><td colspan="7" class="px-3 py-8 text-center italic text-slate-400 print:py-2">No shipment rows found.</td></tr>
+                  {% endfor %}
+                </tbody>
+                <tfoot class="border-t-2 border-slate-800 bg-slate-100 font-black print:border-t-2 print:border-slate-900">
+                  <tr class="text-slate-900">
+                    <td class="px-3 py-3 text-center uppercase tracking-wider print:px-1 print:py-1.5">BAL</td>
+                    <td class="border-l border-slate-300 px-3 py-3 text-center text-slate-400 print:px-1 print:py-1.5">—</td>
+                    <td class="border-l border-slate-300 px-3 py-3 text-center text-slate-400 print:px-1 print:py-1.5">—</td>
+                    <td class="border-l border-slate-300 px-3 py-3 text-right print:px-1 print:py-1.5">{{ '{:,.2f}'.format((row.shipment_rows|sum(attribute='shipment_bails') if row.shipment_rows else 0) ) }}</td>
+                    <td class="border-l border-slate-300 bg-slate-200/50 px-3 py-3 text-right print:px-1 print:py-1.5">{{ '{:,.2f}'.format((row.shipment_rows|last).balance_bails if row.shipment_rows else 0) }}</td>
+                    <td class="border-l border-slate-300 px-3 py-3 text-right print:px-1 print:py-1.5">{{ '{:,.2f}'.format((row.shipment_rows|selectattr('date', 'ne', 'O/B')|sum(attribute='fab_use') if row.shipment_rows else 0) ) }}</td>
+                    <td class="border-l border-slate-300 bg-slate-200/50 px-3 py-3 text-right print:px-1 print:py-1.5">{{ '{:,.2f}'.format((row.shipment_rows|last).fab_bal if row.shipment_rows else 0) }}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+        </div>
+        <footer class="article-print-footer">
+          <span>Prepared by: {{ prepared_by }}</span>
+          <span>Printed on: <span class="print-timestamp"></span></span>
+        </footer>
+      </section>
+      {% else %}
+      <div class="rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 py-16 text-center text-slate-500">
+        <p class="mt-4 text-sm font-bold uppercase tracking-widest">No article data found for this party.</p>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<style>
+.article-print-footer { display: none; }
+@media print {
+  @page { 
+    size: A4 landscape; 
+    margin: 2mm;
+  }
+  
+  body { 
+    background: white !important; 
+    font-size: 14px !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact; 
+    print-color-adjust: exact; 
+  }
+  
+  .no-print { 
+    display: none !important; 
+  }
+
+  .article-print-footer {
+    position: fixed;
+    right: 0;
+    bottom: 4mm;
+    left: 0;
+    display: flex !important;
+    flex: 0 0 auto;
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 0;
+    border-top: 1px solid #000;
+    padding-top: 1.5mm;
+    font-size: 9px;
+  }
+
+  header {
+    display: none !important;
+  }
+
+  /* Force exactly ONE article per page */
+  .article-section {
+    page-break-after: auto;
+    page-break-inside: avoid;
+    break-inside: avoid;
+    margin-top: 0 !important;
+  }
+
+  body.print-single-article .article-section {
+    display: none !important;
+  }
+
+  body.print-single-article .article-section.print-target {
+    display: flex !important;
+    page-break-before: auto !important;
+    break-before: auto !important;
+    padding-top: 0 !important;
+  }
+
+  .article-section + .article-section {
+    page-break-before: always;
+    break-before: page;
+    padding-top: 2.5mm !important;
+  }
+
+  .article-section .print-header {
+    display: block !important;
+  }
+  
+  /* Prevent an empty final page */
+  .article-section:last-of-type {
+    page-break-after: auto;
+  }
+  
+  /* Compact one-page print layout */
+  .article-section {
+    font-size: 16px !important;
+  }
+
+  .article-section h2,
+  .article-section h3,
+  .article-section .print-header p,
+  .article-section .print-header h1,
+  .article-section td,
+  .article-section th {
+    text-align: center;
+  }
+
+  .article-section td:last-child,
+  .article-section th:last-child,
+  .article-section td:nth-child(3n),
+  .article-section th:nth-child(3n) {
+    text-align: center;
+  }
+
+  .article-section tbody td:nth-child(3),
+  .article-section thead th:nth-child(3),
+  .article-section tbody td:nth-child(4),
+  .article-section thead th:nth-child(4),
+  .article-section tbody td:nth-child(5),
+  .article-section thead th:nth-child(5),
+  .article-section tbody td:nth-child(6),
+  .article-section thead th:nth-child(6),
+  .article-section tbody td:nth-child(7),
+  .article-section thead th:nth-child(7),
+  .article-section tbody td:nth-child(8),
+  .article-section thead th:nth-child(8),
+  .article-section tbody td:nth-child(9),
+  .article-section thead th:nth-child(9) {
+    text-align: center;
+  }
+
+  .article-section td:nth-child(2),
+  .article-section th:nth-child(2),
+  .article-section td:nth-child(3),
+  .article-section th:nth-child(3),
+  .article-section td:nth-child(4),
+  .article-section th:nth-child(4),
+  .article-section td:nth-child(5),
+  .article-section th:nth-child(5),
+  .article-section td:nth-child(6),
+  .article-section th:nth-child(6),
+  .article-section td:nth-child(7),
+  .article-section th:nth-child(7),
+  .article-section td:nth-child(8),
+  .article-section th:nth-child(8),
+  .article-section td:nth-child(9),
+  .article-section th:nth-child(9) {
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+
+  table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    font-size: 11px !important;
+    color: #000000 !important;
+    table-layout: auto;
+  }
+  th, td {
+    border-color: #000000 !important;
+    border-width: 1px !important;
+    border-style: solid !important;
+    color: #000000 !important;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    vertical-align: middle;
+    white-space: nowrap;
+    font-size: 11px !important;
+  }
+
+  .article-section > div {
+    line-height: 1.2;
+  }
+
+  .article-section th,
+  .article-section td,
+  .article-section h2,
+  .article-section h3,
+  .article-section .print-header p,
+  .article-section .print-header h1 {
+    color: #000000 !important;
+  }
+
+  .article-section thead th,
+  .article-section tfoot td {
+    border-color: #000000 !important;
+  }
+}
+</style>
+<script>
+  window.addEventListener('beforeprint', () => {
+    const printedAt = new Date();
+    const date = new Intl.DateTimeFormat('en-US', {
+      weekday: 'long', month: 'long', day: '2-digit', year: 'numeric'
+    }).format(printedAt);
+    const time = new Intl.DateTimeFormat('en-US', {
+      hour: '2-digit', minute: '2-digit', hour12: true
+    }).format(printedAt);
+    document.querySelectorAll('.print-timestamp').forEach(timestamp => {
+      timestamp.textContent = date + ' at ' + time;
+    });
+  });
+
+  function printArticleSection(button) {
+    const articleSection = button.closest('.article-section');
+    if (!articleSection) return;
+
+    document.querySelectorAll('.article-section.print-target').forEach(section => {
+      section.classList.remove('print-target');
+    });
+    articleSection.classList.add('print-target');
+    document.body.classList.add('print-single-article');
+    window.print();
+  }
+
+  window.addEventListener('afterprint', () => {
+    document.body.classList.remove('print-single-article');
+    document.querySelectorAll('.article-section.print-target').forEach(section => {
+      section.classList.remove('print-target');
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,1171 @@
+{% extends 'base.html' %}
+{% block content %}
+{% include 'navbar.html' %}
+
+<div id="print-area"
+    class="max-w-[1800px] mx-auto p-4 sm:p-6 space-y-5 pt-20 mb-20 md:pt-20{% if payout_portal in ('salaried', 'per_day') %} attendance-payout{% endif %}{% if payout_portal == 'wages' %} wages-payout{% endif %}{% if payout_portal == 'wages' %} print-wages{% endif %}"
+    data-payout-portal="{{ payout_portal or '' }}"
+    data-mark-paid-url="{{ url_for('mark_payout_paid') }}"
+    data-period-label="{{ period_label or 'selected period' }}"
+    data-department="{{ selected_department or 'all departments' }}">
+    
+
+    <!-- SCREEN HEADER -->
+    <section class="no-print rounded-2xl bg-slate-950 p-5 sm:p-7 text-white shadow-xl">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+                <p class="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">Canon Registry</p>
+                <h1 class="mt-2 text-2xl sm:text-3xl font-black tracking-tight">Payroll & Salary Payment</h1>
+                <p class="mt-2 max-w-3xl text-sm text-slate-300">
+                    Select the employee group and payment period. The salary sheet is calculated from the
+                    existing attendance and payroll records.
+                </p>
+            </div>
+
+            {% if payout_portal %}
+            <div class="rounded-xl border border-white/10 bg-white/10 px-4 py-3">
+                <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Employee Type</div>
+                <div class="mt-1 text-sm font-black uppercase">{{ payout_portal.replace('_', ' ') }}</div>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    {% if not payout_portal %}
+
+    <!-- PAYMENT TYPE SELECTION -->
+    <section class="rounded-2xl border border-slate-200 bg-white p-5 sm:p-7 shadow-sm">
+        <div class="text-center">
+            <p class="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-600">Step 1</p>
+            <h2 class="mt-1 text-2xl font-black text-slate-900">Select Payment Group</h2>
+            <p class="mt-2 text-sm text-slate-500">Choose the employee payment category you want to process.</p>
+        </div>
+
+        <div class="mx-auto mt-7 grid max-w-5xl gap-4 sm:grid-cols-3">
+            {% for portal in available_payout_portals %}
+            <a href="{{ url_for('payout', portal=portal) }}"
+               class="group rounded-2xl border border-slate-200 bg-slate-50 p-7 text-center transition hover:-translate-y-1 hover:border-cyan-400 hover:bg-cyan-50 hover:shadow-lg">
+                <div class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-sm group-hover:bg-cyan-100">
+                    <i class="fa-solid {% if portal == 'salaried' %}fa-user-tie text-cyan-600{% elif portal == 'wages' %}fa-helmet-safety text-amber-600{% else %}fa-calendar-day text-indigo-600{% endif %} text-2xl"></i>
+                </div>
+                <div class="mt-4 text-lg font-black uppercase text-slate-900">{{ portal.replace('_', ' ') }}</div>
+                <div class="mt-1 text-xs text-slate-500">Continue to payroll</div>
+            </a>
+            {% else %}
+            <p class="sm:col-span-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-sm text-amber-800">
+                No employment types have been assigned to workers yet.
+            </p>
+            {% endfor %}
+        </div>
+    </section>
+
+    {% else %}
+
+    <!-- FILTER / PAYROLL PERIOD -->
+    <section class="no-print rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class=" mb-4 flex flex-col sm:flex-row gap-3">
+            <a href="{{ url_for('payout') }}" class="inline-flex items-center justify-center rounded-xl bg-slate-950 px-6 py-3 text-sm font-black text-white hover:bg-slate-600">
+                <i class="fa-solid fa-arrow-left mr-2"></i>
+                Change Payment Type
+            </a>
+        </div>
+        <div class="flex flex-col gap-1 mb-5">
+            <p class="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-600">Step 2 — Payroll Selection</p>
+            <h2 class="text-xl font-black text-slate-900">Choose Department & Payment Period</h2>
+            <p class="text-sm text-slate-500">
+                Select exactly which employees and which attendance period should be included in this salary sheet.
+            </p>
+        </div>
+
+        <form id="payout-filter-form" method="POST">
+            <input type="hidden" name="form_action" value="filter_payout">
+            <input type="hidden" name="portal" value="{{ payout_portal }}">
+
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4 items-end">
+
+                <!-- Department -->
+                <div class="xl:col-span-2">
+                    <label class="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-slate-500">
+                        Department
+                    </label>
+                    <select name="department_filter"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800 focus:border-cyan-400 focus:outline-none">
+                        <option value="">All Departments</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.name }}" {% if selected_department == dept.name %}selected{% endif %}>
+                            {{ dept.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Period -->
+                <div>
+                    <label class="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-slate-500">
+                        Payment Period
+                    </label>
+                    <select name="filter_type" id="filter_type"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800 focus:border-cyan-400 focus:outline-none">
+                        <option value="MONTHLY" {% if current_filter == 'MONTHLY' or not current_filter %}selected{% endif %}>Full Month</option>
+                        <option value="HALF" {% if current_filter == 'HALF' %}selected{% endif %}>Half Month</option>
+                        <option value="WEEKLY" {% if current_filter == 'WEEKLY' %}selected{% endif %}>Weekly</option>
+                        <option value="CUSTOM" {% if current_filter == 'CUSTOM' %}selected{% endif %}>Custom Range</option>
+                    </select>
+                </div>
+
+                <!-- Month -->
+                <div id="month_field">
+                    <label class="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-slate-500">
+                        Month
+                    </label>
+                    <input type="month" name="payout_month" id="payout_month"
+                           value="{{ selected_month }}"
+                           class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800 focus:border-cyan-400 focus:outline-none">
+                </div>
+
+                <!-- Week -->
+                <div id="week_picker" class="hidden">
+                    <label class="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-slate-500">
+                        Week
+                    </label>
+                    <select name="payout_week" id="payout_week"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800">
+                        <option value="1-7" {% if selected_week == '1-7' %}selected{% endif %}>1st Week (1–7)</option>
+                        <option value="8-14" {% if selected_week == '8-14' %}selected{% endif %}>2nd Week (8–14)</option>
+                        <option value="15-21" {% if selected_week == '15-21' %}selected{% endif %}>3rd Week (15–21)</option>
+                        <option value="22-31" {% if selected_week == '22-31' %}selected{% endif %}>4th Week (22–End)</option>
+                    </select>
+                </div>
+
+                <!-- Half -->
+                <div id="half_picker" class="hidden">
+                    <label class="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-slate-500">
+                        Half
+                    </label>
+                    <select name="payout_half" id="payout_half"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800">
+                        <option value="1-15" {% if selected_half == '1-15' %}selected{% endif %}>1st Half (1–15)</option>
+                        <option value="16-end" {% if selected_half == '16-end' %}selected{% endif %}>2nd Half (16–End)</option>
+                    </select>
+                </div>
+
+                <!-- Custom Start -->
+                <div id="custom_start" class="hidden">
+                    <label class="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-slate-500">
+                        Start Date
+                    </label>
+                    <input type="date" name="filter_start" value="{{ custom_start or '' }}"
+                           class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800">
+                </div>
+
+                <!-- Custom End -->
+                <div id="custom_end" class="hidden">
+                    <label class="mb-1.5 block text-[11px] font-black uppercase tracking-wider text-slate-500">
+                        End Date
+                    </label>
+                    <input type="date" name="filter_end" value="{{ custom_end or '' }}"
+                           class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-800">
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <!-- PERIOD SUMMARY -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 no-print">
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Department</p>
+            <p class="mt-2 text-lg font-black text-slate-900">{{ selected_department or 'All Departments' }}</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Payment Period</p>
+            <p class="mt-2 text-lg font-black text-slate-900">{{ period_label or 'Select a period' }}</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Employees</p>
+            <p class="mt-2 text-lg font-black text-slate-900">{{ payout_data|length }}</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-[10px] font-black uppercase tracking-wider text-slate-400">Status</p>
+            <p class="mt-2 text-lg font-black text-emerald-600">
+                {% if payout_data %}Ready for Payroll{% else %}No Records{% endif %}
+            </p>
+        </div>
+    </section>
+
+    <!-- SALARY SHEET -->
+    <section class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+
+        <div class="p-5 sm:p-6 border-b border-slate-200 no-print">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                    <p class="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-600">Step 3 — Review</p>
+                    <h2 class="mt-1 text-xl font-black text-slate-900">Salary Sheet</h2>
+                    <p class="mt-1 text-sm text-slate-500">
+                        Attendance-based earnings are calculated by the existing payroll logic.
+                    </p>
+                </div>
+
+                <div class="flex flex-nowrap items-center gap-2 whitespace-nowrap">
+                    {% if session['role'] != 'worker' %}
+                    <label class="inline-flex shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-600">
+                        <span>Pay Date</span>
+                        <input id="pay-date-top" type="date" class="pay-date-input rounded-lg border border-slate-200 px-2 py-1 text-sm font-bold text-slate-800">
+                    </label>
+                    <button id="print-ledger-btn" type="button"
+                            class="inline-flex shrink-0 items-center rounded-xl bg-indigo-600 px-5 py-3 text-sm font-black text-white shadow hover:bg-indigo-700">
+                        <i class="fa-solid fa-print mr-2"></i>
+                        Print Salary Canon
+                    </button>
+                    <button id="print-haram-btn" type="button"
+                            class="inline-flex shrink-0 items-center rounded-xl bg-amber-500 px-5 py-3 text-sm font-black text-white shadow hover:bg-amber-600">
+                        <i class="fa-solid fa-print mr-2"></i>
+                        Print Salary Haram
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <div class="flex gap-3">
+                    <i class="fa-solid fa-circle-info text-amber-600 mt-0.5"></i>
+                    <div class="text-sm text-amber-900">
+                        <strong>Advance rule:</strong>
+                        an outstanding advance is shown separately. It is not automatically treated as a salary
+                        deduction by this page. Advance recovery should only be applied when the business decides
+                        to recover it.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PRINT HEADER -->
+        <div class="print-only print-header">
+            <div class="print-brand-row">
+                <img id="print-logo" src="{{ url_for('static', filename='canon logo black.webp') }}" alt="Canon Logo" class="print-logo">
+                <div class="print-title-block">
+                    <div class="print-title">EMPLOYEE SALARY SHEET</div>
+                    <div class="print-subtitle">{{ payout_portal.replace('_', ' ')|upper }} PAYROLL</div>
+                </div>
+                <div class="print-date">
+                    <div>PAY DATE</div>
+                    <strong id="print-date-value"></strong>
+                </div>
+            </div>
+
+            <div class="print-meta">
+                <div>
+                    <strong>DEPARTMENT:</strong>
+                    <strong style="margin-left: 0.5rem;">{{ selected_department or 'ALL DEPARTMENTS' }}</strong>
+                </div>
+                <div><strong>PERIOD:</strong> {{ period_label or 'DATE RANGE' }}</div>
+            </div>
+        </div>
+
+        {% if payout_data %}
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-center border-collapse payroll-table">
+                <thead>
+                <tr class="bg-slate-950 text-white">
+                    <th class="p-3 border border-slate-700 print-selection-column" aria-label="Select for print">
+                        <input id="select-all-print" type="checkbox" class="h-4 w-4 cursor-pointer accent-emerald-600" aria-label="Select all rows for print">
+                    </th>
+                    <th class="p-3 border border-slate-700">S. NO</th>
+                    <th class="p-3 border border-slate-700 text-left">EMPLOYEE</th>
+
+                    {% if payout_portal == 'per_day' %}
+                    <th class="p-3 border border-slate-700">ROLE</th>
+                    <th class="p-3 border border-slate-700">PER DAY</th>
+                    <th class="p-3 border border-slate-700">TOTAL DAYS</th>
+                    <th class="p-3 border border-slate-700">PRESENT DAYS</th>
+                    <th class="p-3 border border-slate-700">GROSS SALARY</th>
+                    <th class="p-3 border border-slate-700">LATE HRS</th>
+                    <th class="p-3 border border-slate-700">EARLY HRS</th>
+                    <th class="p-3 border border-slate-700">OT HRS</th>
+                    <th class="p-3 border border-slate-700">NIGHT HRS</th>
+                    <th class="p-3 border border-slate-700">PER HOUR RATE</th>
+                    <th class="p-3 border border-slate-700">ADJUST- MENT</th>
+                    <th class="p-3 border border-slate-700">ROUND OFF</th>
+
+                    {% elif payout_portal == 'salaried' %}
+                    <th class="p-3 border border-slate-700">ROLE</th>
+                    <th class="p-3 border border-slate-700">SALARY</th>
+                    <th class="p-3 border border-slate-700">TOTAL DAYS</th>
+                    <th class="p-3 border border-slate-700">PER DAY</th>
+                    <th class="p-3 border border-slate-700">PRESENT DAYS</th>
+                    <th class="p-3 border border-slate-700">GROSS SALARY</th>
+                    <th class="p-3 border border-slate-700">LATE HRS</th>
+                    <th class="p-3 border border-slate-700">EARLY HRS</th>
+                    <th class="p-3 border border-slate-700">OT HRS</th>
+                    <th class="p-3 border border-slate-700">NIGHT HRS</th>
+                    <th class="p-3 border border-slate-700">PER HOUR RATE</th>
+                    <th class="p-3 border border-slate-700">ADJUST- MENT</th>
+                    <th class="p-3 border border-slate-700">ALLOWANCE</th>
+                    <th class="p-3 border border-slate-700">ROUND OFF</th>
+                    {% else %}
+                    <th class="p-3 border border-slate-700">ROLE</th>
+                    <th class="p-3 border border-slate-700">GROSS AMOUNT</th>
+                    {% endif %}
+
+                    <th class="p-3 border border-slate-700 text-amber-700 bg-amber-50">ADVANCE BALANCE</th>
+                    <th class="p-3 border border-slate-700 text-emerald-700 bg-emerald-50">NET PAYABLE</th>
+
+                    {% if session['role'] != 'worker' %}
+                    <th class="p-2 border border-slate-700 print-signature">SIGN</th>
+                    {% endif %}
+                </tr>
+                </thead>
+
+                <tr class="print-header-spacer" aria-hidden="true">
+                    <td colspan="{% if payout_portal == 'per_day' %}17{% elif payout_portal == 'salaried' %}19{% else %}7{% endif %}"></td>
+                </tr>
+
+                <tbody class="divide-y divide-slate-100 font-semibold">
+                {% for item in payout_data %}
+                <tr class="payroll-row hover:bg-slate-50"
+                    data-amount="{{ item.amount or 0 }}"
+                    data-advance="{{ item.adv or 0 }}"
+                    data-monthly="{{ item.monthly_salary or 0 }}"
+                    data-gross="{{ item.gross_amount or 0 }}"
+                    data-worker-id="{{ item.worker_id or '' }}"
+                    data-name="{{ item.name|e }}">
+
+                    <td class="p-3 border border-slate-200 print-selection-column">
+                        <input type="checkbox" class="print-row-checkbox h-4 w-4 cursor-pointer accent-emerald-600" aria-label="Include {{ item.name|e }} in print" checked>
+                    </td>
+                    <td class="p-3 border border-slate-200 text-slate-400 font-mono">{{ loop.index }}</td>
+
+                    <td class="p-3 border border-slate-200 text-left">
+                        <div class="font-black text-slate-900">{{ item.name }}</div>
+                        {% if item.is_paid %}
+                        <span class="paid-badge">PAID</span>
+                        {% endif %}
+                    </td>
+
+                    {% if payout_portal == 'per_day' %}
+                    <td class="p-3 border border-slate-200">{{ item.designation or '-' }}</td>
+                    <td class="p-3 border border-slate-200">{{ "%.0f"|format(item.salary or 0) }}</td>
+                    <td class="p-3 border border-slate-200">{{ item.total_days }}</td>
+                    <td class="p-3 border border-slate-200">{{ item.present_days }}</td>
+                    <td class="p-3 border border-slate-200">{{ "%.0f"|format(item.gross_amount or 0) }}</td>
+                    <td class="p-3 border border-slate-200">{{ "%.2f"|format(item.late_hours or 0) }}</td>
+                    <td class="p-3 border border-slate-200">{{ "%.2f"|format(item.early_hours or 0) }}</td>
+                    <td class="p-3 border border-slate-200">{{ "%.2f"|format(item.overtime_hours or 0) }}</td>
+                    <td class="p-3 border border-slate-200">{{ "%.2f"|format(item.night_hours or 0) }}</td>
+                    <td class="p-3 border border-slate-200 font-mono">{{ "%.0f"|format(item.per_hour_salary or 0) }}</td>
+                    <td class="p-3 border border-slate-200 {% if item.adjustment_amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                        {% if item.adjustment_amount >= 0 %}+{% else %}-{% endif %}
+                        {{ "%.0f"|format(item.adjustment_amount|abs) }}
+                    </td>
+                    <td class="p-3 border border-slate-200 {% if item.round_off_amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                        {% if item.round_off_amount >= 0 %}+{% else %}-{% endif %}
+                        {{ "%.0f"|format(item.round_off_amount|abs) }}
+                    </td>
+
+                    {% elif payout_portal == 'salaried' %}
+                    <td class="p-3 border border-slate-200">{{ item.designation or '-' }}</td>
+                    <td class="p-3 border border-slate-200 font-mono">{{ "%.0f"|format(item.monthly_salary or 0) }}</td>
+                    <td class="p-3 border border-slate-200">{{ item.total_days }}</td>
+                    <td class="p-3 border border-slate-200 font-mono">{{ "%.0f"|format((item.monthly_salary or 0) / (item.total_days or 1)) }}</td>
+                    <td class="p-3 border border-slate-200">{{ item.present_days }}</td>
+                    <td class="p-3 border border-slate-200">{{ "%.0f"|format(item.gross_amount or 0) }}</td>
+                    <td class="p-3 border border-slate-200">{{ "%.2f"|format(item.late_hours or 0) }}</td>
+                    <td class="p-3 border border-slate-200">{{ "%.2f"|format(item.early_hours or 0) }}</td>
+                    <td class="p-3 border border-slate-200">{{ "%.2f"|format(item.overtime_hours or 0) }}</td>
+                    <td class="p-3 border border-slate-200">{{ "%.2f"|format(item.night_hours or 0) }}</td>
+                    <td class="p-3 border border-slate-200 font-mono">{{ "%.0f"|format(item.per_hour_salary or 0) }}</td>
+                    <td class="p-3 border border-slate-200 {% if item.adjustment_amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                        {% if item.adjustment_amount >= 0 %}+{% else %}-{% endif %}
+                        {{ "%.0f"|format(item.adjustment_amount|abs) }}
+                    </td>
+                    <td class="p-3 border border-slate-200 font-mono">{{ "%.0f"|format(item.allowance or 0) }}</td>
+                    <td class="p-3 border border-slate-200 {% if item.round_off_amount >= 0 %}text-emerald-600{% else %}text-red-600{% endif %}">
+                        {% if item.round_off_amount >= 0 %}+{% else %}-{% endif %}
+                        {{ "%.0f"|format(item.round_off_amount|abs) }}
+                    </td>
+
+                    {% else %}
+                    <td class="p-3 border border-slate-200">{{ item.designation or '-' }}</td>
+                    <td class="p-3 border border-slate-200 font-mono">{{ "%.2f"|format(item.amount or 0) }}</td>
+                    {% endif %}
+
+                    <!-- Advance is deliberately shown separately -->
+                    <td class="p-3 border border-slate-200 bg-amber-50/40">
+                        <div class="font-mono text-amber-700">{{ "%.0f"|format(item.adv or 0) }}</div>
+                        {% if item.advance_entries %}
+                        <div class="advance-history no-print">
+                            {% for entry in item.advance_entries %}
+                            <div class="flex justify-end gap-2">
+                                <span>{{ entry.date|format_ddmmyyyy if entry.date else '-' }}</span>
+                                <span class="{% if entry.record_type == 'payment' %}text-emerald-600{% else %}text-red-500{% endif %}">
+                                    {{ '+' if entry.record_type == 'advance' else '-' }}{{ "%.0f"|format(entry.amount or 0) }}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </td>
+
+                    <!-- Net salary currently remains the calculated payroll amount.
+                         Advance recovery is intentionally not automatic on this template. -->
+                    <td class="p-3 border border-slate-200 bg-emerald-50/50 font-mono font-black text-emerald-700">
+                        {{ "%.0f"|format(item.amount or 0) }}
+                    </td>
+
+                    {% if session['role'] != 'worker' %}
+                    <td class="p-2 border border-slate-200 print-signature"></td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+                </tbody>
+
+                <tfoot>
+                <tr class="bg-slate-100 font-black">
+                    <td class="p-3 border border-slate-300 print-selection-column"></td>
+                    <td colspan="2" class="p-3 border border-slate-300 text-right uppercase">Total</td>
+
+                    {% if payout_portal == 'per_day' %}
+                    <td colspan="4" class="p-3 border border-slate-300"></td>
+                    <td id="total-gross-salary" class="p-3 border border-slate-300 text-slate-800">Rs. 0</td>
+                    <td colspan="7" class="p-3 border border-slate-300"></td>
+                    {% elif payout_portal == 'salaried' %}
+                    <td colspan="1" class="p-3 border border-slate-300"></td>
+                    <td id="total-monthly-salary" class="p-3 border border-slate-300 text-slate-800">Rs. 0</td>
+                    <td colspan="3" class="p-3 border border-slate-300"></td>
+                    <td id="total-gross-salary" class="p-3 border border-slate-300 text-slate-800">Rs. 0</td>
+                    <td colspan="8" class="p-3 border border-slate-300"></td>
+                    {% else %}
+                    <td colspan="1" class="p-3 border border-slate-300"></td>
+                    <td id="total-gross-salary" class="p-3 border border-slate-300 text-slate-800">Rs. 0</td>
+                    {% endif %}
+
+                    <td id="total-advance" class="p-3 border border-slate-300 text-amber-700">Rs. 0</td>
+                    <td id="total-payable" class="p-3 border border-slate-300 text-emerald-700">Rs. 0</td>
+
+                    {% if session['role'] != 'worker' %}
+                    <td class="p-2 border border-slate-300 print-signature"></td>
+                    {% endif %}
+                </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- PAYMENT ACTIONS -->
+        {% if session['role'] != 'worker' %}
+        <div class="no-print border-t border-slate-200 bg-slate-50 p-5 sm:p-6">
+            <div class="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
+                <div>
+                    <p class="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">Step 4 — Payment</p>
+                    <h3 class="mt-1 text-lg font-black text-slate-900">Process This Payroll</h3>
+                    <p class="mt-1 text-sm text-slate-500">
+                        The payment action applies to all employees returned by the selected department and period.
+                    </p>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    <button id="mark-paid-canon-btn" type="button" data-company="Canon"
+                            class="inline-flex items-center justify-center rounded-xl bg-emerald-700 px-5 py-3 text-sm font-black text-white hover:bg-emerald-800">
+                        <i class="fa-solid fa-circle-check mr-2"></i>
+                        Mark Payroll Paid as Canon
+                    </button>
+                    <button id="mark-paid-haram-btn" type="button" data-company="Haram"
+                            class="inline-flex items-center justify-center rounded-xl bg-amber-600 px-5 py-3 text-sm font-black text-white hover:bg-amber-700">
+                        <i class="fa-solid fa-circle-check mr-2"></i>
+                        Mark Payroll Paid as Haram
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="print-only print-footer">
+            <div>
+                <strong>Total Employees:</strong> <span id="print-total-employees">{{ payout_data|length }}</span>
+            </div>
+            {% if payout_portal != 'wages' %}
+            <div>
+                <strong>Total Monthly Salary:</strong> <span id="print-total-monthly-salary">Rs. 0</span>
+            </div>
+            {% endif %}
+            <div>
+                {% if payout_portal == 'wages' %}
+                <strong>Total Gross Amount:</strong>
+                {% else %}
+                <strong>Total Gross Salary:</strong>
+                {% endif %}
+                <span id="print-total-gross-salary">Rs. 0</span>
+            </div>
+            <div>
+                <strong>Total Advance Balance:</strong> <span id="print-total-advance">Rs. 0</span>
+            </div>
+            <div>
+                <strong>Total Net Payroll:</strong> <span id="print-total-payable">Rs. 0</span>
+            </div>
+            <div class="signature-row">
+                <div>Prepared By: ____________________</div>
+                <div>Approved By: ____________________</div>
+                <div>Paid By: ____________________</div>
+            </div>
+            <div class="print-timestamp">
+                Printed on: <span id="print-timestamp-value"></span>
+            </div>
+        </div>
+
+        {% else %}
+        <div class="p-10 sm:p-16 text-center">
+            <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
+                <i class="fa-solid fa-file-invoice-dollar text-2xl text-slate-400"></i>
+            </div>
+            <h3 class="mt-5 text-lg font-black text-slate-900">No payroll records found</h3>
+            <p class="mt-2 text-sm text-slate-500">
+                Change the department or payment period and generate the salary sheet again.
+            </p>
+        </div>
+        {% endif %}
+    </section>
+
+    {% endif %}
+</div>
+
+<script>
+(function () {
+    const filterType = document.getElementById('filter_type');
+    const monthField = document.getElementById('month_field');
+    const weekPicker = document.getElementById('week_picker');
+    const halfPicker = document.getElementById('half_picker');
+    const customStart = document.getElementById('custom_start');
+    const customEnd = document.getElementById('custom_end');
+
+    function toggleFilterFields() {
+        if (!filterType) return;
+
+        const type = filterType.value;
+
+        monthField?.classList.toggle('hidden', type === 'CUSTOM');
+        weekPicker?.classList.toggle('hidden', type !== 'WEEKLY');
+        halfPicker?.classList.toggle('hidden', type !== 'HALF');
+        customStart?.classList.toggle('hidden', type !== 'CUSTOM');
+        customEnd?.classList.toggle('hidden', type !== 'CUSTOM');
+    }
+
+    if (filterType) {
+        filterType.addEventListener('change', toggleFilterFields);
+        toggleFilterFields();
+    }
+
+    const filterForm = document.getElementById('payout-filter-form');
+    if (filterForm) {
+        filterForm.addEventListener('change', function (event) {
+            if (!event.target.matches('select, input')) return;
+            if (event.target.matches('[name="filter_start"], [name="filter_end"]')) return;
+
+            if (filterType?.value === 'CUSTOM') {
+                const startDate = filterForm.querySelector('[name="filter_start"]')?.value;
+                const endDate = filterForm.querySelector('[name="filter_end"]')?.value;
+                if (!startDate || !endDate) return;
+            }
+
+            filterForm.requestSubmit();
+        });
+
+        ['filter_start', 'filter_end'].forEach(function (fieldName) {
+            const field = filterForm.querySelector(`[name="${fieldName}"]`);
+            field?.addEventListener('blur', function () {
+                if (filterType?.value !== 'CUSTOM') return;
+                const startDate = filterForm.querySelector('[name="filter_start"]')?.value;
+                const endDate = filterForm.querySelector('[name="filter_end"]')?.value;
+                if (startDate && endDate) filterForm.requestSubmit();
+            });
+        });
+    }
+
+    function updateTotals(rows) {
+        let advance = 0;
+        let payable = 0;
+        let monthlySalary = 0;
+        let grossSalary = 0;
+
+        rows.forEach(row => {
+            advance += Number(row.dataset.advance || 0);
+            payable += Number(row.dataset.amount || 0);
+            monthlySalary += Number(row.dataset.monthly || 0);
+            grossSalary += Number(row.dataset.gross || 0);
+        });
+
+        const formatMoney = (value) => 'Rs. ' + Math.round(value).toLocaleString('en-PK');
+
+        const totalAdvance = document.getElementById('total-advance');
+        const totalPayable = document.getElementById('total-payable');
+        const totalMonthlySalary = document.getElementById('total-monthly-salary');
+        const totalGrossSalary = document.getElementById('total-gross-salary');
+        const printAdvance = document.getElementById('print-total-advance');
+        const printPayable = document.getElementById('print-total-payable');
+        const printMonthlySalary = document.getElementById('print-total-monthly-salary');
+        const printGrossSalary = document.getElementById('print-total-gross-salary');
+        const printEmployees = document.getElementById('print-total-employees');
+
+        if (totalAdvance) totalAdvance.textContent = formatMoney(advance);
+        if (totalPayable) totalPayable.textContent = formatMoney(payable);
+        if (totalMonthlySalary) totalMonthlySalary.textContent = formatMoney(monthlySalary);
+        if (totalGrossSalary) totalGrossSalary.textContent = formatMoney(grossSalary);
+        if (printAdvance) printAdvance.textContent = formatMoney(advance);
+        if (printPayable) printPayable.textContent = formatMoney(payable);
+        if (printMonthlySalary) printMonthlySalary.textContent = formatMoney(monthlySalary);
+        if (printGrossSalary) printGrossSalary.textContent = formatMoney(grossSalary);
+        if (printEmployees) printEmployees.textContent = rows.length;
+    }
+
+    const payrollRows = () => Array.from(document.querySelectorAll('.payroll-row'));
+    updateTotals(payrollRows());
+
+    const selectAllPrint = document.getElementById('select-all-print');
+    const printCheckboxes = () => payrollRows()
+        .map(row => row.querySelector('.print-row-checkbox'))
+        .filter(Boolean);
+
+    function updateSelectAllState() {
+        if (!selectAllPrint) return;
+
+        const checkboxes = printCheckboxes();
+        const checkedCount = checkboxes.filter(checkbox => checkbox.checked).length;
+        selectAllPrint.checked = checkboxes.length > 0 && checkedCount === checkboxes.length;
+        selectAllPrint.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+    }
+
+    if (selectAllPrint) {
+        selectAllPrint.addEventListener('change', function () {
+            printCheckboxes().forEach(checkbox => {
+                checkbox.checked = selectAllPrint.checked;
+            });
+            updateSelectAllState();
+        });
+    }
+
+    document.querySelectorAll('.print-row-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectAllState);
+    });
+    updateSelectAllState();
+
+    const payDateInputs = document.querySelectorAll('.pay-date-input');
+    const today = new Date();
+    const todayValue = [
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, '0'),
+        String(today.getDate()).padStart(2, '0')
+    ].join('-');
+    payDateInputs.forEach(function (input) {
+        if (!input.value) input.value = todayValue;
+        input.addEventListener('change', function () {
+            payDateInputs.forEach(function (otherInput) {
+                otherInput.value = input.value;
+            });
+        });
+    });
+
+    function setPrintDate() {
+        const el = document.getElementById('print-date-value');
+        const now = new Date();
+        const selectedPayDate = document.querySelector('.pay-date-input')?.value;
+        if (!selectedPayDate) {
+            alert('Please select a Pay Date before printing.');
+            return false;
+        }
+        if (el) {
+            const [year, month, day] = selectedPayDate.split('-');
+            el.textContent = `${day}/${month}/${year}`;
+        }
+
+        const timestamp = document.getElementById('print-timestamp-value');
+        if (timestamp) {
+            timestamp.textContent = now.toLocaleString('en-US', {
+                weekday: 'long',
+                month: 'long',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+        return true;
+    }
+
+    window.printSheet = function (logoUrl, isHaramPrint) {
+        const logo = document.getElementById('print-logo');
+        const printArea = document.getElementById('print-area');
+        const rows = payrollRows();
+        const selectedRows = rows.filter(row => row.querySelector('.print-row-checkbox')?.checked);
+        const selectionCells = Array.from(document.querySelectorAll('.print-selection-column'));
+        if (logoUrl && logo) logo.src = logoUrl;
+        if (printArea) printArea.classList.toggle('haram-print', Boolean(isHaramPrint));
+        if (!setPrintDate()) return;
+
+        rows.forEach(row => {
+            row.classList.toggle('no-print', !row.querySelector('.print-row-checkbox')?.checked);
+        });
+        selectionCells.forEach(cell => cell.remove());
+        updateTotals(selectedRows);
+
+        window.addEventListener('afterprint', function restorePrintSelection() {
+            selectionCells.forEach(cell => {
+                cell.parentElement?.insertBefore(cell, cell.parentElement.firstChild);
+            });
+            rows.forEach(row => row.classList.remove('no-print'));
+            updateTotals(rows);
+            window.removeEventListener('afterprint', restorePrintSelection);
+        });
+        window.print();
+    };
+
+    async function markPayoutAsPaid(company, button) {
+        const form = document.getElementById('payout-filter-form');
+        if (!form) return;
+
+        const paidButtons = Array.from(document.querySelectorAll('[id^="mark-paid-"][data-company]'));
+        paidButtons.forEach(paidButton => { paidButton.disabled = true; });
+        if (button) {
+            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Processing...';
+        }
+
+        const payload = new FormData(form);
+        const printArea = document.getElementById('print-area');
+        payload.set('portal', printArea?.dataset.payoutPortal || '');
+        payload.set('company', company);
+        payload.delete('selected_worker_ids');
+        document.querySelectorAll('.payroll-row').forEach(row => {
+            const checkbox = row.querySelector('.print-row-checkbox');
+            const workerId = row.dataset.workerId;
+            if (checkbox?.checked && workerId) {
+                payload.append('selected_worker_ids', workerId);
+            }
+        });
+
+        try {
+            const response = await fetch(printArea?.dataset.markPaidUrl || '', {
+                method: 'POST',
+                body: payload,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok || data.ok === false) {
+                throw new Error(data.error || 'Could not mark payroll as paid.');
+            }
+
+            alert((data.count || 0) + ' payroll record(s) marked as paid.');
+            window.location.reload();
+        } catch (error) {
+            alert(error.message || 'Could not mark payroll as paid.');
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = `<i class="fa-solid fa-circle-check mr-2"></i>Mark Payroll Paid as ${company}`;
+            }
+            paidButtons.filter(paidButton => paidButton !== button).forEach(paidButton => { paidButton.disabled = false; });
+        }
+    }
+
+    document.querySelectorAll('[id^="mark-paid-"][data-company]').forEach(paidButton => {
+        paidButton.addEventListener('click', function () {
+            const selectedCount = document.querySelectorAll('.print-row-checkbox:checked').length;
+            const employeeCount = document.querySelectorAll('.payroll-row').length;
+            if (!employeeCount) {
+                alert('There are no employees in this payroll sheet.');
+                return;
+            }
+            if (!selectedCount) {
+                alert('Select at least one employee before marking payroll as paid.');
+                return;
+            }
+
+            const printArea = document.getElementById('print-area');
+            const period = printArea?.dataset.periodLabel || 'selected period';
+            const department = printArea?.dataset.department || 'all departments';
+            const company = paidButton.dataset.company;
+
+            const confirmed = confirm(
+                'Mark payroll as PAID by ' + company + ' for ' + selectedCount +
+                ' employee(s)?\\n\\nDepartment: ' + department +
+                '\\nPeriod: ' + period +
+                '\\n\\nPlease verify the salary sheet before continuing.'
+            );
+
+            if (confirmed) markPayoutAsPaid(company, paidButton);
+        });
+    });
+
+    const printButton = document.getElementById('print-ledger-btn');
+    if (printButton) {
+        printButton.addEventListener('click', function () {
+            printSheet('{{ url_for("static", filename="canon logo black.webp") }}', false);
+        });
+    }
+
+    const haramPrintButton = document.getElementById('print-haram-btn');
+    if (haramPrintButton) {
+        haramPrintButton.addEventListener('click', function () {
+            printSheet('{{ url_for("static", filename="haram-black.png") }}', true);
+        });
+    }
+})();
+</script>
+
+<style>
+    .print-only { display: none; }
+
+    .paid-badge {
+        display: inline-block;
+        margin-top: 4px;
+        border-radius: 999px;
+        background: #dcfce7;
+        padding: 3px 8px;
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: .08em;
+        color: #15803d;
+    }
+
+    .advance-history {
+        margin-top: 6px;
+        font-size: 10px;
+        line-height: 1.35;
+        font-weight: 500;
+        color: #64748b;
+    }
+
+    .print-header {
+        display: none;
+    }
+
+    .print-header-spacer {
+        display: none;
+    }
+
+    @media print {
+        @page {
+            size: A4 landscape;
+            margin: 7mm 7mm;
+        }
+
+        @page wages {
+            size: A4 portrait !important;
+            margin: 7mm 7mm;
+        }
+
+        #print-area.print-wages {
+            page: wages;
+        }
+
+        body {
+            background: #fff !important;
+        }
+
+        body * {
+            visibility: hidden;
+        }
+
+        #print-area,
+        #print-area * {
+            visibility: visible;
+        }
+
+        #print-area {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #fff !important;
+        }
+
+        #print-area > section {
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+
+        .no-print {
+            display: none !important;
+        }
+
+        .print-only {
+            display: block !important;
+        }
+
+        .print-header {
+            margin-bottom: 7mm;
+        }
+
+        .print-header-spacer {
+            display: table-row !important;
+            height: 3px !important;
+        }
+
+        .print-header-spacer td {
+            height: 3px !important;
+            padding: 0 !important;
+            border: 0 !important;
+            background: #000 !important;
+        }
+
+        .print-brand-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        .print-logo {
+            width: 110px;
+            max-height: 52px;
+            object-fit: contain;
+        }
+
+        #print-area.haram-print .print-logo {
+            width: 160px;
+            max-height: 70px;
+            padding: 5px;
+            background: #000;
+        }
+
+        .print-title-block {
+            flex: 1;
+            text-align: center;
+        }
+
+        .print-title {
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: .04em;
+            color: #000;
+        }
+
+        .print-subtitle {
+            margin-top: 2px;
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: .12em;
+            color: #333;
+        }
+
+        .print-date {
+            width: 105px;
+            border: 1px solid #000;
+            padding: 5px;
+            text-align: center;
+            font-size: 14px !important;
+            font-weight: 800;
+            color: #000;
+        }
+
+        .print-date strong {
+            display: block;
+            margin-top: 3px;
+            font-size: 14px !important;
+        }
+
+        .print-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-top: 6mm;
+            padding: 5px 8px;
+            border: 1px solid #000;
+            font-size: 14px;
+            color: #000;
+        }
+
+        .payroll-table {
+            width: 100% !important;
+            table-layout: fixed !important;
+            font-size: 9px !important;
+        }
+
+        .payroll-table thead {
+            display: table-header-group !important;
+        }
+
+        .payroll-table tr {
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .payroll-table th,
+        .payroll-table td {
+            border-color: #000 !important;
+            padding: 4px 3px !important;
+            line-height: 1.15 !important;
+            font-family: 'Poppins', sans-serif !important;
+            color: #000 !important;
+            background: #fff !important;
+            vertical-align: middle !important;
+        }
+
+        .payroll-table th {
+            font-size: 8px !important;
+            font-weight: 900 !important;
+            white-space: normal !important;
+        }
+
+        #print-area.attendance-payout .payroll-table thead th {
+            padding: 3px 2px !important;
+            font-size: 10px !important;
+            line-height: 1.05 !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+        }
+
+        .payroll-table td {
+            font-size: 9px !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+        }
+
+        .payroll-table tbody td {
+            font-size: 14px !important;
+        }
+
+        .payroll-table tbody td:nth-child(3) {
+            font-size: 9px !important;
+        }
+
+        .payroll-table tfoot td {
+            font-size: 14px !important;
+        }
+
+        #print-area:not(.attendance-payout) .payroll-table th,
+        #print-area:not(.attendance-payout) .payroll-table td {
+            font-size: 14px !important;
+            white-space: normal !important;
+            overflow-wrap: anywhere !important;
+            word-break: break-word !important;
+        }
+
+        #print-area.attendance-payout .payroll-table tbody td {
+            font-size: 13px !important;
+        }
+
+        #print-area.attendance-payout .payroll-table tfoot td,
+        #print-area.attendance-payout .print-footer,
+        #print-area.attendance-payout .print-footer * {
+            font-size: 12px !important;
+        }
+
+        #print-area.attendance-payout .payroll-table tbody td:nth-child(3) {
+            font-size: 9px !important;
+        }
+
+        .payroll-table th:nth-child(1),
+        .payroll-table td:nth-child(1) { width: 4.5% !important; }
+
+        .payroll-table th:nth-child(2),
+        .payroll-table td:nth-child(2) { width: 12% !important; }
+
+        #print-area.attendance-payout .payroll-table th:nth-child(1),
+        #print-area.attendance-payout .payroll-table td:nth-child(1) {
+            width: 3.5% !important;
+        }
+
+        .payroll-table th:last-child,
+        .payroll-table td:last-child { width: 8% !important; }
+
+        .print-signature {
+            display: table-cell !important;
+            width: 7% !important;
+            min-width: 0 !important;
+        }
+
+        #print-area.wages-payout .payroll-table th:nth-child(5),
+        #print-area.wages-payout .payroll-table td:nth-child(5) {
+            width: 15% !important;
+        }
+
+        #print-area.wages-payout .payroll-table tbody td {
+            padding-top: 8px !important;
+            padding-bottom: 8px !important;
+        }
+
+        #print-area.wages-payout .payroll-table th.print-signature,
+        #print-area.wages-payout .payroll-table td.print-signature {
+            width: 20% !important;
+        }
+
+        #print-area.attendance-payout .print-signature {
+            width: 5% !important;
+        }
+
+        .print-footer {
+            margin-top: 7mm;
+            padding-bottom: 40mm;
+            font-size: 14px !important;
+            color: #000;
+        }
+
+        .print-footer * {
+            font-size: 14px !important;
+        }
+
+        .print-footer > div:not(.signature-row):not(.receiver-row) {
+            display: inline-block;
+            margin-right: 25px;
+        }
+
+        .signature-row {
+            position: fixed;
+            left: 7mm;
+            right: 7mm;
+            bottom: 14mm;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin: 0;
+            border-top: 1px solid #000;
+            padding-top: 25px;
+            background: #fff;
+        }
+
+        .receiver-row {
+            margin-top: 9mm;
+        }
+
+        .print-timestamp {
+            position: fixed;
+            left: 7mm;
+            right: 7mm;
+            bottom: 4mm;
+            z-index: 11;
+            display: block !important;
+            width: auto !important;
+            margin: 0;
+            text-align: right !important;
+            padding-top: 2px;
+            background: #fff;
+            font-size: 14px !important;
+            color: #000;
+        }
+
+        .paid-badge {
+            border: 0;
+            background: none;
+            padding: 0;
+            color: #000;
+            font-size: 7px;
+        }
+    }
+
+    @media print and (max-width: 1000px) {
+        .payroll-table {
+            font-size: 7px !important;
+        }
+
+        .payroll-table th,
+        .payroll-table td {
+            padding: 3px 2px !important;
+        }
+    }
+</style>
+{% endblock %}

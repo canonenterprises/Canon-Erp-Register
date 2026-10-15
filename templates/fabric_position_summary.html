@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen bg-slate-100 p-4 pb-32 sm:p-8">
+<div class="mx-auto max-w-4xl space-y-6 rounded-sm border border-slate-400 bg-white p-5 shadow-sm sm:p-8">
+    <header class="report-header border-b-2 border-slate-900 pb-3 text-center">
+        <div>
+            <p class="text-sm font-bold uppercase tracking-[0.22em] text-slate-700">Fabric Position Summary</p>
+            <h1 class="mt-2 text-2xl font-black uppercase">{{ party_name or 'Party' }}</h1>
+            <p class="mt-2 text-sm font-bold text-slate-700">{{ start_date }} TO {{ end_date }}</p>
+        </div>
+        <a href="{{ url_for('fabric_ledger') }}" class="no-print mt-4 inline-block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Fabric Ledger</a>
+    </header>
+
+    {% if rows %}
+    <div class="space-y-5">
+        {% for row in rows %}
+        <section class="article-block overflow-hidden border-2 border-slate-700">
+            <h2 class="border-b-2 border-slate-700 bg-slate-100 px-4 py-2 text-center text-xl font-black uppercase"><span class="block">{{ row.article_name or row.article }}</span>{% if row.article_style or row.article_color %}<span class="mt-1 block text-sm font-bold">{{ row.article_style or '' }}{% if row.article_style and row.article_color %} · {% endif %}{{ row.article_color or '' }}</span>{% endif %}</h2>
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-700 bg-white text-center font-black uppercase">
+                        <th class="w-[58%] px-3 py-2 text-left"></th>
+                        <th class="w-[21%] border-l border-slate-700 px-3 py-2">BAILS</th>
+                        <th class="w-[21%] border-l border-slate-700 px-3 py-2">FABRIC</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><th class="px-3 py-2 text-left font-bold uppercase">O/B Fabric</th><td class="border-l border-slate-700 px-3 py-2 text-center">{% if row.opening_bails_display is not none %}{{ row.opening_bails_display }}{% else %}{{ '{:,.2f}'.format(row.opening_bails) }}{% endif %}</td><td class="border-l border-slate-700 px-3 py-2 text-center">{{ '{:,.2f}'.format(row.opening_meter) }}</td></tr>
+                    <tr class="border-t border-slate-300"><th class="px-3 py-2 text-left font-bold uppercase">Fabric Received</th><td class="border-l border-slate-700 px-3 py-2 text-center">{% if row.received_bails_display is not none %}{{ row.received_bails_display }}{% else %}{{ '{:,.2f}'.format(row.received_bails) }}{% endif %}</td><td class="border-l border-slate-700 px-3 py-2 text-center">{{ '{:,.2f}'.format(row.received_meter) }}</td></tr>
+                    <tr class="border-t border-slate-300"><th class="px-3 py-2 text-left font-bold uppercase">A/Q Shipment Sent to Party{% if row.sent_challans %} ({{ row.sent_challans|join(', ') }}){% endif %}</th><td class="border-l border-slate-700 px-3 py-2 text-center">{% if row.sent_bails_display is not none %}{{ row.sent_bails_display }}{% else %}{{ '{:,.2f}'.format(row.sent_bails) }}{% endif %}</td><td class="border-l border-slate-700 px-3 py-2 text-center">{{ '{:,.2f}'.format(row.sent_meter) }}</td></tr>
+                    <tr class="border-t border-slate-300"><th class="px-3 py-2 text-left font-bold uppercase">B/Quality Shipment ({{ '{:,.0f}'.format(row.b_shipped_pcs) }} PCS){% if row.b_shipped_challans %} ({{ row.b_shipped_challans|join(', ') }}){% endif %}</th><td class="border-l border-slate-700 px-3 py-2 text-center">{% if row.b_shipped_bails_display is not none %}{{ row.b_shipped_bails_display }}{% else %}{{ '{:,.3f}'.format(row.b_shipped_bails) }}{% endif %}</td><td class="border-l border-slate-700 px-3 py-2 text-center">{{ '{:,.3f}'.format(row.b_shipped_meter) }}</td></tr>
+                    <tr class="border-t border-slate-300"><th class="px-3 py-2 text-left font-bold uppercase">B/Quality Returned ({{ '{:,.0f}'.format(row.b_returned_meter) }} MTR){% if row.b_returned_challans %} ({{ row.b_returned_challans|join(', ') }}){% endif %}</th><td class="border-l border-slate-700 px-3 py-2 text-center">{% if row.b_returned_bails_display is not none %}{{ row.b_returned_bails_display }}{% else %}{{ '{:,.2f}'.format(row.b_returned_bails) }}{% endif %}</td><td class="border-l border-slate-700 px-3 py-2 text-center">{{ '{:,.2f}'.format(row.b_returned_meter) }}</td></tr>
+                    <tr class="border-t-2 border-slate-700 bg-slate-50"><th class="px-3 py-2 text-left font-black uppercase">Balance Fabric in Factory</th><td class="border-l border-slate-700 px-3 py-2 text-center font-black">{% if row.balance_bails_display is not none %}{{ row.balance_bails_display }}{% else %}{{ '{:,.2f}'.format(row.balance_bails) }}{% endif %}</td><td class="border-l border-slate-700 px-3 py-2 text-center font-black">{{ '{:,.3f}'.format(row.balance_meter) }}</td></tr>
+                </tbody>
+            </table>
+        </section>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="rounded-xl border border-dashed border-slate-300 p-12 text-center text-slate-500">Select a party and valid date range to generate the article sheet.</div>
+    {% endif %}
+    <footer class="report-print-footer">
+        <span>Prepared by: {{ prepared_by }}</span>
+        <span>Printed on: <span class="print-timestamp"></span></span>
+    </footer>
+</div>
+</div>
+<style>
+    .report-print-footer { display: none; }
+@media print {
+    @page { size: A4 portrait; margin: 5mm 5mm 2mm; }
+    body { background: white !important; }
+    .no-print { display: none !important; }
+    .article-block { break-inside: avoid; margin-bottom: 8mm; }
+    .article-block h2 { font-size: 16pt; }
+    .article-block table { font-size: 10pt; }
+    .report-print-footer { position: fixed; right: 0; bottom: 4mm; left: 0; display: flex; justify-content: space-between; gap: 8px; margin-top: 0; border-top: 1px solid #64748b; padding-top: 2mm; font-size: 9pt; }
+}
+</style>
+<script>
+    window.addEventListener('beforeprint', function () {
+        const printedAt = new Date();
+        const date = new Intl.DateTimeFormat('en-US', {
+            weekday: 'long', month: 'long', day: '2-digit', year: 'numeric'
+        }).format(printedAt);
+        const time = new Intl.DateTimeFormat('en-US', {
+            hour: '2-digit', minute: '2-digit', hour12: true
+        }).format(printedAt);
+        document.querySelectorAll('.print-timestamp').forEach(function (timestamp) {
+            timestamp.textContent = date + ' at ' + time;
+        });
+    });
+</script>
+{% endblock %}

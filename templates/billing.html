@@ -1,0 +1,314 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+<div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-8">
+  <header class="overflow-hidden rounded-xl bg-slate-950 text-white shadow-lg">
+    <div class="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-end">
+      <div>
+        <p class="text-xs font-bold uppercase text-emerald-300">Finance · Customer accounts</p>
+        <h1 class="mt-2 text-3xl font-black">{{ selected_shipper }} Billing</h1>
+        <p class="mt-2 max-w-2xl text-sm text-slate-300">Turn dispatched goods into invoices, record receipts, and track balances against delivery challans.</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 justify-self-start lg:justify-self-end">
+        <a id="billing-notification-bell" href="{{ url_for('billing_notification_history', shipper=selected_shipper) }}" class="relative inline-flex h-11 w-11 items-center justify-center rounded-lg border border-white/20 bg-white text-slate-900 hover:bg-blue-50" aria-label="View billing notification history">
+          <i class="fa-solid fa-bell text-lg" aria-hidden="true"></i>
+          {% if billing_notification_active_count %}<span class="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-600 px-1 text-[10px] font-black text-white">{{ billing_notification_active_count }}</span>{% endif %}
+        </a>
+        <a href="{{ url_for('accounts_portal') }}" class="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white px-4 py-2.5 text-sm font-bold text-slate-900 hover:bg-emerald-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Accounts</a>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 border-t border-white/10 sm:grid-cols-4">
+      <div class="border-r border-white/10 px-5 py-4"><p class="text-[10px] font-bold uppercase text-slate-400">Unbilled challans</p><p class="mt-1 text-2xl font-black text-amber-300">{{ totals.unbilled }}</p></div>
+      <div class="border-r border-white/10 px-5 py-4"><p class="text-[10px] font-bold uppercase text-slate-400">Invoiced</p><p class="mt-1 text-xl font-black">PKR {{ '{:,.2f}'.format(totals.invoiced) }}</p></div>
+      <div class="border-r border-white/10 px-5 py-4"><p class="text-[10px] font-bold uppercase text-slate-400">Collected</p><p class="mt-1 text-xl font-black text-emerald-300">PKR {{ '{:,.2f}'.format(totals.collected) }}</p></div>
+      <div class="px-5 py-4"><p class="text-[10px] font-bold uppercase text-slate-400">Outstanding</p><p class="mt-1 text-xl font-black text-rose-300">PKR {{ '{:,.2f}'.format(totals.outstanding) }}</p></div>
+    </div>
+  </header>
+
+  <nav class="flex w-full max-w-md rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Billing portals">
+    <a href="{{ url_for('billing_portal', shipper='Canon') }}" {% if selected_shipper == 'Canon' %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2.5 text-center text-sm font-black {% if selected_shipper == 'Canon' %}bg-white text-emerald-800 shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Canon</a>
+    <a href="{{ url_for('billing_portal', shipper='Haram') }}" {% if selected_shipper == 'Haram' %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2.5 text-center text-sm font-black {% if selected_shipper == 'Haram' %}bg-slate-900 text-white shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Haram</a>
+  </nav>
+
+  <div class="flex justify-end">
+    <a href="{{ url_for('billing_party_directory', shipper=selected_shipper) }}" class="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800">
+      <i class="fa-solid fa-users" aria-hidden="true"></i>
+      Party Directory
+    </a>
+  </div>
+
+  <section class="flex flex-col gap-4 border-b border-slate-200 pb-5 md:flex-row md:items-end md:justify-between">
+    <div>
+      <h2 class="text-xl font-black text-slate-900">{{ selected_shipper }} invoice register</h2>
+      <p class="mt-1 text-sm text-slate-500">Only {{ selected_shipper }} delivery challans, invoices, and receipts appear in this portal.</p>
+    </div>
+    <form method="get" class="grid w-full gap-2 sm:grid-cols-[minmax(12rem,1fr)_10rem_auto] md:max-w-2xl">
+      <input type="hidden" name="shipper" value="{{ selected_shipper }}">
+      <input type="search" name="q" value="{{ search }}" placeholder="Search billing records" class="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
+      <select name="status" class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
+        {% for value, label in [('ALL', 'All statuses'), ('OPEN', 'Open'), ('PARTIAL', 'Partially paid'), ('PAID', 'Paid'), ('OVERDUE', 'Overdue')] %}
+        <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Apply</button>
+    </form>
+  </section>
+
+  {% if selected_invoice %}
+  <section class="border-b border-slate-200 pb-7" id="invoice-detail">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <p class="text-xs font-bold uppercase text-emerald-700">Invoice detail · {{ selected_invoice.status }}</p>
+        <h2 class="mt-1 text-2xl font-black text-slate-950">{{ selected_invoice.invoice.invoice_no }}</h2>
+        <p class="mt-1 text-sm text-slate-600">{{ selected_invoice.invoice.party_name }} · Challan(s) {% for challan in selected_invoice.invoice.billing_challans %}{{ format_challan_number(challan.challan_no) }}{% if not loop.last %}, {% endif %}{% endfor %}</p>
+      </div>
+      <div class="flex flex-wrap gap-2">
+        {% if selected_bill %}
+        <a href="{{ url_for('print_billing_bill', bill_id=selected_bill.id, shipper=selected_shipper) }}" target="_blank" class="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-bold text-slate-950 hover:bg-amber-400"><i class="fa-solid fa-eye" aria-hidden="true"></i> View Bill</a>
+        {% endif %}
+        {% if selected_shipper == 'Canon' %}
+        <a href="{{ url_for('print_billing_invoice', invoice_id=selected_invoice.invoice.id, shipper=selected_shipper) }}" target="_blank" class="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Invoice</a>
+        {% endif %}
+      </div>
+    </div>
+    <div class="mt-5 grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
+      <div class="min-w-0">
+        <div class="overflow-x-auto rounded-lg border border-slate-200">
+          <table class="w-full min-w-[650px] text-left text-sm">
+            <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-3 py-3">Challan</th><th class="px-3 py-3">Description</th><th class="px-3 py-3">Job</th><th class="px-3 py-3 text-right">Qty</th><th class="px-3 py-3 text-right">Rate</th><th class="px-3 py-3 text-right">Amount</th></tr></thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for line in selected_invoice.invoice.lines %}
+              <tr><td class="px-3 py-3">{{ format_challan_number(line.challan.challan_no) if line.challan else '—' }}</td><td class="px-3 py-3 font-semibold text-slate-800">{{ line.description }}</td><td class="px-3 py-3 text-slate-600">{{ line.job_no }}</td><td class="px-3 py-3 text-right">{{ '{:,.2f}'.format(line.quantity) }} {{ line.unit }}</td><td class="px-3 py-3 text-right">{{ '{:,.2f}'.format(line.unit_rate) }}</td><td class="px-3 py-3 text-right font-bold">PKR {{ '{:,.2f}'.format(line.amount) }}</td></tr>
+              {% endfor %}
+            </tbody>
+            <tfoot class="bg-slate-50 text-sm"><tr><td colspan="5" class="px-3 py-2 text-right text-slate-600">Subtotal</td><td class="px-3 py-2 text-right">PKR {{ '{:,.2f}'.format(selected_invoice.invoice.subtotal) }}</td></tr><tr><td colspan="5" class="px-3 py-2 text-right text-slate-600">Tax ({{ '{:,.2f}'.format(selected_invoice.invoice.tax_rate) }}%)</td><td class="px-3 py-2 text-right">PKR {{ '{:,.2f}'.format(selected_invoice.invoice.tax_amount) }}</td></tr><tr class="border-t border-slate-300 font-black"><td colspan="5" class="px-3 py-3 text-right">Invoice total</td><td class="px-3 py-3 text-right">PKR {{ '{:,.2f}'.format(selected_invoice.invoice.total) }}</td></tr><tr><td colspan="5" class="px-3 py-2 text-right text-emerald-800">Received</td><td class="px-3 py-2 text-right text-emerald-800">PKR {{ '{:,.2f}'.format(selected_invoice.paid) }}</td></tr><tr class="font-black text-rose-800"><td colspan="5" class="px-3 py-2 text-right">Balance due</td><td class="px-3 py-2 text-right">PKR {{ '{:,.2f}'.format(selected_invoice.balance) }}</td></tr></tfoot>
+          </table>
+        </div>
+        {% if selected_invoice.invoice.notes %}<p class="mt-3 whitespace-pre-line text-sm text-slate-600">{{ selected_invoice.invoice.notes }}</p>{% endif %}
+      </div>
+      <div class="space-y-5">
+        {% if selected_invoice.balance > 0 %}
+        <form method="post" class="space-y-3 border-b border-slate-200 pb-5">
+          <input type="hidden" name="action" value="record_payment"><input type="hidden" name="invoice_id" value="{{ selected_invoice.invoice.id }}">
+          <input type="hidden" name="shipper" value="{{ selected_shipper }}">
+          <h3 class="font-black text-slate-900">Record receipt</h3>
+          <label class="block text-xs font-bold uppercase text-slate-500">Amount · balance PKR {{ '{:,.2f}'.format(selected_invoice.balance) }}<input type="number" name="amount" min="0.01" max="{{ selected_invoice.balance }}" step="0.01" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+          <div class="grid grid-cols-2 gap-3"><label class="block text-xs font-bold uppercase text-slate-500">Date<input type="date" name="paid_on" value="{{ today }}" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label><label class="block text-xs font-bold uppercase text-slate-500">Method<select name="method" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option>Cash</option><option>Bank Transfer</option><option>Cheque</option><option>Other</option></select></label></div>
+          <label class="block text-xs font-bold uppercase text-slate-500">Reference<input name="reference" maxlength="100" placeholder="Receipt / transaction number" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+          <label class="block text-xs font-bold uppercase text-slate-500">Note<textarea name="payment_notes" maxlength="500" rows="2" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></textarea></label>
+          <button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><i class="fa-solid fa-circle-plus" aria-hidden="true"></i> Save receipt</button>
+        </form>
+        {% endif %}
+        <div>
+          <h3 class="font-black text-slate-900">Receipt history</h3>
+          <div class="mt-2 divide-y divide-slate-100">
+            {% for payment in selected_invoice.invoice.payments|sort(attribute='paid_on', reverse=True) %}
+            <div class="py-2 text-sm"><div class="flex justify-between gap-3"><span class="font-bold text-slate-800">PKR {{ '{:,.2f}'.format(payment.amount) }}</span><span class="text-slate-500">{{ payment.paid_on }}</span></div><p class="text-xs text-slate-500">{{ payment.method }}{% if payment.reference %} · {{ payment.reference }}{% endif %}{% if payment.received_by %} · {{ payment.received_by }}{% endif %}</p>{% if payment.notes %}<p class="text-xs text-slate-500">{{ payment.notes }}</p>{% endif %}</div>
+            {% else %}<p class="py-3 text-sm text-slate-500">No receipts recorded.</p>{% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+
+  <section id="invoice-register" class="space-y-3">
+    <div class="flex items-end justify-between gap-3"><div><h2 class="text-xl font-black text-slate-900">Invoices</h2><p class="mt-1 text-sm text-slate-500">Invoice snapshots and balances from posted receipts.</p></div><span class="text-sm font-bold text-slate-500">{{ invoice_rows|length }} shown</span></div>
+    <div class="overflow-x-auto border-y border-slate-200">
+      <table class="w-full min-w-[920px] text-left text-sm">
+        <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-3 py-3">Invoice</th><th class="px-3 py-3">Date / Due</th><th class="px-3 py-3">Customer</th><th class="px-3 py-3">Challan</th><th class="px-3 py-3">Job</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Received</th><th class="px-3 py-3 text-right">Balance</th><th class="px-3 py-3">Status</th><th class="px-3 py-3"></th></tr></thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for row in invoice_rows %}
+          <tr class="hover:bg-slate-50"><td class="px-3 py-3 font-black text-slate-900">{{ row.invoice.invoice_no }}</td><td class="px-3 py-3 text-slate-600">{{ row.invoice.invoice_date }}{% if row.invoice.due_date %}<span class="block text-xs">Due {{ row.invoice.due_date }}</span>{% endif %}</td><td class="px-3 py-3 font-semibold">{{ row.invoice.party_name }}</td><td class="px-3 py-3">{% for challan in row.invoice.billing_challans %}{{ format_challan_number(challan.challan_no) }}{% if not loop.last %}, {% endif %}{% endfor %}</td><td class="px-3 py-3">{% for line in row.invoice.lines %}{{ line.job_no }}{% if not loop.last %}, {% endif %}{% endfor %}</td><td class="px-3 py-3 text-right font-bold">{{ '{:,.2f}'.format(row.invoice.total) }}</td><td class="px-3 py-3 text-right text-emerald-700">{{ '{:,.2f}'.format(row.paid) }}</td><td class="px-3 py-3 text-right font-bold {% if row.balance > 0 %}text-rose-700{% else %}text-slate-500{% endif %}">{{ '{:,.2f}'.format(row.balance) }}</td><td class="px-3 py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-[10px] font-black {% if row.status == 'PAID' %}bg-emerald-100 text-emerald-800{% elif row.status == 'OVERDUE' %}bg-rose-100 text-rose-800{% elif row.status == 'PARTIAL' %}bg-amber-100 text-amber-800{% else %}bg-slate-100 text-slate-700{% endif %}">{{ row.status }}</span></td><td class="px-3 py-3"><a href="{{ url_for('billing_portal', invoice_id=row.invoice.id, q=search, status=status_filter, shipper=selected_shipper) }}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold hover:bg-slate-100"><i class="fa-solid fa-eye" aria-hidden="true"></i> View</a></td></tr>
+          {% else %}<tr><td colspan="10" class="px-3 py-10 text-center text-slate-500">No invoices match this view.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="unbilled-challans" class="space-y-4 border-t border-slate-200 pt-6">
+    <div><p class="text-xs font-bold uppercase text-amber-700">{{ selected_shipper }} · Ready to bill</p><h2 class="mt-1 text-xl font-black text-slate-900">Uninvoiced delivery challans</h2><p class="mt-1 text-sm text-slate-500">Only {{ selected_shipper }} challans are shown. Enter the agreed selling rate for each shipped PCS line.</p></div>
+    {% for group in unbilled_party_groups %}
+    <details class="group border-b border-slate-200 py-3">
+      <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3">
+        <span><span class="font-black text-slate-900">{{ group.party_name }}</span><span class="ml-2 text-xs text-slate-500">{{ group.rows|length }} unbilled challan(s)</span></span>
+        <span class="inline-flex items-center gap-2 text-sm font-bold text-emerald-800">Create combined Bill &amp; Invoice <i class="fa-solid fa-chevron-down transition group-open:rotate-180" aria-hidden="true"></i></span>
+      </summary>
+      <form method="post" class="billing-multi-form mt-4 space-y-4 rounded-lg bg-slate-50 p-4">
+        <input type="hidden" name="action" value="create_invoice">
+        <input type="hidden" name="shipper" value="{{ selected_shipper }}">
+        <p class="text-sm text-slate-600">Select one or more challans for this customer. Selected challans will be combined into one Bill and Sales Invoice.</p>
+        {% for row in group.rows %}
+        <fieldset class="rounded-lg border border-slate-200 bg-white p-3">
+          <legend class="sr-only">Challan {{ row.challan.challan_no }}</legend>
+          <label class="flex cursor-pointer items-start gap-3 rounded-md bg-blue-50 p-3">
+            <input type="checkbox" name="challan_ids" value="{{ row.challan.id }}" data-challan-selector class="mt-1 h-4 w-4 accent-blue-700">
+            <span><span class="block font-black text-slate-900">Challan {{ format_challan_number(row.challan.challan_no) }}</span><span class="text-xs text-slate-500">{{ row.challan.challan_date }} · {{ row.lines|length }} line(s)</span></span>
+          </label>
+          <div data-challan-lines class="mt-2 overflow-x-auto">
+            <table class="w-full min-w-[680px] text-left text-sm"><thead class="border-b border-slate-300 text-center text-[10px] font-bold uppercase text-slate-500"><tr><th class="py-2">Article</th><th class="py-2">Job</th><th class="py-2">Shipped</th><th class="py-2">Rate / PCS (PKR)</th><th class="py-2">Line amount</th></tr></thead>
+              <tbody class="text-center">
+                {% for line in row.lines %}
+                <tr class="border-b border-slate-200"><td class="py-2 pr-3 font-semibold">{{ line.description }}</td><td class="py-2">{{ line.job_no }}</td><td class="py-2">{{ '{:,.2f}'.format(line.quantity) }} {{ line.unit }}</td><td class="py-2 pl-3">{{ '{:,.2f}'.format(line.cost_rate) if line.cost_rate is not none else '-' }}<input type="hidden" name="unit_rate_{{ line.billing_rate_key }}" value="{{ '%.2f'|format(line.cost_rate) if line.cost_rate is not none else '' }}" data-qty="{{ line.quantity }}" class="billing-rate" disabled></td><td class="billing-line-total py-2 font-bold">0.00</td></tr>
+                {% endfor %}
+              </tbody>
+              <tfoot class="font-bold"><tr><td colspan="4" class="py-2 text-right">Challan subtotal</td><td class="billing-subtotal py-2 text-center">0.00</td></tr></tfoot>
+            </table>
+          </div>
+        </fieldset>
+        {% endfor %}
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label class="text-xs font-bold uppercase text-slate-500">Invoice date<input type="date" name="invoice_date" value="{{ today }}" required class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Due date<input type="date" name="due_date" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Tax (%)<input type="number" name="tax_rate" min="0" max="100" step="0.01" value="0" class="billing-tax mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Further Tax on Unregistered Person (%)<input type="number" name="further_tax_rate" min="0" max="100" step="0.01" value="0" class="billing-further-tax mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
+        </div>
+        <label class="block text-xs font-bold uppercase text-slate-500">Invoice note<textarea name="notes" rows="2" maxlength="1000" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="Optional payment terms or customer note"></textarea></label>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-3"><p class="text-sm font-bold text-slate-700">Estimated total: <span class="billing-estimate text-lg text-slate-950">PKR 0.00</span></p><button class="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><i class="fa-solid fa-file-circle-plus" aria-hidden="true"></i> Create Bill &amp; Invoice</button></div>
+      </form>
+    </details>
+    {% else %}
+    <p class="border-y border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">All billable delivery challans are invoiced. New shipped challans will appear here.</p>
+    {% endfor %}
+  </section>
+</div>
+{% if show_billing_notification_cards and (notification_unbilled_count or pending_payment_count) %}
+<aside class="fixed right-4 top-24 z-[70] flex max-h-[calc(100vh-7rem)] w-[min(32rem,calc(100vw-2rem))] flex-col gap-3 overflow-y-auto" aria-label="Billing notifications">
+  {% if notification_unbilled_count %}
+  <section data-notification-card class="rounded-2xl border-2 border-blue-500 bg-blue-50 p-5 text-slate-800 shadow-xl transition-all duration-300" role="status" aria-live="polite">
+    <div class="flex items-start gap-4">
+      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-600 text-lg font-bold text-white" aria-hidden="true"><i class="fa-solid fa-circle-info"></i></span>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-start justify-between gap-3">
+          <h2 class="text-base font-black leading-8 text-slate-900">Unbilled delivery challans</h2>
+          <button type="button" data-dismiss-notification class="shrink-0 rounded p-1 text-xl leading-none text-blue-600 hover:bg-blue-100" aria-label="Dismiss unbilled challans notification">&times;</button>
+        </div>
+        <p class="text-sm leading-6 text-slate-600">There {{ 'is' if notification_unbilled_count == 1 else 'are' }} <strong class="text-slate-800">{{ notification_unbilled_count }}</strong> unbilled challan(s) for {{ selected_shipper }}.</p>
+        <ul class="mt-2 space-y-1 text-xs text-slate-600">
+          {% for item in notification_unbilled_items %}
+          <li>{{ item.challan_no }} · {{ item.party_name or 'Customer not specified' }}</li>
+          {% endfor %}
+          {% if notification_unbilled_count > notification_unbilled_items|length %}<li>and {{ notification_unbilled_count - notification_unbilled_items|length }} more</li>{% endif %}
+        </ul>
+        <a href="#unbilled-challans" class="mt-4 inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">View challans</a>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+  {% if pending_payment_count %}
+  <section data-notification-card class="rounded-2xl border-2 border-blue-500 bg-blue-50 p-5 text-slate-800 shadow-xl transition-all duration-300" role="status" aria-live="polite">
+    <div class="flex items-start gap-4">
+      <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-600 text-lg font-bold text-white" aria-hidden="true"><i class="fa-solid fa-circle-info"></i></span>
+      <div class="min-w-0 flex-1">
+        <div class="flex items-start justify-between gap-3">
+          <h2 class="text-base font-black leading-8 text-slate-900">Pending payments</h2>
+          <button type="button" data-dismiss-notification class="shrink-0 rounded p-1 text-xl leading-none text-blue-600 hover:bg-blue-100" aria-label="Dismiss pending payments notification">&times;</button>
+        </div>
+        <p class="text-sm leading-6 text-slate-600"><strong class="text-slate-800">{{ pending_payment_count }}</strong> invoice(s) have a total outstanding balance of <strong class="text-slate-800">PKR {{ '{:,.2f}'.format(pending_payment_total) }}</strong>.</p>
+        <ul class="mt-2 space-y-1 text-xs text-slate-600">
+          {% for item in pending_payment_items %}
+          <li>{{ item.invoice_no }} · {{ item.party_name or 'Customer not specified' }} · PKR {{ '{:,.2f}'.format(item.balance) }}</li>
+          {% endfor %}
+          {% if pending_payment_count > pending_payment_items|length %}<li>and {{ pending_payment_count - pending_payment_items|length }} more</li>{% endif %}
+        </ul>
+        <a href="#invoice-register" class="mt-4 inline-flex items-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700">View invoices</a>
+      </div>
+    </div>
+  </section>
+  {% endif %}
+</aside>
+<script>
+  const billingNotificationBell = document.getElementById('billing-notification-bell');
+  document.querySelectorAll('[data-notification-card]').forEach(card => {
+    const dismiss = () => {
+      card.classList.add('translate-x-4', 'scale-95', 'opacity-0');
+      window.setTimeout(() => card.remove(), 300);
+    };
+    const flyToBell = () => {
+      if (!billingNotificationBell) {
+        dismiss();
+        return;
+      }
+
+      const cardBounds = card.getBoundingClientRect();
+      const bellBounds = billingNotificationBell.getBoundingClientRect();
+      const startX = cardBounds.left + cardBounds.width / 2;
+      const startY = cardBounds.top + cardBounds.height / 2;
+      const targetX = bellBounds.left + bellBounds.width / 2;
+      const targetY = bellBounds.top + bellBounds.height / 2;
+      const plane = document.createElement('span');
+      plane.setAttribute('aria-hidden', 'true');
+      plane.innerHTML = '<svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor" focusable="false"><path d="M21.8 2.2a.75.75 0 0 0-.78-.17L2.45 9.2a1.1 1.1 0 0 0 .1 2.08l7.15 2.39 2.39 7.15a1.1 1.1 0 0 0 2.08.1l7.17-18.57a.75.75 0 0 0-.17-.78ZM12.4 13.72l-1.45-1.45 6.04-6.04-7.3 5.17-5.45-1.82 14.44-5.57-5.57 14.44-1.82-5.45 5.17-7.3-6.04 6.04Z"/></svg>';
+      plane.style.cssText = `position:fixed;left:0;top:0;z-index:2147483647;display:grid;width:48px;height:48px;place-items:center;border:2px solid #2563eb;border-radius:9999px;background:#eff6ff;color:#2563eb;box-shadow:0 8px 24px rgb(15 23 42 / 0.3);pointer-events:none;transform:translate3d(${startX}px,${startY}px,0) translate(-50%,-50%) scale(0.9);will-change:transform,opacity`;
+      document.body.appendChild(plane);
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const flight = plane.animate(
+        [
+          {
+            transform: `translate3d(${startX}px,${startY}px,0) translate(-50%,-50%) scale(0.9) rotate(-8deg)`,
+            opacity: 1,
+          },
+          {
+            transform: `translate3d(${(startX + targetX) / 2}px,${(startY + targetY) / 2 - 45}px,0) translate(-50%,-50%) scale(0.7) rotate(10deg)`,
+            opacity: 1,
+            offset: 0.65,
+          },
+          {
+            transform: `translate3d(${targetX}px,${targetY}px,0) translate(-50%,-50%) scale(0.2) rotate(25deg)`,
+            opacity: 0,
+          },
+        ],
+        { duration: reducedMotion ? 500 : 1400, easing: 'cubic-bezier(0.2,0.75,0.25,1)' }
+      );
+      card.animate(
+        [
+          { transform: 'scale(1)', opacity: 1 },
+          { transform: 'scale(0.75)', opacity: 0 },
+        ],
+        { duration: 260, easing: 'ease-in', fill: 'forwards' }
+      );
+      flight.onfinish = () => {
+        plane.remove();
+        card.remove();
+        billingNotificationBell.classList.add('animate-pulse');
+        window.setTimeout(() => billingNotificationBell.classList.remove('animate-pulse'), 700);
+      };
+    };
+    const autoDismiss = window.setTimeout(flyToBell, 15000);
+
+    card.querySelector('[data-dismiss-notification]')?.addEventListener('click', function () {
+      window.clearTimeout(autoDismiss);
+      dismiss();
+    });
+  });
+</script>
+{% endif %}
+<script>
+document.querySelectorAll('form:has(.billing-rate)').forEach(form => {
+  function updateEstimate() {
+    let subtotal = 0;
+    form.querySelectorAll('[data-challan-selector]').forEach(selector => {
+      const challanSection = selector.closest('fieldset');
+      const challanSubtotal = challanSection.querySelector('.billing-subtotal');
+      let sectionTotal = 0;
+      challanSection.querySelectorAll('.billing-rate').forEach(input => {
+        input.disabled = !selector.checked;
+        const amount = selector.checked ? (Number(input.dataset.qty) || 0) * (Number(input.value) || 0) : 0;
+        sectionTotal += amount;
+        input.closest('tr').querySelector('.billing-line-total').textContent = amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      });
+      subtotal += sectionTotal;
+      challanSubtotal.textContent = sectionTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    });
+    const tax = Number(form.querySelector('.billing-tax').value) || 0;
+    const total = subtotal * (1 + tax / 100);
+    form.querySelector('.billing-estimate').textContent = `PKR ${total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  form.addEventListener('input', updateEstimate);
+  form.querySelectorAll('[data-challan-selector]').forEach(selector => {
+    selector.addEventListener('change', updateEstimate);
+  });
+  updateEstimate();
+});
+</script>
+{% endblock %}

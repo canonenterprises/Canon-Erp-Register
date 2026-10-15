@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+<div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-6 sm:p-8">
+    <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8"><div class="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center"><div><p class="text-[10px] font-bold uppercase tracking-[0.22em] text-cyan-300">Canon Registry</p><h1 class="mt-2 text-3xl font-black">Operations</h1><p class="mt-2 text-sm text-slate-300">Manage the available production operations.</p></div><a href="{{ url_for('operation_rates') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Articles</a></div></header>
+
+    <div class="rounded-2xl border border-slate-200 bg-white overflow-x-auto">
+        <table class="w-full min-w-[720px] text-left border-collapse">
+            <thead>
+                <tr class="border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-400">
+                    <th class="px-4 py-3">#</th>
+                    <th class="px-4 py-3">Operation</th>
+                    <th class="px-4 py-3">Type</th>
+                    <th class="px-4 py-3">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for rate in rates %}
+                <tr class="border-t">
+                    <td class="px-4 py-3 text-slate-500">{{ loop.index }}</td>
+                    <td class="px-4 py-3">
+                        <form id="edit-operation-{{ rate.id }}" method="POST" class="flex">
+                            <input type="hidden" name="operation_id" value="{{ rate.id }}" {% if read_only_profile %}disabled{% endif %}>
+                            <input type="text" name="operation_name" value="{{ rate.operation }}" required maxlength="100" class="w-full border rounded px-2 py-1" {% if read_only_profile %}disabled{% endif %}>
+                        </form>
+                    </td>
+                    <td class="px-4 py-3">
+                        <label class="inline-flex items-center gap-2 text-xs font-bold text-slate-600" title="Check if this operation uses a machine">
+                            <input form="edit-operation-{{ rate.id }}" type="checkbox" name="is_unstitched_operation" {% if rate.is_machine_operation %}checked{% endif %} class="operation-type-checkbox h-4 w-4" data-group="edit-{{ rate.id }}" {% if read_only_profile %}disabled{% endif %}>
+                            Unstitched Operation
+                        </label>
+                        <label class="mt-2 inline-flex items-center gap-2 text-xs font-bold text-slate-600" title="Treat this as a non-machine stitched operation">
+                            <input form="edit-operation-{{ rate.id }}" type="checkbox" name="is_stitched_operation" {% if rate.is_stitched_operation %}checked{% endif %} class="operation-type-checkbox h-4 w-4" data-group="edit-{{ rate.id }}" {% if read_only_profile %}disabled{% endif %}>
+                            Stitched Operation
+                        </label>
+                    </td>
+                    <td class="px-4 py-3">
+                        <div class="flex items-center gap-3">
+                            {% if not read_only_profile %}
+                            <button form="edit-operation-{{ rate.id }}" type="submit" class="text-slate-700 font-bold hover:underline">Edit</button>
+                            <form method="POST" onsubmit="return confirm('Delete this operation?')">
+                                <button type="submit" name="delete_operation_id" value="{{ rate.id }}" class="text-red-600 font-bold hover:underline">Delete</button>
+                            </form>
+                            {% else %}<span class="text-xs font-semibold text-slate-400">Saved</span>{% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="4" class="px-4 py-6 text-sm text-slate-500">No operations have been added yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <form method="POST" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col gap-3 sm:flex-row">
+        <input type="text" name="new_operation" placeholder="Operation name" required maxlength="100" class="flex-1 border rounded px-3 py-2">
+        <label class="inline-flex shrink-0 items-center gap-2 text-sm font-bold text-slate-600" title="Apply unstitched-operation behavior">
+            <input type="checkbox" name="new_is_unstitched_operation" class="operation-type-checkbox h-4 w-4" data-group="new">
+            Unstitched Operation
+        </label>
+        <label class="inline-flex shrink-0 items-center gap-2 text-sm font-bold text-slate-600" title="Treat this as a non-machine stitched operation">
+            <input type="checkbox" name="new_is_stitched_operation" class="operation-type-checkbox h-4 w-4" data-group="new">
+            Stitched Operation
+        </label>
+        <button type="submit" class="bg-slate-800 text-white px-4 py-2 rounded-lg font-bold hover:bg-slate-700">Add Operation</button>
+    </form>
+</div>
+</div>
+<script>
+    document.querySelectorAll('.operation-type-checkbox').forEach(function (checkbox) {
+        checkbox.addEventListener('change', function () {
+            if (!this.checked) return;
+            document.querySelectorAll('.operation-type-checkbox[data-group="' + this.dataset.group + '"]').forEach(function (other) {
+                if (other !== checkbox) other.checked = false;
+            });
+        });
+    });
+</script>
+{% endblock %}

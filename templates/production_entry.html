@@ -1,0 +1,342 @@
+{% extends 'base.html' %}
+{% block content %}
+{% include 'navbar.html' %}
+
+<div class="max-w-7xl mx-auto p-6 pt-20 md:pt-20">
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
+        <h2 class="text-center text-3xl font-bold text-slate-800 mb-8">PRODUCTION ENTRY</h2>
+        
+        <form method="POST" class="space-y-6 font-bold">
+            <!-- First Row -->
+            <div class="grid grid-cols-4 gap-6">
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">Date</label>
+                    <input id="entry_date" type="date" name="date" required class="w-full border border-slate-200 rounded-lg p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">Selected Lot/Order</label>
+                    {% if prefill_job or order %}
+                        <input type="hidden" name="job_no" value="{{ prefill_job or order.job_no if order else '' }}">
+                        <input type="text" value="{{ prefill_job or order.job_no if order else '' }}" readonly class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2">
+                    {% else %}
+                        <select id="job_select" name="job_no" class="w-full border border-slate-200 rounded-lg p-2">
+                            {% for p in parties %}
+                                <option value="{{ p.job_no }}" {% if p.job_no == prefill_job %}selected{% endif %}>{{ p.job_no }}</option>
+                            {% endfor %}
+                        </select>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">FILE NUMBER</label>
+                    <input id="file_no" type="text" name="file_no" value="{{ order.file_no if order else '' }}" readonly class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">Party</label>
+                    <input id="party_name" type="text" name="party_name" value="{{ order.name if order else '' }}" readonly class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2">
+                </div>
+            </div>
+
+            <!-- File No (Hidden/Visible) -->
+            <!-- Article & Color -->
+            <div class="grid grid-cols-4 gap-6">
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">Article No.</label>
+                    <input id="article" type="text" name="article" value="{{ order.article if order else '' }}" readonly class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">Article Name</label>
+                    <input id="article_name" type="text" name="article_name" value="{{ order.article_name if order else '' }}" readonly class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">Style</label>
+                    <input id="order_style" type="text" name="order_style" value="{{ order.style if order else '' }}" readonly class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">Color</label>
+                    <input id="color" type="text" name="color" value="{{ order.color if order else '' }}" readonly class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2">
+                </div>
+            </div>
+
+            <!-- New Fields: Cut Size, Cut No -->
+            <div class="grid grid-cols-5 gap-6">
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">Cut Number</label>
+                    {% if cutting_sheets %}
+                        <select name="cut_no" required class="w-full border border-slate-200 rounded-lg p-2">
+                            {% for sheet in cutting_sheets %}
+                                <option value="{{ sheet.cut_no }}" {% if selected_cut and selected_cut == sheet.cut_no %}selected{% endif %}>CUT No: {{ '%02d'|format(sheet.cut_no|int) if sheet.cut_no is number else sheet.cut_no }}</option>
+                            {% endfor %}
+                        </select>
+                    {% else %}
+                        <div class="w-full border border-slate-200 rounded-lg p-2 bg-slate-50 text-slate-500">No cutting sheet available</div>
+                        <input type="hidden" name="cut_no" value="">
+                    {% endif %}
+                </div> <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">Cutting PCS</label>
+                    <input id="cut_pcs" type="text" name="cut_pcs" readonly class="w-full bg-slate-50 border border-slate-200 rounded-lg p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">IN-LINE PCS</label>
+                    <input id="updated_cut_pcs" type="text" readonly class="w-full bg-emerald-50 border border-emerald-200 rounded-lg p-2 font-bold text-emerald-800">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">B/Q Un-stitched</label>
+                    <input id="bq_unstitch" type="number" name="bq_unstitch" min="0" step="1" value="0" disabled class="w-full border border-slate-200 rounded-lg p-2 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">B/Q Stitched</label>
+                    <input id="bq_stitched" type="number" name="bq_stitched" min="0" step="1" value="0" disabled class="w-full border border-slate-200 rounded-lg p-2 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400">
+                </div>
+            </div>
+
+            {% if special_operations and cutting_sheets %}
+            <section class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h3 class="font-bold text-slate-800">Special operations for this cut</h3>
+                        <p class="mt-1 text-sm font-normal text-slate-600">Enabled operations are added after the regular operations for this cut only.</p>
+                    </div>
+                    <input type="hidden" name="save_cut_special_operations" value="1" disabled>
+                    <button type="button" id="save-cut-special-operations" class="shrink-0 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-bold text-amber-900 hover:bg-amber-100">Save cut operations</button>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+                    {% for rate in special_operations %}
+                    <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+                        <input type="checkbox" name="special_operation_ids" value="{{ rate.id }}" class="special-operation-toggle h-4 w-4" {% if rate.id in enabled_special_operation_ids_by_cut.get(selected_cut|string, []) %}checked{% endif %}>
+                        {{ rate.operation }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- Worker & Operation -->
+            <div class="grid grid-cols-3 gap-6">
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">Select Worker</label>
+                    <select name="worker" class="w-full border border-slate-200 rounded-lg p-2">
+                        {% for w in workers %}
+                            <option>{{ w }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">Quantity (Pcs)</label>
+                    <input type="number" name="pcs" required class="w-full border border-slate-200 rounded-lg p-2">
+                </div>
+                <div>
+                    <label class="block text-s font-bold text-slate-500 uppercase mb-1">Select Operation</label>
+                    <select name="operation" class="w-full border border-slate-200 rounded-lg p-2">
+                        {% for op, rate in rates.items() %}
+                            <option value="{{ op }}" data-rate-id="{{ special_operation_ids_by_name.get(op, '') }}" data-special-operation="{{ 'true' if op in special_operation_names else 'false' }}" data-stitched-operation="{{ 'true' if stitched_operations_by_name.get(op) else 'false' }}" {% if selected_operation == op %}selected{% endif %}>{{ op }}</option>
+                        {% endfor %}
+                        {% for rate in special_operations %}
+                            {% set op = rate.operation|upper %}
+                            {% if op not in rates %}
+                            <option value="{{ op }}" data-rate-id="{{ rate.id }}" data-special-operation="true" data-stitched-operation="{{ 'true' if rate.is_stitched_operation else 'false' }}" hidden disabled>{{ op }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="pt-10">
+                <button type="submit" class="w-full bg-slate-900 text-white font-bold py-3 rounded-lg hover:bg-black transition {% if not cutting_sheets %}opacity-50 cursor-not-allowed{% endif %}" {% if not cutting_sheets %}disabled title="Create a cutting sheet first for this order"{% endif %}>
+                    SAVE LOG ENTRY
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Map orders to their details for client-side prefill
+const ordersMap = {
+    {% for p in parties %}
+    "{{ p.job_no }}": {
+        file_no: "{{ (p.file_no or '')|e }}",
+        party_name: "{{ (p.name or p.party or '')|e }}",
+        article: "{{ (p.article or '')|e }}",
+        article_name: "{{ (p.article_name or '')|e }}",
+        style: "{{ (p.style or '')|e }}",
+        color: "{{ (p.color or '')|e }}"
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+};
+
+const cutSheetsMap = {
+    {% for sheet in cutting_sheets %}
+    "{{ sheet.cut_no }}": {
+        quantity: "{{ (sheet.quantity or '')|e }}"
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+};
+
+const resumeOperationsByCut = {{ resume_operations_by_cut|tojson }};
+const operationLimitsByCut = {{ operation_limits_by_cut|tojson }};
+const machineOperationsByName = {{ machine_operations_by_name|tojson }};
+const stitchedOperationsByName = {{ stitched_operations_by_name|tojson }};
+const enabledSpecialOperationIdsByCut = {{ enabled_special_operation_ids_by_cut|tojson }};
+
+function applyOrderDetails(jobNo) {
+    const details = ordersMap[jobNo] || {file_no: '', party_name: '', article: '', article_name: '', style: '', color: ''};
+    document.getElementById('file_no').value = details.file_no || '';
+    document.getElementById('party_name').value = details.party_name || '';
+    document.getElementById('article').value = details.article || '';
+    document.getElementById('article_name').value = details.article_name || '';
+    document.getElementById('order_style').value = details.style || '';
+    document.getElementById('color').value = details.color || '';
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    const saveSpecialOperationsButton = document.getElementById('save-cut-special-operations');
+    saveSpecialOperationsButton?.addEventListener('click', function () {
+        const form = this.closest('form');
+        const saveMarker = form?.querySelector('[name="save_cut_special_operations"]');
+        if (!form || !saveMarker) return;
+        saveMarker.disabled = false;
+        form.submit();
+    });
+
+    // Set today's date initially
+    const dateEl = document.getElementById('entry_date');
+    if (dateEl) {
+        const pakistanDate = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Karachi',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).format(new Date());
+        dateEl.value = pakistanDate;
+    }
+
+    const cutSelect = document.querySelector('select[name="cut_no"]');
+    const operationSelect = document.querySelector('select[name="operation"]');
+    const cutPcsInput = document.getElementById('cut_pcs');
+    const bqInput = document.getElementById('bq_unstitch');
+    const bqStitchedInput = document.getElementById('bq_stitched');
+    const updatedCutPcsInput = document.getElementById('updated_cut_pcs');
+    const updateBqUnstitchedAccess = function () {
+        if (!bqInput || !operationSelect) return;
+        const selectedOption = operationSelect.selectedOptions?.[0];
+        const isStitchedOperation = selectedOption?.dataset.stitchedOperation === 'true'
+            || Boolean(stitchedOperationsByName[operationSelect.value]);
+        bqInput.disabled = isStitchedOperation;
+        if (isStitchedOperation) {
+            bqInput.value = '0';
+        }
+    };
+    const operationNames = function () {
+        return Array.from(operationSelect?.options || [])
+            .filter(option => !option.disabled)
+            .map(option => option.value);
+    };
+    const lastMachineIndex = function () {
+        return operationNames().reduce(
+            (lastIndex, operation, index) => machineOperationsByName[operation] ? index : lastIndex,
+            -1
+        );
+    };
+    const updateBqStitchedAccess = function () {
+        if (!bqStitchedInput || !operationSelect) return;
+        const operationIndex = operationNames().indexOf(operationSelect.value);
+        const canEnterStitchedBq = operationIndex > lastMachineIndex();
+        bqStitchedInput.disabled = !canEnterStitchedBq;
+        if (!canEnterStitchedBq) {
+            bqStitchedInput.value = '0';
+        }
+    };
+    const updateUpdatedCutPcs = function () {
+        if (!updatedCutPcsInput) return;
+        const values = cutSheetsMap[cutSelect?.value] || {quantity: ''};
+        const limits = operationLimitsByCut[cutSelect?.value] || {};
+        const selectedOperation = operationSelect?.value || '';
+        const currentLimit = parseInt(limits[selectedOperation] ?? values.quantity ?? 0, 10) || 0;
+        const bqUnstitch = parseInt(bqInput?.value || 0, 10) || 0;
+        const bqStitched = parseInt(bqStitchedInput?.value || 0, 10) || 0;
+        const operationIndex = operationNames().indexOf(selectedOperation);
+        const isStitchedStage = operationIndex > lastMachineIndex();
+        if (isStitchedStage) {
+            updatedCutPcsInput.value = Math.max(0, currentLimit);
+            return;
+        }
+        updatedCutPcsInput.value = Math.max(0, currentLimit - bqUnstitch - bqStitched);
+    };
+    if (cutSelect && cutPcsInput) {
+        const updateSpecialOperationOptions = function () {
+            const enabledIds = new Set(
+                Array.from(document.querySelectorAll('.special-operation-toggle:checked'))
+                    .map(input => input.value)
+            );
+            operationSelect?.querySelectorAll('[data-special-operation="true"]').forEach(function (option) {
+                const enabled = enabledIds.has(option.dataset.rateId);
+                option.hidden = !enabled;
+                option.disabled = !enabled;
+            });
+            if (operationSelect?.selectedOptions[0]?.disabled) {
+                const resumeOperation = resumeOperationsByCut[cutSelect.value];
+                const fallback = operationNames()[0];
+                operationSelect.value = operationNames().includes(resumeOperation) ? resumeOperation : (fallback || '');
+            }
+        };
+        const updateSpecialOperationChecks = function () {
+            const enabledIds = new Set((enabledSpecialOperationIdsByCut[cutSelect.value] || []).map(String));
+            document.querySelectorAll('.special-operation-toggle').forEach(function (input) {
+                input.checked = enabledIds.has(input.value);
+            });
+            updateSpecialOperationOptions();
+        };
+        const updateCutFields = function () {
+            const values = cutSheetsMap[cutSelect.value] || {quantity: ''};
+            cutPcsInput.value = values.quantity || '';
+            updateUpdatedCutPcs();
+        };
+        updateCutFields();
+        document.querySelectorAll('.special-operation-toggle').forEach(function (input) {
+            input.addEventListener('change', function () {
+                updateSpecialOperationOptions();
+                updateCutFields();
+                updateBqStitchedAccess();
+                updateBqUnstitchedAccess();
+            });
+        });
+        bqInput?.addEventListener('input', updateUpdatedCutPcs);
+        bqStitchedInput?.addEventListener('input', updateUpdatedCutPcs);
+        operationSelect?.addEventListener('change', function () {
+            updateCutFields();
+            updateBqStitchedAccess();
+            updateBqUnstitchedAccess();
+        });
+        cutSelect.addEventListener('change', function () {
+            updateSpecialOperationChecks();
+            updateCutFields();
+            updateBqStitchedAccess();
+            updateBqUnstitchedAccess();
+            if (operationSelect && resumeOperationsByCut[cutSelect.value]) {
+                operationSelect.value = resumeOperationsByCut[cutSelect.value];
+                updateCutFields();
+                updateBqStitchedAccess();
+                updateBqUnstitchedAccess();
+            }
+        });
+    }
+    updateBqStitchedAccess();
+    updateBqUnstitchedAccess();
+    updateUpdatedCutPcs();
+
+    const select = document.getElementById('job_select');
+    if (select) {
+        // apply details for the currently selected job
+        applyOrderDetails(select.value);
+        select.addEventListener('change', function () {
+            applyOrderDetails(this.value);
+        });
+    } else {
+        const hiddenJobInput = document.querySelector('input[name="job_no"]');
+        if (hiddenJobInput) {
+            applyOrderDetails(hiddenJobInput.value);
+        }
+    }
+});
+</script>
+{% endblock %}

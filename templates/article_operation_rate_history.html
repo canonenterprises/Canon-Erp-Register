@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+<div class="mx-auto max-w-5xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-6 sm:p-8">
+    <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-cyan-300">Article Defaults</p>
+                <h1 class="mt-2 text-3xl font-black">{{ operation.operation }} Rate History</h1>
+                <p class="mt-2 text-sm text-slate-300">{{ article.article_no }}{% if article.article_name %} | {{ article.article_name }}{% endif %}</p>
+            </div>
+            <a href="{{ url_for('article_operation_rates', article_id=article.id) }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Article Defaults</a>
+        </div>
+    </header>
+
+    <section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div class="flex items-center justify-between border-b border-slate-200 p-6">
+            <div>
+                <h2 class="text-xl font-black text-slate-900">Rate changes</h2>
+                <p class="mt-1 text-sm text-slate-500">Saved article-specific override values, newest first.</p>
+            </div>
+            <span class="rounded-full bg-cyan-50 px-3 py-1.5 text-xs font-bold text-cyan-800">{{ histories|length }} record{{ '' if histories|length == 1 else 's' }}</span>
+        </div>
+        {% if histories %}
+        <div class="overflow-x-auto">
+            <table class="w-full min-w-[560px] text-left">
+                <thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="px-6 py-3">Article Rate</th><th class="px-6 py-3">Effective From</th><th class="px-6 py-3">Portal</th></tr></thead>
+                <tbody>
+                    {% for history in histories %}
+                    <tr class="border-t border-slate-100">
+                        <td class="px-6 py-4 font-bold text-slate-800">{% if history.override_rate is not none %}Rs. {{ '%.2f'|format(history.override_rate) }}{% else %}Use general rate{% endif %}</td>
+                        <td class="px-6 py-4 text-sm text-slate-500">{{ history.effective_date.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-600">{{ history.portal_name or 'Unknown' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="p-6 text-sm text-slate-500">No article-specific rate changes have been recorded for this operation.</p>
+        {% endif %}
+    </section>
+</div>
+</div>
+{% endblock %}

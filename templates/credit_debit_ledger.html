@@ -1,0 +1,224 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .statement-print-only { display: none; }
+  @page { size: A4 portrait; margin: 10mm; }
+  @media print {
+    html, body { background: #fff !important; color: #000 !important; }
+    .ledger-print-root { min-height: 0 !important; margin: 0 !important; padding: 0 !important; }
+    .ledger-page { max-width: none !important; margin: 0 !important; padding: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
+    .ledger-page .ledger-screen-only,
+    .ledger-page .ledger-no-print { display: none !important; }
+    .ledger-page .statement-print-only { display: block !important; }
+    .statement-brand { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 5mm; border-bottom: 1px solid #475569; padding-bottom: 4mm; }
+    .statement-logo { display: block; width: 52mm; max-height: 20mm; object-fit: contain; }
+    .statement-heading { margin: 3mm 0 5mm; text-align: center; }
+    .statement-heading h1 { margin: 0 !important; font-size: 15pt !important; font-weight: 700; }
+    .statement-heading p, .statement-print-date { margin: 1mm 0 0; font-size: 8pt; }
+    .statement-print-date { text-align: right; }
+    .statement-info { display: grid; grid-template-columns: 1fr 1fr; gap: 2mm 12mm; margin: 5mm 0; font-size: 9pt; }
+    .statement-info-item { display: grid; grid-template-columns: 28mm 1fr; gap: 2mm; }
+    .statement-info-item strong { font-weight: 700; }
+    .statement-print-table-wrap { overflow: visible !important; }
+    .statement-print-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 7.5pt; color: #000 !important; }
+    .statement-print-table thead { display: table-header-group; }
+    .statement-print-table th,
+    .statement-print-table td { border: 1px solid #000 !important; color: #000 !important; }
+    .statement-print-table th { background: #e5e7eb !important; padding: 2mm 1mm; text-align: center; text-transform: uppercase; }
+    .statement-print-table td { padding: 1.5mm 1mm; vertical-align: top; }
+    .statement-print-table .statement-date,
+    .statement-print-table .statement-type,
+    .statement-print-table .statement-number { text-align: center !important; }
+    .statement-print-table .statement-number { white-space: nowrap; }
+    .statement-print-table .statement-text { text-align: left; overflow-wrap: anywhere; }
+    .statement-opening, .statement-carried { font-weight: 700; }
+    .statement-carried td { border-top: 1px solid #000 !important; padding-top: 3mm; }
+    .statement-print-table tr { break-inside: avoid; page-break-inside: avoid; }
+    .statement-page-footer { margin-top: 5mm; border: 1px solid #64748b; padding: 1.5mm; text-align: center; font-size: 8pt; }
+  }
+</style>
+<div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8 ledger-print-root">
+  <div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-8 ledger-page">
+    <header class="ledger-screen-only flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
+      <div>
+        <p class="text-xs font-bold uppercase text-cyan-700">Canon Registry · Accounts</p>
+        <h1 class="mt-1 text-3xl font-black text-slate-950">{% if company_mode %}Company Credit/Debit{% else %}Party Credit/Debit{% endif %}</h1>
+        <p class="mt-2 text-sm text-slate-500">{% if company_mode %}{{ company }} company transactions.{% else %}Review transactions by customer, supplier, utility provider, or worker.{% endif %}</p>
+      </div>
+      <div class="flex items-center gap-2 ledger-no-print">
+        <a href="{{ url_for('accounts_portal') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Accounts</a>
+      </div>
+    </header>
+
+    {% if company_mode %}
+    <nav class="ledger-screen-only flex gap-2 border-b border-slate-200 pb-4" aria-label="Company ledger">
+      {% for company_option in ('Canon', 'Haram') %}
+      <a href="{{ url_for('accounts_company_credit_debit', company=company_option, direction=direction, start_date=start_date, end_date=end_date, q=search) }}" class="rounded-lg border px-4 py-2 text-sm font-bold {% if company == company_option %}border-indigo-800 bg-indigo-800 text-white{% else %}border-slate-300 text-slate-700 hover:bg-slate-50{% endif %}">{{ company_option }}</a>
+      {% endfor %}
+    </nav>
+    {% endif %}
+
+    <section class="ledger-screen-only grid gap-0 border-y border-slate-200 sm:grid-cols-3">
+      <div class="border-b border-slate-200 px-4 py-4 sm:border-b-0 sm:border-r"><p class="text-xs font-bold uppercase text-emerald-700">Total credits</p><p id="total-credit" class="mt-1 text-2xl font-black text-emerald-800">PKR {{ '{:,.2f}'.format(total_credit) }}</p></div>
+      <div class="border-b border-slate-200 px-4 py-4 sm:border-b-0 sm:border-r"><p class="text-xs font-bold uppercase text-rose-700">Total debits</p><p id="total-debit" class="mt-1 text-2xl font-black text-rose-800">PKR {{ '{:,.2f}'.format(total_debit) }}</p></div>
+      <div class="px-4 py-4"><p class="text-xs font-bold uppercase text-slate-500">Net balance</p><p id="net-balance" class="mt-1 text-2xl font-black {% if net_balance >= 0 %}text-emerald-800{% else %}text-rose-800{% endif %}">PKR {{ '{:,.2f}'.format(net_balance) }}</p></div>
+    </section>
+
+    <section class="ledger-no-print border-b border-slate-200 pb-5">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div><h2 class="text-lg font-black text-slate-900">Manual credit / debit</h2><p class="mt-1 text-sm text-slate-500">Record an adjustment that is not already tracked by another account module.</p></div>
+        <button type="button" id="toggle-manual-entry" aria-expanded="false" aria-controls="manual-entry-form" class="inline-flex items-center gap-2 rounded-lg bg-cyan-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-cyan-900"><i class="fa-solid fa-plus" aria-hidden="true"></i> Record manual entry</button>
+      </div>
+      <form id="manual-entry-form" method="post" hidden style="display: none;" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <input type="hidden" name="q" value="{{ search }}">
+        <input type="hidden" name="direction" value="{{ direction }}">
+        <input type="hidden" name="start_date" value="{{ start_date }}">
+        <input type="hidden" name="end_date" value="{{ end_date }}">
+        <input type="hidden" name="company" value="{{ company }}">
+        <input type="hidden" name="party" value="{{ selected_party }}">
+        <label class="text-xs font-bold text-slate-600">Date<input type="date" name="manual_date" value="{{ today }}" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+        <label class="text-xs font-bold text-slate-600">Type<select name="manual_direction" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="CREDIT">Credit</option><option value="DEBIT">Debit</option></select></label>
+        <label class="text-xs font-bold text-slate-600">Company<select name="manual_company" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="Canon" {% if company == 'Canon' %}selected{% endif %}>Canon</option><option value="Haram" {% if company == 'Haram' %}selected{% endif %}>Haram</option></select></label>
+        <label class="text-xs font-bold text-slate-600">Amount (PKR)<input type="number" name="manual_amount" min="0.01" step="0.01" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+        <label class="text-xs font-bold text-slate-600 lg:col-span-3">Description<input name="manual_description" maxlength="255" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+        <label class="text-xs font-bold text-slate-600">Party / Payee<input name="manual_party" maxlength="200" value="{{ selected_party }}" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+        <label class="text-xs font-bold text-slate-600">Reference<input name="manual_reference" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+        <label class="text-xs font-bold text-slate-600">Method<input name="manual_method" maxlength="50" value="Manual" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
+        <div class="flex items-end lg:col-span-4"><button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-800 px-4 py-2.5 text-sm font-bold text-white hover:bg-cyan-900 sm:w-auto"><i class="fa-solid fa-plus" aria-hidden="true"></i> Record entry</button></div>
+      </form>
+    </section>
+
+    <section class="ledger-no-print border-b border-slate-200 pb-5">
+      <label for="ledger-search" class="block text-xs font-bold uppercase text-slate-600">Search transactions</label>
+      <input id="ledger-search" type="search" value="{{ search }}" placeholder="Search descriptions, parties, references, or methods" autocomplete="off" class="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm sm:max-w-2xl">
+      <p id="transaction-count" class="mt-2 text-sm text-slate-500">{{ entries|length }} transaction(s) in this view</p>
+    </section>
+
+    <section class="ledger-no-print flex flex-col gap-4 border-b border-slate-200 pb-5 md:flex-row md:items-end md:justify-between">
+      <div><h2 class="text-xl font-black text-slate-900">Filters</h2></div>
+      <form id="ledger-filter-form" method="get" class="grid w-full gap-2 sm:grid-cols-2 lg:max-w-5xl {% if company_mode %}lg:grid-cols-[9rem_9rem_9rem_auto]{% else %}lg:grid-cols-[minmax(12rem,1fr)_9rem_9rem_9rem_auto]{% endif %}">
+        <input type="hidden" name="q" value="{{ search }}">
+        {% if company_mode %}<input type="hidden" name="company" value="{{ company }}">{% else %}<select name="party" class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="">All billing parties</option>{% for party_name in party_names %}<option value="{{ party_name }}" {% if selected_party == party_name %}selected{% endif %}>{{ party_name }}</option>{% endfor %}</select>{% endif %}
+        <select name="direction" class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="ALL" {% if direction == 'ALL' %}selected{% endif %}>Credits and debits</option><option value="CREDIT" {% if direction == 'CREDIT' %}selected{% endif %}>Credits</option><option value="DEBIT" {% if direction == 'DEBIT' %}selected{% endif %}>Debits</option></select>
+        <input type="date" name="start_date" value="{{ start_date }}" aria-label="Start date" class="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
+        <input type="date" name="end_date" value="{{ end_date }}" aria-label="End date" class="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
+        <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-filter" aria-hidden="true"></i> Filter</button>
+      </form>
+    </section>
+
+    <div class="ledger-no-print flex justify-end">
+      <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Statement</button>
+    </div>
+
+    <section class="statement-print-only">
+      <header class="statement-brand">
+        <img src="{{ url_for('static', filename='canon logo black.webp') }}" alt="Canon Enterprises logo" class="statement-logo">
+        <p class="statement-print-date">Print Date: <strong>{{ printed_on }}</strong></p>
+      </header>
+      <div class="statement-heading">
+        <h1>STATEMENT OF ACCOUNT</h1>
+        <p>{% if company_mode %}{{ company }} · COMPANY CREDIT/DEBIT{% elif selected_party %}{{ selected_party }} · PARTY CREDIT/DEBIT{% else %}ALL PARTIES · PARTY CREDIT/DEBIT{% endif %}</p>
+      </div>
+
+      <div class="statement-print-table-wrap">
+        <table class="statement-print-table">
+          <colgroup>
+            <col style="width: 9%"><col style="width: 11%"><col style="width: 13%"><col style="width: 19%"><col style="width: 14%"><col style="width: 9%"><col style="width: 8%"><col style="width: 8%"><col style="width: 9%">
+          </colgroup>
+          <thead><tr><th>Date</th><th>Source</th><th>Party / Payee</th><th>Description</th><th>Reference</th><th>Method</th><th>Credit (PKR)</th><th>Debit (PKR)</th><th>Balance (PKR)</th></tr></thead>
+          <tbody>
+            <tr class="statement-opening">
+              <td class="statement-date">{{ statement_period_start or '—' }}</td><td>—</td><td>—</td><td class="statement-text">Opening Balance</td><td>—</td><td>—</td><td class="statement-number">—</td><td class="statement-number">—</td><td class="statement-number">{{ '{:,.2f}'.format(statement_opening_balance) }}</td>
+            </tr>
+            {% for entry in statement_entries %}
+            <tr data-statement-row data-search="{{ (entry.date ~ ' ' ~ entry.direction ~ ' ' ~ entry.category ~ ' ' ~ entry.party ~ ' ' ~ entry.description ~ ' ' ~ entry.reference ~ ' ' ~ entry.method)|lower }}">
+              <td class="statement-date">{{ entry.date }}</td><td class="statement-text">{{ entry.category }}</td><td class="statement-text">{{ entry.party or '—' }}</td><td class="statement-text">{{ entry.description }}</td><td class="statement-text">{{ entry.reference }}</td><td class="statement-text">{{ entry.method }}</td>
+              <td class="statement-number">{% if entry.credit_amount %}{{ '{:,.2f}'.format(entry.credit_amount) }}{% else %}—{% endif %}</td>
+              <td class="statement-number">{% if entry.debit_amount %}{{ '{:,.2f}'.format(entry.debit_amount) }}{% else %}—{% endif %}</td>
+              <td class="statement-number">{{ '{:,.2f}'.format(entry.running_balance) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="9" class="statement-text">No transactions for this statement period.</td></tr>
+            {% endfor %}
+            <tr class="statement-carried"><td colspan="6" class="statement-text">Carried Forward</td><td colspan="2"></td><td class="statement-number">{{ '{:,.2f}'.format(statement_carried_forward_balance) }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="statement-page-footer">Canon Registry · {% if company_mode %}{{ company }} Company{% elif selected_party %}{{ selected_party }}{% else %}All Parties{% endif %} Statement</div>
+    </section>
+
+    <div class="ledger-screen-only overflow-x-auto border-y border-slate-200">
+      <table class="w-full min-w-[1020px] text-left text-sm">
+        <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-3 py-3">Date</th><th class="px-3 py-3">Type</th><th class="px-3 py-3">Source</th><th class="px-3 py-3">{% if company_mode %}Party / Payee{% else %}Company{% endif %}</th><th class="px-3 py-3">Description</th><th class="px-3 py-3">Reference</th><th class="px-3 py-3">Method</th><th class="px-3 py-3 text-right">Credit (PKR)</th><th class="px-3 py-3 text-right">Debit (PKR)</th></tr></thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for entry in entries %}
+          <tr data-ledger-entry data-search="{{ (entry.date ~ ' ' ~ entry.direction ~ ' ' ~ entry.category ~ ' ' ~ entry.party ~ ' ' ~ entry.description ~ ' ' ~ entry.reference ~ ' ' ~ entry.method)|lower }}" data-credit="{{ entry.credit_amount }}" data-debit="{{ entry.debit_amount }}" class="hover:bg-slate-50"><td class="px-3 py-3 whitespace-nowrap">{{ entry.date }}</td><td class="px-3 py-3"><span class="rounded-full px-2.5 py-1 text-[10px] font-black {% if entry.direction == 'CREDIT' %}bg-emerald-100 text-emerald-800{% else %}bg-rose-100 text-rose-800{% endif %}">{{ entry.direction }}</span></td><td class="px-3 py-3 font-semibold text-slate-700">{{ entry.category }}</td><td class="px-3 py-3">{% if company_mode %}{{ entry.party or '—' }}{% else %}{{ entry.company }}{% endif %}</td><td class="px-3 py-3">{{ entry.description }}</td><td class="px-3 py-3">{{ entry.reference }}</td><td class="px-3 py-3">{{ entry.method }}</td><td class="px-3 py-3 text-right font-bold text-emerald-800">{% if entry.credit_amount %}{{ '{:,.2f}'.format(entry.credit_amount) }}{% else %}—{% endif %}</td><td class="px-3 py-3 text-right font-bold text-rose-800">{% if entry.debit_amount %}{{ '{:,.2f}'.format(entry.debit_amount) }}{% else %}—{% endif %}</td></tr>
+          {% endfor %}
+          <tr id="no-transactions-row" {% if entries %}hidden{% endif %}><td colspan="9" class="px-3 py-12 text-center text-slate-500">{% if entries %}No transactions match this search.{% else %}No transactions match these filters.{% endif %}</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="ledger-screen-only text-xs text-slate-500">Transactions include accessory bill amounts and supplier returns/exchanges, customer receipts, utility payments, payroll, and manual credit/debit entries. Supplier returns are shown as debits; exchanges are shown as a debit for the returned goods and a matching credit for the replacement.</p>
+  </div>
+</div>
+<script>
+  const ledgerSearch = document.getElementById('ledger-search');
+  const ledgerFilterForm = document.getElementById('ledger-filter-form');
+  const ledgerRows = Array.from(document.querySelectorAll('[data-ledger-entry]'));
+  const statementRows = Array.from(document.querySelectorAll('[data-statement-row]'));
+  const currencyFormatter = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  function updateLedgerSearch() {
+    const query = ledgerSearch.value.trim().toLowerCase();
+    let visibleCount = 0;
+    let creditTotal = 0;
+    let debitTotal = 0;
+
+    ledgerRows.forEach(row => {
+      const matches = !query || row.dataset.search.includes(query);
+      row.hidden = !matches;
+      if (matches) {
+        visibleCount += 1;
+        creditTotal += Number(row.dataset.credit || 0);
+        debitTotal += Number(row.dataset.debit || 0);
+      }
+    });
+    statementRows.forEach(row => {
+      row.hidden = Boolean(query) && !row.dataset.search.includes(query);
+    });
+    document.getElementById('no-transactions-row').hidden = visibleCount > 0;
+
+    document.getElementById('transaction-count').textContent = `${visibleCount} transaction(s) in this view`;
+    document.getElementById('total-credit').textContent = `PKR ${currencyFormatter.format(creditTotal)}`;
+    document.getElementById('total-debit').textContent = `PKR ${currencyFormatter.format(debitTotal)}`;
+    const netBalance = creditTotal - debitTotal;
+    const balanceElement = document.getElementById('net-balance');
+    balanceElement.textContent = `PKR ${currencyFormatter.format(netBalance)}`;
+    balanceElement.classList.toggle('text-emerald-800', netBalance >= 0);
+    balanceElement.classList.toggle('text-rose-800', netBalance < 0);
+
+    ledgerFilterForm.querySelector('input[name="q"]').value = ledgerSearch.value;
+    const params = new URLSearchParams(window.location.search);
+    if (ledgerSearch.value) params.set('q', ledgerSearch.value);
+    else params.delete('q');
+    const queryString = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${queryString ? `?${queryString}` : ''}`);
+  }
+
+  ledgerSearch.addEventListener('input', updateLedgerSearch);
+  updateLedgerSearch();
+
+  const manualEntryToggle = document.getElementById('toggle-manual-entry');
+  const manualEntryForm = document.getElementById('manual-entry-form');
+  manualEntryToggle.addEventListener('click', function () {
+    const isExpanded = manualEntryToggle.getAttribute('aria-expanded') === 'true';
+    manualEntryForm.hidden = isExpanded;
+    manualEntryForm.style.display = isExpanded ? 'none' : 'grid';
+    manualEntryToggle.setAttribute('aria-expanded', String(!isExpanded));
+    manualEntryToggle.innerHTML = isExpanded
+      ? '<i class="fa-solid fa-plus" aria-hidden="true"></i> Record manual entry'
+      : '<i class="fa-solid fa-xmark" aria-hidden="true"></i> Cancel';
+    if (!isExpanded) manualEntryForm.querySelector('input[name="manual_date"]').focus();
+  });
+</script>
+{% endblock %}

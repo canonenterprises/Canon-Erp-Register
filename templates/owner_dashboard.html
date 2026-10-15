@@ -1,0 +1,930 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8 md:pb-20">
+    <div class="mx-auto max-w-6xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-8">
+
+        <!-- =========================================================
+             HEADER
+        ========================================================== -->
+        <header class="relative overflow-hidden rounded-[2rem] bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
+            <div class="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">
+                        Owner control center
+                    </p>
+
+                    <h1 class="mt-2 text-3xl font-black tracking-tight sm:text-4xl">
+                        Factory overview
+                    </h1>
+
+                    <p class="mt-2 max-w-xl text-sm text-slate-300">
+                        A clear view of production, people, inventory, and cash commitments
+                        for {{ month_label }}.
+                    </p>
+                </div>
+
+                <div class="no-print flex items-center gap-3">
+                    <span class="rounded-full border border-white/15 bg-white/10 px-3 py-2 text-xs font-bold text-slate-200">
+                        {{ session.get('name') }}
+                    </span>
+
+                    <a
+                        href="{{ url_for('logout') }}"
+                        class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-slate-200 transition hover:bg-white/20"
+                        title="Logout"
+                    >
+                        <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Decorative elements -->
+            <div class="absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+            <div class="absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+        </header>
+
+
+        <!-- =========================================================
+             TOP KPI CARDS
+        ========================================================== -->
+        <section class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+
+            <!-- Orders -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Orders
+                </p>
+
+                <p class="mt-2 text-2xl font-black text-slate-900">
+                    {{ orders_count }}
+                </p>
+
+                <p class="mt-1 text-xs text-slate-500">
+                    {{ pending_orders }} without logs
+                </p>
+            </div>
+
+            <!-- Articles -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Articles
+                </p>
+
+                <p class="mt-2 text-2xl font-black text-slate-900">
+                    {{ articles_count }}
+                </p>
+
+                <p class="mt-1 text-xs text-slate-500">
+                    in master list
+                </p>
+            </div>
+
+            <!-- Production -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Production
+                </p>
+
+                <p class="mt-2 text-2xl font-black text-cyan-600">
+                    {{ '{:,.0f}'.format(production_pcs) }}
+                </p>
+
+                <p class="mt-1 text-xs text-slate-500">
+                    pieces this month
+                </p>
+            </div>
+
+            <!-- Labor Cost -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Labor cost
+                </p>
+
+                <p class="mt-2 text-2xl font-black text-indigo-600">
+                    Rs. {{ '{:,.0f}'.format(labor_cost) }}
+                </p>
+
+                <p class="mt-1 text-xs text-slate-500">
+                    this month
+                </p>
+            </div>
+
+            <!-- Inventory -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Inventory
+                </p>
+
+                <p class="mt-2 text-2xl font-black text-emerald-600">
+                    {{ '{:,.0f}'.format(inventory_quantity) }}
+                </p>
+
+                <p class="mt-1 text-xs text-slate-500">
+                    stock units
+                </p>
+            </div>
+
+            <!-- Advances -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Advances
+                </p>
+
+                <p class="mt-2 text-2xl font-black text-rose-600">
+                    Rs. {{ '{:,.0f}'.format(outstanding_advances) }}
+                </p>
+
+                <p class="mt-1 text-xs text-slate-500">
+                    outstanding
+                </p>
+            </div>
+        </section>
+
+
+        <!-- =========================================================
+             MASTER CONTROLS
+        ========================================================== -->
+        <section>
+            <p class="mb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600">
+                Master controls
+            </p>
+
+            <footer class="flex flex-wrap gap-3 text-sm font-bold text-slate-950">
+
+                <a
+                    href="{{ url_for('portal_controls') }}"
+                    class="rounded-xl bg-slate-950 px-6 py-4 text-white shadow-sm hover:bg-slate-800"
+                >
+                    Portal Controls
+                </a>
+
+                <a
+                    href="{{ url_for('manager_dashboard') }}"
+                    class="rounded-xl border border-slate-500 bg-white px-6 py-4 shadow-sm ring-1 ring-slate-200 hover:text-white hover:bg-slate-950"
+                >
+                    Open Dashboard
+                </a>
+
+                <a
+                    href="{{ url_for('payout') }}"
+                    class="rounded-xl border border-slate-500 bg-white px-6 py-4 shadow-sm ring-1 ring-slate-200 hover:text-white hover:bg-slate-950"
+                >
+                    Review Final Payout
+                </a>
+
+                <a
+                    href="{{ url_for('summary') }}"
+                    class="rounded-xl border border-slate-500 bg-white px-6 py-4 shadow-sm ring-1 ring-slate-200 hover:text-white hover:bg-slate-950"
+                >
+                    Open Master Summary
+                </a>
+
+            </footer>
+        </section>
+
+
+
+        <!-- =========================================================
+             ORDERS + FINANCIAL CLARITY
+        ========================================================== -->
+        <section class="grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
+
+            <!-- =====================================================
+                 ACTIVE ORDERS
+            ====================================================== -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+
+                <div class="flex items-start justify-between gap-4">
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600">
+                            Order-wise control
+                        </p>
+
+                        <h2 class="mt-1 text-xl font-black text-slate-900">
+                            Active orders this month
+                        </h2>
+                    </div>
+
+                    <span class="rounded-full bg-cyan-50 px-3 py-1.5 text-xs font-bold text-cyan-700">
+                        {{ order_summaries|length }} active orders
+                    </span>
+                </div>
+
+
+                <div class="mt-6 space-y-4">
+
+                    {% for order in order_summaries %}
+
+                    <details class="group rounded-2xl border border-slate-200 bg-slate-50/70 open:bg-white">
+
+                        <!-- Order Summary -->
+                        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 p-4">
+
+                            <div class="min-w-0">
+                                <p class="text-sm font-black text-slate-900">
+                                    {{ order.job_no }}
+                                </p>
+
+                                <p class="mt-1 truncate text-xs text-slate-500">
+                                    {{ order.party }} · {{ order.article }} · {{ order.color }}
+                                </p>
+                            </div>
+
+                            <div class="flex shrink-0 items-center gap-3 text-right">
+
+                                <!-- Ordered Pieces -->
+                                <div>
+                                    <p class="text-sm font-black text-slate-900">
+                                        {{ '{:,.0f}'.format(order.order_pcs) }}
+                                    </p>
+
+                                    <p class="text-[10px] uppercase text-slate-400">
+                                        order pcs
+                                    </p>
+                                </div>
+
+                                <!-- Produced Pieces -->
+                                <div>
+                                    <p class="text-sm font-black text-cyan-700">
+                                        {{ '{:,.0f}'.format(order.pieces) }}
+                                    </p>
+
+                                    <p class="text-[10px] uppercase text-slate-400">
+                                        produced
+                                    </p>
+                                </div>
+
+                                <!-- Status -->
+                                <span
+                                    class="
+                                        hidden rounded-full px-2 py-1 text-[10px] font-bold uppercase sm:inline-flex
+                                        {% if order.is_completed %}
+                                            bg-emerald-100 text-emerald-700
+                                        {% elif order.is_ready_to_ship %}
+                                            bg-sky-100 text-sky-700
+                                        {% else %}
+                                            bg-amber-100 text-amber-700
+                                        {% endif %}
+                                    "
+                                >
+                                    {{ 'Completed' if order.is_completed else ('Ready to Ship' if order.is_ready_to_ship else 'In Progress') }}
+                                </span>
+
+                                <i class="fa-solid fa-chevron-down text-xs text-slate-400 transition group-open:rotate-180"></i>
+                            </div>
+                        </summary>
+
+
+                        <!-- Order Details -->
+                        <div class="border-t border-slate-100 px-4 pb-4 pt-3">
+
+                            <!-- Order Metrics -->
+                            <div class="grid grid-cols-2 gap-2 text-center sm:grid-cols-4 xl:grid-cols-4">
+
+                                <!-- Order Pieces -->
+                                <div class="rounded-xl bg-slate-100 p-2">
+                                    <p class="text-[10px] text-slate-600">
+                                        Order pcs
+                                    </p>
+
+                                    <p class="font-black text-slate-950">
+                                        {{ '{:,.0f}'.format(order.order_pcs) }}
+                                    </p>
+                                </div>
+
+                                <!-- Produced -->
+                                <div class="rounded-xl bg-cyan-50 p-2">
+                                    <p class="text-[10px] text-cyan-700">
+                                        Produced
+                                    </p>
+
+                                    <p class="font-black text-cyan-950">
+                                        {{ '{:,.0f}'.format(order.pieces) }}
+                                    </p>
+                                </div>
+
+                                <!-- Shipped Pieces -->
+                                <div class="rounded-xl bg-violet-50 p-2">
+                                    <p class="text-[10px] text-violet-700">
+                                        Shipped PCS
+                                    </p>
+
+                                    <p class="font-black text-violet-950">
+                                        {{ '{:,.0f}'.format(order.shipped_pcs) }}
+                                    </p>
+                                </div>
+
+                                <!-- Excess Pieces -->
+                                <div class="rounded-xl bg-amber-50 p-2">
+                                    <p class="text-[10px] text-amber-700">
+                                        Excess PCS
+                                    </p>
+
+                                    <p class="font-black text-amber-950">
+                                        {{ '{:,.0f}'.format(order.excess_pcs) }}
+                                    </p>
+                                </div>
+                            </div>
+
+
+                            <div class="grid grid-cols-2 gap-2 text-center sm:grid-cols-4 xl:grid-cols-3 pt-3">
+                                <!-- Labor -->
+                                <div class="rounded-xl bg-indigo-50 p-2">
+                                    <p class="text-[10px] text-indigo-700">
+                                        Labor cost
+                                    </p>
+
+                                    <p class="font-black text-indigo-950">
+                                        Rs. {{ '{:,.0f}'.format(order.labor_cost) }}
+                                    </p>
+                                </div>
+
+                                <!-- Cuts -->
+                                <div class="rounded-xl bg-emerald-50 p-2">
+                                    <p class="text-[10px] text-emerald-700">
+                                        Cuts
+                                    </p>
+
+                                    <p class="font-black text-emerald-950">
+                                        {{ order.cuts }}
+                                    </p>
+                                </div>
+
+                                <!-- Status -->
+                                <div
+                                    class="
+                                        rounded-xl p-2
+                                        {% if order.is_completed %}
+                                            bg-emerald-100
+                                        {% elif order.is_ready_to_ship %}
+                                            bg-sky-50
+                                        {% else %}
+                                            bg-amber-50
+                                        {% endif %}
+                                    "
+                                >
+                                    <p
+                                        class="
+                                            text-[10px]
+                                            {% if order.is_completed %}
+                                                text-emerald-700
+                                            {% elif order.is_ready_to_ship %}
+                                                text-sky-700
+                                            {% else %}
+                                                text-amber-700
+                                            {% endif %}
+                                        "
+                                    >
+                                        Status
+                                    </p>
+
+                                    <p
+                                        class="
+                                            font-black
+                                            {% if order.is_completed %}
+                                                text-emerald-950
+                                            {% elif order.is_ready_to_ship %}
+                                                text-sky-950
+                                            {% else %}
+                                                text-amber-950
+                                            {% endif %}
+                                        "
+                                    >
+                                        {% if order.is_completed %}
+                                            Completed
+                                        {% elif order.is_ready_to_ship %}
+                                            Ready to Ship
+                                        {% else %}
+                                            {{ '{:,.0f}'.format(order.remaining_pcs) }} left
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+
+
+                            <!-- Fabric Statistics -->
+                            <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+
+                                <!-- Fabric Received -->
+                                <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                        Fabric received
+                                    </p>
+
+                                    <p class="mt-2 text-2xl font-black text-sky-600">
+                                        {{ '{:,.2f}'.format(order.fabric_received) }}
+                                    </p>
+
+                                    <p class="mt-1 text-xs text-slate-500">
+                                        meters for order
+                                    </p>
+                                </div>
+
+                                <!-- Fabric Used -->
+                                <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                        Fabric used
+                                    </p>
+
+                                    <p class="mt-2 text-2xl font-black text-orange-600">
+                                        {{ '{:,.2f}'.format(order.fabric_used) }}
+                                    </p>
+
+                                    <p class="mt-1 text-xs text-slate-500">
+                                        meters in cuts
+                                    </p>
+                                </div>
+
+                            </div>
+
+
+                            <!-- Operation Progress -->
+                            <div class="mt-4 space-y-3">
+                                <div>
+                                    <div class="mb-1 flex justify-between gap-3 text-xs font-bold">
+                                        <span class="text-slate-700">Overall operations completion</span>
+                                        <span class="text-slate-900">
+                                            {{ '{:.1f}'.format(order.overall_operation_completion) }}% · {{ order.completed_operation_cuts }}/{{ order.total_operation_cuts }} cut operations
+                                        </span>
+                                    </div>
+                                    <progress
+                                        class="owner-progress h-2.5 w-full"
+                                        value="{{ order.overall_operation_completion }}"
+                                        max="100"
+                                    ></progress>
+                                </div>
+
+                                {% for operation in order.operations %}
+
+                                <div>
+                                    <div class="mb-1 flex justify-between text-xs font-bold">
+                                        <span class="text-slate-600">
+                                            {{ operation.operation }}
+                                        </span>
+
+                                        <span class="text-right text-slate-900">
+                                            {{ '{:,.0f}'.format(operation.completed_pcs) }} / {{ '{:,.0f}'.format(operation.required_pcs) }} pcs · {{ operation.completed_cuts }}/{{ operation.total_cuts }} cuts
+                                        </span>
+                                    </div>
+
+                                    <progress
+                                        class="owner-progress h-2.5 w-full"
+                                        value="{{ operation.percentage }}"
+                                        max="100"
+                                    ></progress>
+                                </div>
+
+                                {% endfor %}
+
+                            </div>
+
+                        </div>
+                    </details>
+
+                    {% else %}
+
+                    <p class="text-sm text-slate-500">
+                        No orders have production activity this month.
+                    </p>
+
+                    {% endfor %}
+
+                </div>
+            </div>
+
+
+            <!-- =====================================================
+                 FINANCIAL CLARITY
+            ====================================================== -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+
+                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-700">
+                    Accounts portal · {{ month_label }}
+                </p>
+
+                <h2 class="mt-1 text-xl font-black text-slate-900">
+                    Accounts &amp; cash flow
+                </h2>
+
+                <div class="mt-5 grid grid-cols-2 gap-2 text-center">
+                    <div class="rounded-xl bg-emerald-50 p-3">
+                        <p class="text-[10px] font-bold uppercase text-emerald-700">Sales invoiced</p>
+                        <p class="mt-1 text-sm font-black text-emerald-950">PKR {{ '{:,.2f}'.format(monthly_sales_invoiced) }}</p>
+                    </div>
+                    <div class="rounded-xl bg-sky-50 p-3">
+                        <p class="text-[10px] font-bold uppercase text-sky-700">Customer receipts</p>
+                        <p class="mt-1 text-sm font-black text-sky-950">PKR {{ '{:,.2f}'.format(monthly_customer_receipts) }}</p>
+                    </div>
+                    <div class="rounded-xl bg-amber-50 p-3">
+                        <p class="text-[10px] font-bold uppercase text-amber-700">Receivables open</p>
+                        <p class="mt-1 text-sm font-black text-amber-950">PKR {{ '{:,.2f}'.format(accounts_receivable) }}</p>
+                    </div>
+                    <div class="rounded-xl bg-rose-50 p-3">
+                        <p class="text-[10px] font-bold uppercase text-rose-700">Unbilled challans</p>
+                        <p class="mt-1 text-sm font-black text-rose-950">{{ unbilled_challan_count }}</p>
+                    </div>
+                </div>
+
+                <div class="mt-5 space-y-3 border-t border-slate-100 pt-4 text-sm">
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Accessory bills this month</span>
+                        <strong class="text-slate-900">PKR {{ '{:,.2f}'.format(monthly_accessory_bills) }}</strong>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Utility bills this month</span>
+                        <strong class="text-slate-900">PKR {{ '{:,.2f}'.format(monthly_utility_bills) }}</strong>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Utility balance outstanding</span>
+                        <strong class="text-slate-900">PKR {{ '{:,.2f}'.format(utility_outstanding) }}</strong>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Labor cost accrued this month</span>
+                        <strong class="text-slate-900">PKR {{ '{:,.2f}'.format(labor_cost) }}</strong>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Worker advances outstanding</span>
+                        <strong class="text-rose-600">PKR {{ '{:,.2f}'.format(outstanding_advances) }}</strong>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-slate-500">Manual credits / debits this month</span>
+                        <strong class="text-slate-900">PKR {{ '{:,.2f}'.format(monthly_manual_credits) }} / {{ '{:,.2f}'.format(monthly_manual_debits) }}</strong>
+                    </div>
+                </div>
+
+                <p class="mt-4 text-[11px] leading-5 text-slate-500">
+                    Sales use billed invoices and standalone customer bills; challans are not counted as revenue. Stock records track quantities and locations, so no stock value or net profit is estimated here.
+                </p>
+
+                <a href="{{ url_for('accounts_portal') }}" class="mt-4 inline-flex items-center gap-2 text-xs font-bold text-emerald-800 hover:text-emerald-950">
+                    Open Accounts Portal <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                </a>
+            </div>
+
+        </section>
+
+
+        <!-- =========================================================
+             INVENTORY + ATTENTION
+        ========================================================== -->
+        <section class="grid gap-6 lg:grid-cols-2">
+
+            <!-- Inventory -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+
+                <div class="flex items-center justify-between">
+
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600">
+                            Materials
+                        </p>
+
+                        <h2 class="mt-1 text-xl font-black text-slate-900">
+                            Inventory health
+                        </h2>
+                    </div>
+
+                    <a
+                        href="{{ url_for('inventory') }}"
+                        class="text-xs font-bold text-slate-500 hover:text-slate-900"
+                    >
+                        Open inventory →
+                    </a>
+                </div>
+
+
+                <div class="mt-5 grid grid-cols-2 gap-3">
+
+                    <div class="rounded-xl bg-emerald-50 p-4">
+                        <p class="text-xs text-emerald-700">
+                            Inventory records
+                        </p>
+
+                        <p class="mt-1 text-2xl font-black text-emerald-900">
+                            {{ inventory_count }}
+                        </p>
+                    </div>
+
+                    <div class="rounded-xl bg-sky-50 p-4">
+                        <p class="text-xs text-sky-700">
+                            Fabric received
+                        </p>
+
+                        <p class="mt-1 text-2xl font-black text-sky-900">
+                            {{ '{:,.0f}'.format(inventory_received) }}
+                        </p>
+                    </div>
+
+                </div>
+
+                <p class="mt-4 text-xs text-slate-500">
+                    Review low stock and material movement from the inventory module.
+                </p>
+            </div>
+
+
+            <!-- Attention -->
+            <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+
+                <div class="flex items-center justify-between">
+
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-rose-600">
+                            Attention
+                        </p>
+
+                        <h2 class="mt-1 text-xl font-black text-slate-900">
+                            What needs review
+                        </h2>
+                    </div>
+
+                    <i class="fa-solid fa-bell text-rose-500"></i>
+                </div>
+
+
+                <div class="mt-5 space-y-3">
+
+                    <!-- Orders without logs -->
+                    <div class="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+
+                        <span class="text-sm text-slate-600">
+                            Orders without production logs
+                        </span>
+
+                        <strong class="text-slate-900">
+                            {{ pending_orders }}
+                        </strong>
+                    </div>
+
+
+                    <!-- Workers with advances -->
+                    <div class="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+
+                        <span class="text-sm text-slate-600">
+                            Workers with advances
+                        </span>
+
+                        <strong class="text-slate-900">
+                            {{ workers_with_advances }}
+                        </strong>
+                    </div>
+
+
+                    <!-- Active workers -->
+                    <div class="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+
+                        <span class="text-sm text-slate-600">
+                            Active this month
+                        </span>
+
+                        <strong class="text-slate-900">
+                            {{ active_worker_count }}
+                        </strong>
+                    </div>
+
+                </div>
+            </div>
+
+        </section>
+
+
+        <!-- =========================================================
+             ANNUAL REPORT
+        ========================================================== -->
+        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-600">Annual report</p>
+                    <h2 class="mt-1 text-xl font-black text-slate-900">Factory report {{ annual_report_year }}</h2>
+                    <p class="mt-1 text-xs text-slate-500">Yearly snapshot of orders, production, labor, fabric, and workers.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <select class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700" onchange="window.location='/annual-reports/' + this.value" aria-label="Annual report year">
+                        {% for year in annual_report_year_options %}<option value="{{ year }}" {% if year == annual_report_year %}selected{% endif %}>{{ year }}</option>{% endfor %}
+                    </select>
+                    <span class="rounded-full px-3 py-2 text-xs font-bold {% if annual_report_status == 'Finalized' %}bg-emerald-100 text-emerald-700{% elif annual_report_status == 'Draft' %}bg-amber-100 text-amber-700{% else %}bg-slate-100 text-slate-600{% endif %}">{{ annual_report_status }}</span>
+                    <a href="{{ url_for('annual_report', year=annual_report_year) }}" class="rounded-lg bg-slate-950 px-3 py-2 text-xs font-bold text-white">View Report</a>
+                    {% if annual_report_status != 'Finalized' %}<form method="post" action="{{ url_for('annual_report', year=annual_report_year) }}" class="inline"><button name="action" value="generate" class="rounded-lg bg-cyan-600 px-3 py-2 text-xs font-bold text-white">Generate</button></form>{% endif %}
+                    <a href="{{ url_for('annual_report_print', year=annual_report_year) }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700">Print</a>
+                    <a href="{{ url_for('annual_reports') }}" class="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700">Archive</a>
+                </div>
+            </div>
+            <div class="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div class="rounded-xl bg-slate-50 p-3"><p class="text-[10px] uppercase text-slate-400">Orders</p><strong class="text-lg text-slate-900">{{ annual_report_kpis.total_orders or 0 }}</strong></div>
+                <div class="rounded-xl bg-emerald-50 p-3"><p class="text-[10px] uppercase text-emerald-700">Completed</p><strong class="text-lg text-emerald-900">{{ annual_report_kpis.completed_orders or 0 }}</strong></div>
+                <div class="rounded-xl bg-cyan-50 p-3"><p class="text-[10px] uppercase text-cyan-700">Production</p><strong class="text-lg text-cyan-900">{{ '{:,.0f}'.format(annual_report_kpis.total_produced_pieces or 0) }}</strong></div>
+                <div class="rounded-xl bg-indigo-50 p-3"><p class="text-[10px] uppercase text-indigo-700">Labor cost</p><strong class="text-lg text-indigo-900">PKR {{ '{:,.0f}'.format(annual_report_kpis.total_labor_cost or 0) }}</strong></div>
+            </div>
+            <p class="mt-4 text-xs text-slate-400">Last generated: {{ annual_report_generated_at.strftime('%d/%m/%Y %H:%M') if annual_report_generated_at else 'Not saved' }}{% if annual_report_finalized_at %} | Finalized: {{ annual_report_finalized_at.strftime('%d/%m/%Y %H:%M') }}{% endif %}</p>
+        </section>
+
+
+        <!-- =========================================================
+             YEARLY GROWTH
+        ========================================================== -->
+        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+            <div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600">
+                        Yearly growth
+                    </p>
+                    <h2 class="mt-1 text-xl font-black text-slate-900">
+                        Orders completed and production
+                    </h2>
+                </div>
+                <p class="text-xs font-semibold text-slate-400">{{ chart_year }} calendar year</p>
+            </div>
+
+            <div class="relative mt-5 h-72 sm:h-80">
+                <canvas id="owner-growth-chart" data-months="{{ chart_months | tojson | forceescape }}" data-production="{{ chart_monthly_production | tojson | forceescape }}" data-completed-orders="{{ chart_completed_orders | tojson | forceescape }}" aria-label="Monthly completed orders and production chart"></canvas>
+            </div>
+        </section>
+
+
+        <!-- =========================================================
+             RECENT PRODUCTION ACTIVITY
+        ========================================================== -->
+        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+
+            <div class="flex items-center justify-between">
+
+                <div>
+                    <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-indigo-600">
+                        Live feed
+                    </p>
+
+                    <h2 class="mt-1 text-xl font-black text-slate-900">
+                        Recent production activity
+                    </h2>
+                </div>
+
+                <a
+                    href="{{ url_for('production_log') }}"
+                    class="text-xs font-bold text-slate-500 hover:text-slate-900"
+                >
+                    View full log →
+                </a>
+            </div>
+
+
+            <div class="mt-4 overflow-x-auto">
+
+                <table class="w-full min-w-[620px] text-left text-sm">
+
+                    <thead class="border-b border-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        <tr>
+                            <th class="px-3 py-3">Date</th>
+                            <th class="px-3 py-3">Worker</th>
+                            <th class="px-3 py-3">Operation</th>
+                            <th class="px-3 py-3">Article</th>
+                            <th class="px-3 py-3 text-right">Pieces</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+
+                        {% for log in recent_activity %}
+
+                        <tr class="border-b border-slate-50">
+
+                            <td class="px-3 py-3 text-slate-500">
+                                {{ log.date|format_ddmmyyyy if log.date else '-' }}
+                            </td>
+
+                            <td class="px-3 py-3 font-bold text-slate-800">
+                                {{ log.worker or '-' }}
+                            </td>
+
+                            <td class="px-3 py-3 text-indigo-600">
+                                {{ log.operation or '-' }}
+                            </td>
+
+                            <td class="px-3 py-3 text-slate-600">
+                                {{ log.article_name or log.article or '-' }}
+                            </td>
+
+                            <td class="px-3 py-3 text-right font-bold text-slate-900">
+                                {{ log.pcs or 0 }}
+                            </td>
+
+                        </tr>
+
+                        {% else %}
+
+                        <tr>
+                            <td
+                                colspan="5"
+                                class="px-3 py-6 text-center text-slate-500"
+                            >
+                                No activity recorded yet.
+                            </td>
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+
+<!-- ===============================================================
+     CUSTOM STYLES
+================================================================ -->
+
+<style>
+    .owner-progress {
+        accent-color: #0891b2;
+    }
+
+    @media print {
+        /* Preserve screen colors when printing */
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Hide elements marked as no-print */
+        .no-print {
+            display: none !important;
+        }
+    }
+</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const chartCanvas = document.getElementById('owner-growth-chart');
+        if (!chartCanvas || typeof Chart === 'undefined') return;
+
+        new Chart(chartCanvas, {
+            data: {
+                labels: JSON.parse(chartCanvas.dataset.months || '[]'),
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: 'Production (pcs)',
+                        data: JSON.parse(chartCanvas.dataset.production || '[]'),
+                        backgroundColor: 'rgba(8, 145, 178, 0.72)',
+                        borderColor: '#0891b2',
+                        borderWidth: 1,
+                        borderRadius: 6,
+                        yAxisID: 'production-axis'
+                    },
+                    {
+                        type: 'line',
+                        label: 'Orders completed',
+                        data: JSON.parse(chartCanvas.dataset.completedOrders || '[]'),
+                        borderColor: '#e11d48',
+                        backgroundColor: '#e11d48',
+                        borderWidth: 3,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        tension: 0.3,
+                        fill: false,
+                        yAxisID: 'orders-axis'
+                    }
+                ]
+            },
+            options: {
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { labels: { usePointStyle: true, boxWidth: 8, color: '#475569', font: { family: 'Poppins' } } },
+                    tooltip: { padding: 10, cornerRadius: 10 }
+                },
+                scales: {
+                    'production-axis': {
+                        beginAtZero: true,
+                        position: 'left',
+                        grid: { color: '#e2e8f0' },
+                        ticks: { color: '#64748b' },
+                        title: { display: true, text: 'Production (pcs)', color: '#0891b2' }
+                    },
+                    'orders-axis': {
+                        beginAtZero: true,
+                        position: 'right',
+                        grid: { drawOnChartArea: false },
+                        ticks: { precision: 0, color: '#e11d48' },
+                        title: { display: true, text: 'Completed orders', color: '#e11d48' }
+                    },
+                    x: { grid: { display: false }, ticks: { color: '#64748b' } }
+                }
+            }
+        });
+    });
+</script>
+
+{% endblock %}

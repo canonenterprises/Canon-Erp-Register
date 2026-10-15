@@ -1,0 +1,930 @@
+{% extends 'base.html' %}
+{% block content %}
+{% include 'navbar.html' %}
+<div class="max-w-9xl mx-auto p-6 pt-20 md:pt-20" id="print-area">
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
+        
+        <!-- Logo + Address (print only, at very top) -->
+        <div class="print-only print-header mb-4">
+            <img src="{{ url_for('static', filename='canon logo black.webp') }}"
+                alt="Canon Logo"
+                class="h-14 w-auto print-logo">
+
+            <div class="print-side">
+                <div class="serial-print">
+                    <div class="serial-box">
+                        <label class="block text-xs font-bold">Serial No</label>
+                        <input
+                            type="text"
+                            name="serial_no"
+                            value="{{ serial_no or '' }}"
+                            readonly
+                            class="border rounded p-1 w-40 text-right bg-slate-100"
+                        >
+                    </div>
+                </div>
+
+                <div class="photo-box">
+                    FABRIC ?
+                </div>
+            </div>
+        </div>
+
+        <!-- Form -->
+        <form id="inventory-form" method="POST" action="{{ url_for('save_inventory', job_no=selected_job) }}">
+            <input type="hidden" name="serial_no" value="{{ serial_no or '' }}">
+            <input type="hidden" name="inventory_id" value="{{ inventory.id if inventory else '' }}">
+            <!-- Header -->
+            <div class="flex justify-between items-center mb-6">
+                <div>
+                    <h2 class="text-2xl font-extrabold text-black-800">Fabric Position Inventory</h2>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 no-print">
+                    <span class="px-3 py-1 rounded-full bg-emerald-100 text-black-700 text-sm font-bold">Serial No: {{ serial_no }}</span>
+                    <span class="px-3 py-1 rounded-full text-sm font-bold {% if 'Rejected' in inventory_status %}bg-rose-100 text-rose-800{% elif 'Re-active' in inventory_status %}bg-teal-100 text-teal-800{% elif inventory_status.startswith('Finished') %}bg-emerald-100 text-emerald-800{% elif inventory_status.startswith('Active') %}bg-cyan-100 text-cyan-800{% elif inventory_status.startswith('Partially Used') %}bg-amber-100 text-amber-800{% else %}bg-slate-100 text-slate-700{% endif %}">Status: {{ inventory_status or 'Not Used' }}</span>
+                </div>
+            </div>
+
+            <!-- Top Info -->
+            <div class="upper-inventory-fields">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Supplier</label>
+                    <input type="text" name="suppliers" value="{{ inventory.suppliers if inventory and inventory.suppliers else '' }}"readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Fabric Quality</label>
+                    <input type="text" name="fabric_quality" value="{{ inventory.fabric_quality if inventory and inventory.fabric_quality else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Width</label>
+                    <input type="text" name="width" value="{{ inventory.width if inventory and inventory.width else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Fabric For</label>
+                    <input type="text" name="fabric_for" value="{{ inventory.fabric_for if inventory and inventory.fabric_for else '' }}" readonlyrequired class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                <div>
+                    <label class="block text-xs font-bold text-black-500">File No</label>
+                    <input type="text" name="file_no" value="{{ inventory.file_no if inventory and inventory.file_no else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Cut Size</label>
+                    <input type="text" name="cut_size_header" value="{{ inventory.cut_size_header if inventory and inventory.cut_size_header else '' }}" required class="upper w-full border border-black-500 rounded-lg p-2">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Req Cutting</label>
+                    <input type="text" id="req_cutting" name="req_cutting" value="{{ inventory.req_cutting if inventory and inventory.req_cutting else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Consumption</label>
+                    <input type="number" step="0.01" id="consumption" name="consumption" value="{{ inventory.consumption if inventory and inventory.consumption else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed" oninput="updateReqCutting()">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Req Average</label>
+                    <input type="text" id="req_average" name="req_average" value="{{ inventory.req_average if inventory and inventory.req_average else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Recieved Date</label>
+                    <input type="date" name="recv_date" value="{{ inventory.recv_date if inventory and inventory.recv_date else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Received From</label>
+                    <input type="text" name="received_from" value="{{ inventory.received_from if inventory and inventory.received_from else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Challan No</label>
+                    <input type="text" name="challan_no" value="{{ inventory.challan_no if inventory and inventory.challan_no else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Place</label>
+                    <input type="text" name="place" value="{{ inventory.place if inventory and inventory.place else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">1 Meter = 100 CM (Rolls)</label>
+                    <input type="text" name="meter_note" value="{{ inventory.meter_note if inventory and inventory.meter_note else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Fabric Quantity A</label>
+                    <input type="number" step="0.01" name="fabric_qty_a" value="{{ inventory.fabric_qty_a if inventory and inventory.fabric_qty_a else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Fabric Quantity B</label>
+                    <input type="number" step="0.01" name="fabric_qty_b" value="{{ inventory.fabric_qty_b if inventory and inventory.fabric_qty_b else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                    <label class="no-print mt-2 flex items-center gap-2 text-xs font-bold text-black-700">
+                        <input type="checkbox" name="enable_fabric_b" {% if inventory and inventory.fabric_b_enabled %}checked{% endif %}>
+                        Enable Fabric B.Q for future cuts
+                    </label>
+                    {% if inventory and inventory.fabric_b_enabled %}
+                    <span class="print-only text-xs font-bold text-black-700">B-QUALITY ACTIVE</span>
+                    {% endif %}
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Receive Cut Pcs</label>
+                    <input type="number" name="receive_cut_pcs" value="{{ inventory.receive_cut_pcs if inventory and inventory.receive_cut_pcs else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Total</label>
+                    <input type="text" name="total" value="{{ inventory.total if inventory and inventory.total else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10 no-print">
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Used Fabric</label>
+                    <input type="text" name="used_fabric" value="{{ inventory.used_fabric if inventory and inventory.used_fabric else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Left Over Fabric</label>
+                    <input type="text" name="left_over_fabric" value="{{ inventory.left_over_fabric if inventory and inventory.left_over_fabric else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Rejected Fabric</label>
+                    <input type="number" step="0.01" id="rejected_fabric" name="rejected_fabric" value="{{ inventory.rejected_fabric if inventory and inventory.rejected_fabric else '' }}" data-original-value="{{ inventory.rejected_fabric if inventory and inventory.rejected_fabric else '' }}" class="upper w-full border border-black-500 rounded-lg p-2">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">Re-active Fabric</label>
+                    <input type="number" step="0.01" min="0" max="{{ inventory.rejected_fabric|float if inventory else '' }}" name="re_active_fabric" value="{{ inventory.rejected_recovered_fabric if inventory and inventory.rejected_recovered_fabric else '0' }}" class="upper w-full border border-black-500 rounded-lg p-2">
+                </div>
+            </div>
+            </div>
+
+
+
+
+            <!-- Inventory Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full border border-black rounded-lg text-sm table-fixed">
+                    <thead class="bg-slate-100">
+                        <tr>
+                            <th class="border w-24 px-2 py-1">Date</th>
+                            <th class="border px-2 py-1">Item</th>
+                            <th class="border px-2 py-1">S. No</th>
+                            <th class="border px-2 py-1">File No</th>
+                            <th class="border px-2 py-1">Order No</th>
+                            <th class="border px-2 py-1">Cut No</th>
+                            <th class="border px-2 py-1">Cut Size</th>
+                            <th class="border px-2 py-1">Cutting Pcs</th>
+                            <th class="border px-2 py-1">Fabric Req</th>
+                            <th class="border px-2 py-1">Fabric Issue</th>
+                            <th class="border px-2 py-1">Fabric Use</th>
+                            <th class="border px-2 py-1">Fabric Return</th>
+                            <th class="border px-2 py-1">Shortage</th>
+                            <th class="border px-2 py-1">Wastage</th>
+                            <th class="border px-2 py-1">Cut Pcs</th>
+                            <th class="border px-2 py-1">Fabric Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for i in range(1,15) %}
+                        {% set r = rows[loop.index0] if rows and rows|length > loop.index0 else None %}
+                        <tr>
+                            <td class="border w-24 px-1 py-1">
+                                <input type="date" name="date_{{ i }}" value="{{ r.date if r and r.date else '' }}" class="w-full p-1 border rounded date-input" readonly>
+                                <input type="hidden" name="issue_by_{{ i }}" value="{{ r.issue_by if r and r.issue_by else '' }}">
+                                <span class="print-date"></span>
+                            </td>
+                            <td class="border px-1 py-1"><input type="text" name="item_{{ i }}" value="{{ r.item if r and r.item else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            {% set inventory_row_serial = r.sno if r and r.sno else '' %}
+                            <td class="border px-1 py-1">
+                                <input type="text" value="{{ inventory_row_serial.split('/', 1)[0] }}" class="w-full p-1 border rounded" readonly>
+                                <input type="hidden" name="sno_{{ i }}" value="{{ inventory_row_serial }}">
+                            </td>
+                            <td class="border px-1 py-1"><input type="text" name="file_{{ i }}" value="{{ r.file_no if r and r.file_no else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="text" name="order_no_{{ i }}" value="{{ r.order_no if r and r.order_no else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="number" name="cut_no_{{ i }}" value="{{ r.cut_no if r and r.cut_no else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="number" name="cut_size_{{ i }}" value="{{ r.cut_size if r and r.cut_size else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="number" name="cutting_pcs_{{ i }}" value="{{ r.cutting_pcs if r and r.cutting_pcs is not none else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="number" step="0.01" name="fabric_req_{{ i }}" value="{{ r.fabric_req if r and r.fabric_req else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="number" step="0.01" name="fabric_issue_{{ i }}" value="{{ r.fabric_issue if r and r.fabric_issue else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="number" step="0.01" name="fabric_use_{{ i }}" value="{{ r.fabric_use if r and r.fabric_use else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="number" step="0.01" name="fabric_return_{{ i }}" value="{{ r.fabric_return if r and r.fabric_return else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="text" value="{{ r.shortage_total if r and r.shortage_total else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="number" step="0.01" name="wastage_{{ i }}" value="{{ r.wastage if r and r.wastage else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="number" name="cut_pcs_{{ i }}" value="{{ r.cut_pcs if r and r.cut_pcs is not none else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="number" step="0.01" name="balance_{{ i }}" value="{{ r.balance if r and r.balance else '' }}" class="w-full p-1 border rounded" readonly></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                    <table class="w-full border border-black rounded-lg text-sm table-fixed mt-6">
+                    <thead class="bg-slate-100">
+                        <tr>
+                            <th class="border px-2 py-1">Style</th>
+                            <th class="w-12 border px-2 py-1"></th>
+                            <th class="border px-2 py-1">Cut Size</th>
+                            <th class="border px-2 py-1">Cutting Pcs</th>
+                            <th class="border px-2 py-1">Shortage</th>
+                            <th class="border px-2 py-1">Fabric Use</th>
+                            <th class="border px-2 py-1">Cut Pcs</th>
+                            <th class="border px-2 py-1">Wastage</th>
+                            <th class="border px-2 py-1">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for i in range(1,6) %}
+                        {% set saved_b_row = (second_rows|selectattr('idx', 'equalto', 5)|list|first) if second_rows else None %}
+                        {% set r2 = (second_rows|selectattr('idx', 'equalto', i)|list|first) if second_rows else None %}
+                        {% if i == 4 and r2 and r2.fabric_use == 'B-QUALITY' and not saved_b_row %}
+                        {% set r2 = None %}
+                        {% endif %}
+                        {% if i == 5 and not r2 and second_rows %}
+                        {% set legacy_b_row = second_rows|selectattr('idx', 'equalto', 4)|list|first %}
+                        {% if legacy_b_row and legacy_b_row.fabric_use == 'B-QUALITY' %}
+                        {% set r2 = legacy_b_row %}
+                        {% endif %}
+                        {% endif %}
+                        {% set row_balance = '' %}
+                        {% if i == 1 and fabric_balance_before_b %}
+                        {% set row_balance = fabric_balance_before_b %}
+                        {% elif i == 2 and inventory and inventory.fabric_b_enabled %}
+                        {% set row_balance = remaining_b_quality %}
+                        {% elif i == 3 and remaining_fabric_balance %}
+                        {% set row_balance = remaining_fabric_balance %}
+                        {% elif i == 4 %}
+                        {% set row_balance = r2.balance if r2 and r2.balance else (request.form.get('sec_balance_4') or '') %}
+                        {% elif i == 5 and b_quality_applied %}
+                        {% set row_balance = fabric_balance_status %}
+                        {% elif r2 and r2.balance and i != 5 %}
+                        {% set row_balance = r2.balance %}
+                        {% elif i != 5 %}
+                        {% set row_balance = request.form.get('sec_balance_'~i) or '' %}
+                        {% endif %}
+
+                        <tr>
+                            <td class="border px-1 py-1"><input type="text" name="sec_style_{{ i }}" value="{{ summary_item if i == 1 and summary_item else (r2.style if r2 and r2.style else (request.form.get('sec_style_'~i) or '')) }}" class="w-full p-1 border rounded" {% if i <= 3 %}readonly{% endif %}></td>
+                            <td class="w-12 border px-1 py-1"><input type="text" name="sec_sno_{{ i }}" value="{{ r2.sno if r2 and r2.sno else (request.form.get('sec_sno_'~i) or '') }}" class="w-full p-1 border rounded" {% if i <= 3 %}readonly{% endif %}></td>
+                            <td class="border px-1 py-1"><input type="text" name="sec_cut_size_{{ i }}" value="{{ summary_cut_size if i == 1 and summary_cut_size else (r2.cut_size if r2 and r2.cut_size else (request.form.get('sec_cut_size_'~i) or '')) }}" class="w-full p-1 border rounded" {% if i <= 3 %}readonly{% endif %}></td>
+                            <td class="border px-1 py-1"><input type="number" name="sec_cutting_pcs_{{ i }}" value="{{ total_cutting_pcs if i == 1 and total_cutting_pcs else (r2.cutting_pcs if r2 and r2.cutting_pcs is not none else (request.form.get('sec_cutting_pcs_'~i) or '')) }}" class="w-full p-1 border rounded" {% if i <= 3 %}readonly{% endif %}></td>
+                            <td class="border px-1 py-1"><input type="text" name="sec_shortage_{{ i }}" value="{{ '%.2f'|format(total_shortage) if i == 1 and total_shortage else (r2.shortage if r2 and r2.shortage else (request.form.get('sec_shortage_'~i) or '')) }}" class="w-full p-1 border rounded" {% if i <= 4 %}readonly{% endif %}></td>
+                            <td class="border px-1 py-1"><input type="text" name="sec_fabric_use_{{ i }}" value="{{ 'A-QUALITY' if i == 4 else ('%.2f'|format(total_fabric_use) if i == 1 and total_fabric_use else ('B-QUALITY' if i == 5 and not (r2 and r2.fabric_use) and not request.form.get('sec_fabric_use_'~i) else (r2.fabric_use if r2 and r2.fabric_use else (request.form.get('sec_fabric_use_'~i) or '')))) }}" class="w-full p-1 border rounded" {% if i <= 4 %}readonly{% endif %}></td>
+                            <td class="border px-1 py-1">
+                                {% if i == 4 %}
+                                <input type="text" id="a-quality-remaining" value="{{ '%.2f'|format(remaining_a_quality|default(0, true)) }}" class="w-full p-1 border rounded" readonly>
+                                {% else %}
+                                <input type="number" name="sec_cut_pcs_{{ i }}" value="{{ total_cut_pcs if i == 1 and total_cut_pcs else ('%.2f'|format(remaining_b_quality) if i == 5 and inventory and inventory.fabric_b_enabled and remaining_b_quality > 0 else (0 if i == 5 and inventory and inventory.fabric_b_enabled else (r2.cut_pcs if r2 and r2.cut_pcs is not none else (request.form.get('sec_cut_pcs_'~i) or (inventory.fabric_qty_b if i == 5 and inventory else ''))))) }}" class="w-full p-1 border rounded" {% if i <= 3 %}readonly{% endif %}>
+                                {% endif %}
+                            </td>
+                            <td class="border px-1 py-1">
+                                {% if i == 4 or i == 5 %}
+                                {% set returned_disabled = (i == 4 and inventory and inventory.a_returned_to_party) or (i == 5 and inventory and inventory.b_returned_to_party) %}
+                                {% if returned_disabled %}
+                                <input type="hidden" name="sec_shortage_{{ i }}_flag" value="RETURNED">
+                                {% endif %}
+                                <select name="sec_shortage_{{ i }}" class="w-full p-1 border rounded" {% if returned_disabled %}disabled{% endif %}>
+                                    <option value="" {% if not (r2 and r2.shortage) and not request.form.get('sec_shortage_'~i) and not returned_disabled %}selected{% endif %}></option>
+                                    <option value="RETURNED" {% if (r2 and (r2.shortage|upper == 'RETURNED')) or (request.form.get('sec_shortage_'~i)|upper == 'RETURNED') or returned_disabled %}selected{% endif %}>RETURNED</option>
+                                </select>
+                                {% else %}
+                                <input type="text" step="0.01" name="sec_shortage_{{ i }}" value="{{ '%.2f'|format(total_wastage) if i == 1 and total_wastage else (r2.shortage if r2 and r2.shortage else (request.form.get('sec_shortage_'~i) or '')) }}" class="w-full p-1 border rounded" readonly>
+                                {% endif %}
+                            </td>
+                            <td class="border px-1 py-1"><input type="{{ 'text' if i >= 4 else 'number' }}" step="0.01" name="sec_balance_{{ i }}" value="{{ row_balance }}" class="w-full p-1 border rounded" {% if i <= 4 %}readonly{% endif %}></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+
+            <!-- Signature + Timestamp -->
+            <div class="print-only mt-5">
+                <div class="signature-row">
+                    <div>Prepared by: {{ session.get('name') or '_________________' }}</div>
+                    <div>Verified by: ________________</div>
+                    <div>Signature: _________________</div>
+                </div>
+
+                <p class="mt-6 text-xs text-slate-500 text-right">
+                    Printed on: <span id="print-time"></span>
+                </p>
+            </div>
+            <!-- Action Buttons -->
+            <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end sm:items-center sm:gap-3 no-print">
+                <a href="{{ url_for('saved_inventory', job_no=selected_job) }}" class="w-full sm:w-auto text-center px-5 py-2 rounded-lg bg-slate-950 text-white text-xs font-bold">
+                    View Saved Inventory
+                </a>
+                <button type="button" onclick="printInventory()" class="w-full sm:w-auto px-5 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold">
+                    Print Inventory
+                </button>
+                <button type="submit" class="w-full sm:w-auto px-5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold">
+                    Save Inventory Record
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Validation & Print Script -->
+<script>
+function updateReqCutting() {
+    const totalEl = document.querySelector('input[name="total"]');
+    const consumptionEl = document.querySelector('input[name="consumption"]');
+    const reqCuttingEl = document.querySelector('input[name="req_cutting"]');
+
+    if (!totalEl || !consumptionEl || !reqCuttingEl) {
+        return;
+    }
+
+    const total = parseFloat(totalEl.value);
+    const consumption = parseFloat(consumptionEl.value);
+
+    if (!Number.isNaN(total) && !Number.isNaN(consumption) && consumption !== 0) {
+        reqCuttingEl.value = (total / consumption * 12).toFixed(2);
+    } else {
+        reqCuttingEl.value = '';
+    }
+}
+
+function updateReqAverage() {
+    const consumptionEl = document.querySelector('input[name="consumption"]');
+    const reqAverageEl = document.querySelector('input[name="req_average"]');
+
+    if (!consumptionEl || !reqAverageEl) {
+        return;
+    }
+
+    const consumption = parseFloat(consumptionEl.value);
+
+    if (!Number.isNaN(consumption) && consumption !== 0) {
+        reqAverageEl.value = ((consumption / 12) * 39.35).toFixed(2);
+    } else {
+        reqAverageEl.value = '';
+    }
+}
+
+function validateInventory() {
+    const form = document.getElementById('inventory-form');
+
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return false;
+    }
+
+    return true;
+}
+
+document.getElementById('inventory-form').addEventListener('submit', function (e) {
+    updateReqCutting();
+    updateReqAverage();
+    updateInventoryFabricStatus();
+    if (!validateInventory()) {
+        e.preventDefault();
+    }
+});
+
+function updateInventoryFabricStatus() {
+    const fabricAEl = document.querySelector('input[name="fabric_qty_a"]');
+    const fabricBEl = document.querySelector('input[name="fabric_qty_b"]');
+    const enableFabricBEl = document.querySelector('input[name="enable_fabric_b"]');
+    const usedEl = document.querySelector('input[name="used_fabric"]');
+    const rejectedEl = document.querySelector('input[name="rejected_fabric"]');
+    const leftEl = document.querySelector('input[name="left_over_fabric"]');
+
+    if (!fabricAEl || !usedEl || !rejectedEl || !leftEl) {
+        return;
+    }
+
+    const fabricA = parseFloat(fabricAEl.value) || 0;
+    const fabricB = enableFabricBEl?.checked ? (parseFloat(fabricBEl?.value) || 0) : 0;
+    const used = parseFloat(usedEl.value) || 0;
+    const rejected = parseFloat(rejectedEl.value) || 0;
+    const leftOver = fabricA + fabricB - used - rejected;
+    leftEl.value = Number.isFinite(leftOver) ? leftOver.toFixed(2) : '';
+}
+
+function updateRejectedFromReactive() {
+    const rejectedEl = document.getElementById('rejected_fabric');
+    const reactiveEl = document.querySelector('input[name="re_active_fabric"]');
+    if (!rejectedEl || !reactiveEl) return;
+
+    const originalRejected = parseFloat(rejectedEl.dataset.originalValue || rejectedEl.value) || 0;
+    const reactive = Math.max(0, parseFloat(reactiveEl.value) || 0);
+    const boundedReactive = Math.min(reactive, originalRejected);
+    reactiveEl.value = boundedReactive.toFixed(2);
+    rejectedEl.value = Math.max(0, originalRejected - boundedReactive).toFixed(2);
+    updateInventoryFabricStatus();
+}
+
+function updateBQualityBalance() {
+    const shortageEl = document.querySelector('select[name="sec_shortage_5"]') || document.querySelector('input[name="sec_shortage_5"]');
+    const balanceEl = document.querySelector('input[name="sec_balance_3"]');
+    const statusEl = document.querySelector('input[name="sec_balance_5"]');
+    const bQualityEl = document.querySelector('input[name="sec_cut_pcs_5"]');
+
+    if (!balanceEl || !statusEl || !bQualityEl) {
+        return;
+    }
+
+    const balanceBeforeB = Number(document.querySelector("input[name='sec_balance_1']")?.value || 0);
+    const remainingB = Number.parseFloat(bQualityEl.value || 0);
+
+    if (!Number.isFinite(balanceBeforeB)) {
+        return;
+    }
+
+    if (!shortageEl || !shortageEl.value || String(shortageEl.value).trim() === '') {
+        balanceEl.value = balanceBeforeB.toFixed(2);
+        statusEl.value = '';
+        return;
+    }
+
+    if (String(shortageEl.value).trim().toUpperCase() === 'RETURNED') {
+        const remainingBalance = Math.max(0, balanceBeforeB - remainingB);
+        balanceEl.value = remainingBalance.toFixed(2);
+        statusEl.value = remainingBalance === 0 ? 'COMPLETED' : 'NOT COMPLETED';
+        return;
+    }
+
+    const manualValue = Number.parseFloat(shortageEl.value || 0);
+    if (Number.isFinite(manualValue)) {
+        const remainingBalance = Math.max(0, balanceBeforeB - manualValue);
+        balanceEl.value = remainingBalance.toFixed(2);
+        statusEl.value = remainingBalance === 0 ? 'COMPLETED' : 'NOT COMPLETED';
+    } else {
+        balanceEl.value = balanceBeforeB.toFixed(2);
+        statusEl.value = '';
+    }
+}
+
+function updateAQualityBalance() {
+    const shortageEl = document.querySelector('select[name="sec_shortage_4"]');
+    const balanceEl = document.querySelector('input[name="sec_balance_3"]');
+    const statusEl = document.querySelector('input[name="sec_balance_4"]');
+    const remainingAEl = document.getElementById('a-quality-remaining');
+
+    if (!shortageEl || !balanceEl || !statusEl || !remainingAEl) {
+        return;
+    }
+
+    const balanceBeforeA = Number(document.querySelector("input[name='sec_balance_1']")?.value || 0);
+    if (String(shortageEl.value).trim().toUpperCase() !== 'RETURNED') {
+        balanceEl.value = balanceBeforeA.toFixed(2);
+        statusEl.value = '';
+        return;
+    }
+
+    const remainingA = Number.parseFloat(remainingAEl.value || 0) || 0;
+    const remainingBalance = Math.max(0, balanceBeforeA - remainingA);
+    balanceEl.value = remainingBalance.toFixed(2);
+    statusEl.value = remainingBalance === 0 ? 'COMPLETED' : 'NOT COMPLETED';
+}
+
+window.addEventListener('DOMContentLoaded', function () {
+    updateReqCutting();
+    updateReqAverage();
+    updateInventoryFabricStatus();
+    const consumptionEl = document.querySelector('input[name="consumption"]');
+    if (consumptionEl) {
+        consumptionEl.addEventListener('input', updateReqAverage);
+    }
+    const rejectedEl = document.querySelector('input[name="rejected_fabric"]');
+    if (rejectedEl) {
+        rejectedEl.addEventListener('input', updateInventoryFabricStatus);
+    }
+    const reactiveEl = document.querySelector('input[name="re_active_fabric"]');
+    if (reactiveEl) {
+        reactiveEl.addEventListener('input', updateRejectedFromReactive);
+        updateRejectedFromReactive();
+    }
+    const enableFabricBEl = document.querySelector('input[name="enable_fabric_b"]');
+    if (enableFabricBEl) {
+        enableFabricBEl.addEventListener('change', updateInventoryFabricStatus);
+    }
+    const shortageEl = document.querySelector('select[name="sec_shortage_5"]') || document.querySelector('input[name="sec_shortage_5"]');
+    const bQualityEl = document.querySelector('input[name="sec_cut_pcs_5"]');
+    if (shortageEl) {
+        shortageEl.addEventListener('change', updateBQualityBalance);
+        shortageEl.addEventListener('input', updateBQualityBalance);
+    }
+    if (bQualityEl) {
+        bQualityEl.addEventListener('input', updateBQualityBalance);
+    }
+    const aShortageEl = document.querySelector('select[name="sec_shortage_4"]');
+    if (aShortageEl) {
+        aShortageEl.addEventListener('change', updateAQualityBalance);
+        aShortageEl.addEventListener('input', updateAQualityBalance);
+    }
+    updateAQualityBalance();
+    updateBQualityBalance();
+});
+
+function printInventory() {
+    if (!validateInventory()) return;
+    updatePrintTime();
+    updatePrintDates();
+    window.print();
+}
+
+function updatePrintTime() {
+    const now = new Date();
+    const options = {
+        weekday: 'long', year: 'numeric', month: 'long',
+        day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true
+    };
+    const printTimeEl = document.getElementById('print-time');
+    if (printTimeEl) {
+        printTimeEl.textContent = now.toLocaleString('en-US', options);
+    }
+}
+
+function formatPrintDate(value) {
+    const parts = String(value || '').split('-');
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : String(value || '');
+}
+
+function updatePrintDates() {
+    // update print-date spans right before printing to reflect current inputs
+    const today = new Date().toISOString().slice(0,10);
+    document.querySelectorAll('#print-area table tbody tr').forEach(function(tr){
+        const dateInput = tr.querySelector('input[type="date"]');
+        const printSpan = tr.querySelector('.print-date');
+        if(!dateInput || !printSpan) return;
+        const otherInputs = Array.from(tr.querySelectorAll('input')).filter(i=>i !== dateInput);
+        const anyFilled = otherInputs.some(i => i.value && String(i.value).trim() !== '');
+        if(anyFilled){
+            if(!dateInput.value || dateInput.value.trim() === '') dateInput.value = today;
+        } else {
+            dateInput.value = '';
+        }
+        if(dateInput.value && String(dateInput.value).trim() !== ''){
+            printSpan.textContent = formatPrintDate(dateInput.value);
+        } else {
+            printSpan.textContent = '';
+        }
+    });
+}
+
+window.addEventListener('beforeprint', function () {
+    updatePrintTime();
+    updatePrintDates();
+});
+
+// Auto-fill today's date only for rows that have other data filled
+document.addEventListener('DOMContentLoaded', function () {
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    // For each table row in the inventory table, fill date only if other fields exist
+    document.querySelectorAll('#print-area table tbody tr').forEach(function (tr) {
+        const dateInput = tr.querySelector('input[type="date"]');
+        const printSpan = tr.querySelector('.print-date');
+        if (!dateInput) return;
+
+        // collect other inputs in the same row (excluding the date input)
+        const otherInputs = Array.from(tr.querySelectorAll('input')).filter(i => i !== dateInput);
+        const anyFilled = otherInputs.some(i => i.value && String(i.value).trim() !== '');
+
+        // Only auto-fill or clear the date when the user hasn't explicitly set it
+        const userSet = dateInput.dataset.userChanged === 'true';
+        if (anyFilled) {
+            if (!userSet && (!dateInput.value || dateInput.value.trim() === '')) {
+                dateInput.value = today;
+            }
+        } else {
+            // ensure empty rows keep their date blank unless user explicitly set a date
+            if (!userSet) dateInput.value = '';
+        }
+
+        // populate print-only span: format date for readability, leave blank if no date
+        if (printSpan) {
+            if (dateInput.value && String(dateInput.value).trim() !== '') {
+                printSpan.textContent = formatPrintDate(dateInput.value);
+            } else {
+                printSpan.textContent = '';
+            }
+        }
+    });
+    
+    // mark date inputs as user-changed when the user edits them so auto-fill won't override
+    document.querySelectorAll('#print-area table tbody tr input[type="date"]').forEach(function(di){
+        di.addEventListener('input', function(){ di.dataset.userChanged = 'true'; });
+        di.addEventListener('change', function(){ di.dataset.userChanged = 'true'; });
+    });
+});
+</script>
+
+<!-- Print Styles -->
+<style>
+.print-only { display: none; }
+
+#inventory-form input {
+    text-align: center;
+}
+
+#inventory-form label {
+    font-size: 0.875rem;
+}
+
+/* Keep number fields numeric without showing browser spinner arrows. */
+input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    margin: 0;
+    -webkit-appearance: none;
+}
+
+/* hide print-date spans on screen; show in print */
+.print-date{ display:none; }
+
+@media print {
+    @page { size: A4 portrait; margin: 0.25in; }
+
+    body * { visibility: hidden; }
+    #print-area, #print-area * { visibility: visible; }
+    #print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        max-width: none;
+        padding: 0;
+    }
+
+    #print-area > div {
+        padding: 0 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    .no-print { display: none !important; }
+    .print-only { display: block; }
+    .print-logo { max-height: 45px; }
+
+    .print-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 4px !important;
+    }
+
+    .print-side {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 3px;
+    }
+
+    .photo-box {
+        width: 150px;
+        height: 34px;
+        color: #949494;
+        border: 1px solid #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 8px;
+        font-weight: bold;
+        text-align: center;
+    }
+
+    .serial-print {
+        display: flex !important;
+        align-items: center;
+        justify-content: flex-end;
+        width: auto;
+        margin: 0;
+    }
+    .serial-box {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .serial-box label,
+    .serial-box input {
+        font-size: 14px !important;
+        font-weight: bold !important;
+    }
+    .serial-box input { width: 90px; }
+
+    #inventory-form > .flex.justify-between {
+        margin-bottom: 5px !important;
+    }
+
+    #inventory-form h2 { font-size: 20px !important; }
+    #inventory-form > .upper-inventory-fields {
+        display: block;
+        padding-top: 8px;
+        margin-bottom: 10px !important;
+    }
+
+    #inventory-form > .upper-inventory-fields > .grid {
+        display: grid;
+        gap: 4px 8px !important;
+        margin-bottom: 10px !important;
+    }
+
+    #inventory-form > .upper-inventory-fields > .grid:nth-child(1) {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    }
+
+    #inventory-form > .upper-inventory-fields > .grid:nth-child(2),
+    #inventory-form > .upper-inventory-fields > .grid:nth-child(3) {
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    }
+
+    #inventory-form > .upper-inventory-fields > .grid:nth-child(4) {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+        margin-bottom: 0 !important;
+    }
+
+    #inventory-form > .upper-inventory-fields > .grid > div {
+        margin: 0 !important;
+    }
+
+    #inventory-form > .upper-inventory-fields > .grid > div {
+        min-height: 28px;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: center;
+        gap: 1px;
+        padding: 0;
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+    }
+
+    #inventory-form > .upper-inventory-fields > .grid > div label {
+        margin: 0;
+        color: #000 !important;
+        font-size: 10px !important;
+        font-weight: 700 !important;
+        line-height: 1.1 !important;
+        letter-spacing: 0.2px;
+        text-transform: uppercase;
+        text-align: left;
+    }
+
+    #inventory-form > .upper-inventory-fields > .grid > div input.upper {
+        width: 100%;
+        height: 20px !important;
+        padding: 13px 7px !important;
+        color: #000 !important;
+        font-size: 12px !important;
+        font-weight: 600;
+        line-height: 1.1 !important;
+        background: #fff !important;
+        border: 1px solid #000 !important;
+        border-radius: 2px !important;
+        box-shadow: none !important;
+    }
+
+    #inventory-form > .upper-inventory-fields > .grid > div input.upper:focus {
+        outline: none;
+    }
+
+    table {
+        width: 100% !important;
+        table-layout: auto !important;
+        border-collapse: collapse;
+        border: 1px solid #000 !important;
+        page-break-inside: auto;
+    }
+
+    #inventory-form .overflow-x-auto > table:first-of-type th:first-child,
+    #inventory-form .overflow-x-auto > table:first-of-type td:first-child {
+        width: 70px !important;
+        min-width: 70px !important;
+        max-width: 70px !important;
+        padding-left: 2px !important;
+        padding-right: 2px !important;
+    }
+
+    #inventory-form .overflow-x-auto > table:first-of-type th:nth-child(6),
+    #inventory-form .overflow-x-auto > table:first-of-type td:nth-child(6) {
+        width: 30px !important;
+        min-width: 30px !important;
+        max-width: 30px !important;
+        padding-left: 2px !important;
+        padding-right: 2px !important;
+    }
+
+    #inventory-form .overflow-x-auto > table:first-of-type th:nth-child(3),
+    #inventory-form .overflow-x-auto > table:first-of-type td:nth-child(3) {
+        width: 42px !important;
+        min-width: 42px !important;
+        max-width: 42px !important;
+        padding-left: 2px !important;
+        padding-right: 2px !important;
+    }
+
+    #inventory-form .overflow-x-auto > table:nth-of-type(2) th:nth-child(2),
+    #inventory-form .overflow-x-auto > table:nth-of-type(2) td:nth-child(2) {
+        width: 38px !important;
+        min-width: 38px !important;
+        max-width: 38px !important;
+        padding-left: 2px !important;
+        padding-right: 2px !important;
+    }
+
+    th,
+    td {
+        min-height: 25px;
+        height: auto;
+        padding: 4px !important;
+        font-size: 9px !important;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: normal;
+        vertical-align: middle;
+        text-align: center !important;
+        border: 1px solid #000 !important;
+    }
+
+    th {
+        font-weight: bold;
+        white-space: normal !important;
+        overflow-wrap: normal;
+        word-break: keep-all;
+        hyphens: none;
+        line-height: 1.15;
+        text-align: center;
+        vertical-align: middle;
+    }
+
+    td input {
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        field-sizing: content;
+        border: none !important;
+        padding: 2px 1px !important;
+        font-size: 12px !important;
+        line-height: 1.15 !important;
+        height: auto !important;
+        min-height: 21px !important;
+        text-align: center !important;
+        background: transparent !important;
+        box-sizing: border-box;
+    }
+
+    td input[type="text"],
+    td input[type="number"] {
+        text-overflow: clip;
+        overflow: visible;
+    }
+
+    td {
+        overflow: visible;
+        overflow-wrap: anywhere;
+    }
+
+    thead {
+        display: table-header-group;
+    }
+
+    tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    input.upper {
+        border: 1px solid #000 !important;
+    }
+
+    /* hide native date inputs in print and show the formatted span instead */
+    input.date-input { display: none !important; }
+    .print-date { display: inline-block !important; padding: 2px 3px; font-size: 9px; }
+
+    .overflow-x-auto {
+        overflow: visible !important;
+    }
+
+    .signature-row {
+        gap: 12px !important;
+        margin-top: 8px !important;
+    }
+
+    .signature-row div {
+        font-size: 12px !important;
+    }
+
+}
+
+.serial-print { display: none; }
+.signature-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 40px;
+    margin-top: 20px;
+}
+.signature-row div {
+    font-size: 14px;
+    font-weight: 500;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="mx-auto max-w-7xl p-4 pt-20 sm:p-6">
+    <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <p class="text-xs font-bold uppercase tracking-[0.2em] text-orange-600">Production Finance</p>
+            <h1 class="text-3xl font-black uppercase text-slate-900">Costing Sheet History</h1>
+            <p class="mt-1 text-sm text-slate-500">Saved costing sheet versions.</p>
+        </div>
+        <a
+            href="{{ url_for('costing_sheet') }}"
+            class="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800">
+            <i class="fa-solid fa-arrow-left"></i>
+            Back to Costing
+        </a>
+    </div>
+
+    {% if history %}
+    <div class="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <table class="w-full text-left text-sm">
+            <thead class="bg-slate-100 text-xs font-black uppercase tracking-wider text-slate-500">
+                <tr>
+                    <th class="px-4 py-3">Date</th>
+                    <th class="px-4 py-3">Party</th>
+                    <th class="px-4 py-3">Article</th>
+                    <th class="px-4 py-3">Saved By</th>
+                    <th class="px-4 py-3 text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in history %}
+                <tr class="border-t border-slate-100">
+                    <td class="px-4 py-3">{{ record.created_at.strftime('%d/%m/%Y %I:%M %p') }}</td>
+                    <td class="px-4 py-3 font-bold">{{ record.article.party_name or '—' }}</td>
+                    <td class="px-4 py-3">{{ record.article.article_name or '—' }} | {{ record.article.style or '—' }} | {{ record.article.color or '—' }}</td>
+                    <td class="px-4 py-3">{{ record.created_by or '—' }}</td>
+                    <td class="px-4 py-3 text-right">
+                        <a
+                            href="{{ url_for('costing_sheet', party_name=record.article.party_name, article_id=record.article_id, history_id=record.id) }}"
+                            class="mr-2 inline-flex items-center gap-1 rounded-lg bg-orange-600 px-3 py-2 text-xs font-bold text-white hover:bg-orange-700">
+                            <i class="fa-solid fa-eye"></i>
+                            View
+                        </a>
+                        <form
+                            method="POST"
+                            action="{{ url_for('delete_costing_sheet_history', history_id=record.id) }}"
+                            class="inline"
+                            onsubmit="return confirm('Delete this costing sheet history?');">
+                            <button
+                                type="submit"
+                                class="inline-flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50">
+                                <i class="fa-solid fa-trash"></i>
+                                Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center shadow-sm">
+        <i class="fa-solid fa-clock-rotate-left mb-4 text-3xl text-slate-400"></i>
+        <h2 class="text-xl font-black text-slate-900">No saved costing sheets</h2>
+        <p class="mt-2 text-sm text-slate-500">Saved costing sheets will appear here.</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

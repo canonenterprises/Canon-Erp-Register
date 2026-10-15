@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
+<main class="mx-auto max-w-7xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+    <header class="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-700">Order Accessories</p>
+            <h1 class="mt-1 text-2xl font-black text-slate-900">{{ order.job_no }} <span class="font-semibold text-slate-500">· {{ order.article_name or order.article or 'Article' }}</span></h1>
+            <p class="mt-1 text-sm text-slate-600">Order quantity: {{ '{:,.2f}'.format(order_qty) }} pcs</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <a href="{{ url_for('accessories_portal', order_id=order.job_no) }}" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"><i class="fa-solid fa-box-open"></i> Issue from stock</a>
+            <a href="{{ url_for('order_details', job_no=order.job_no) }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Back to Order</a>
+        </div>
+    </header>
+
+    <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="border-l-4 border-cyan-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Required</p><p class="mt-2 text-sm font-black text-slate-900">{% for total in totals.required %}{{ '{:,.2f}'.format(total.quantity) }} {{ total.unit }}{% if not loop.last %} · {% endif %}{% else %}0{% endfor %}</p></div>
+        <div class="border-l-4 border-emerald-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Net Consumed</p><p class="mt-2 text-sm font-black text-slate-900">{% for total in totals.issued %}{{ '{:,.2f}'.format(total.quantity) }} {{ total.unit }}{% if not loop.last %} · {% endif %}{% else %}0{% endfor %}</p></div>
+        <div class="border-l-4 border-amber-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Remaining</p><p class="mt-2 text-sm font-black text-slate-900">{% for total in totals.remaining %}{{ '{:,.2f}'.format(total.quantity) }} {{ total.unit }}{% if not loop.last %} · {% endif %}{% else %}0{% endfor %}</p></div>
+        <div class="border-l-4 border-violet-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Net accessory cost</p><p class="mt-2 text-xl font-black text-slate-900">Rs. {{ '{:,.2f}'.format(totals.cost) }}</p></div>
+    </section>
+
+    <section class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <table class="w-full min-w-[900px] text-sm">
+            <thead class="bg-slate-50 text-left text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-3 py-3">Accessory</th><th class="px-3 py-3">Required</th><th class="px-3 py-3">Issued</th><th class="px-3 py-3">Returned</th><th class="px-3 py-3">Remaining</th><th class="px-3 py-3">Unit</th><th class="px-3 py-3 text-right">FIFO Rate</th><th class="px-3 py-3 text-right">Issued Cost</th><th class="min-w-[8rem] whitespace-nowrap px-3 py-3">Status</th></tr></thead>
+            <tbody>
+                {% for item in accessories %}
+                <tr class="border-t border-slate-100">
+                    <td class="px-3 py-3 font-bold text-slate-900">{{ item.item }}{% if item.size %}<span class="ml-1 font-normal text-slate-500">{{ item.size }}</span>{% endif %}{% if item.quality %}<span class="ml-1 font-normal text-slate-500">{{ item.quality }}</span>{% endif %}</td>
+                    <td class="px-3 py-3">{{ '{:,.2f}'.format(item.display_required) }}</td>
+                    <td class="px-3 py-3">{{ '{:,.2f}'.format(item.display_issued) }}</td>
+                    <td class="px-3 py-3">{{ '{:,.2f}'.format(item.display_returned) }}</td>
+                    <td class="px-3 py-3 font-bold">{{ '{:,.2f}'.format(item.display_remaining) }}</td>
+                    <td class="px-3 py-3">{{ item.display_unit or '—' }}</td>
+                    <td class="px-3 py-3 text-right">{% if item.display_issued > 0 %}Rs. {{ '%.4f'|format(item.display_rate) }}{% else %}—{% endif %}</td>
+                    <td class="px-3 py-3 text-right font-bold">Rs. {{ '{:,.2f}'.format(item.cost) }}</td>
+                    <td class="min-w-[8rem] whitespace-nowrap px-3 py-3"><span class="inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold uppercase {% if item.status == 'Completed' %}bg-emerald-100 text-emerald-800{% elif item.status == 'Partially Issued' %}bg-amber-100 text-amber-800{% elif item.status == 'Unplanned' %}bg-rose-100 text-rose-800{% else %}bg-slate-100 text-slate-700{% endif %}">{{ item.status }}</span></td>
+                </tr>
+                {% else %}<tr><td colspan="9" class="px-3 py-10 text-center text-slate-500">No per-piece accessory requirements are configured for this article.</td></tr>{% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section id="cut-wise-accessories" class="space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-violet-700">Cut production</p>
+                <h2 class="text-xl font-black text-slate-900">Required Accessories by Cut</h2>
+            </div>
+        </div>
+        {% for cut in cut_accessories %}
+        <article class="overflow-hidden rounded-xl border border-violet-200 bg-white shadow-sm">
+            <header class="flex flex-wrap items-center justify-between gap-3 border-b border-violet-100 bg-violet-50 px-4 py-3">
+                <div>
+                    <h3 class="font-black text-slate-900">Cut {{ cut.sheet.cut_no or cut.sheet.id }}</h3>
+                    <p class="text-xs text-slate-600">{{ '{:,.2f}'.format(cut.cutting_pcs) }} cutting PCS</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase {% if cut.status == 'Completed' %}bg-emerald-100 text-emerald-800{% elif cut.status == 'Partially Issued' %}bg-amber-100 text-amber-800{% elif cut.status == 'Unplanned' %}bg-rose-100 text-rose-800{% else %}bg-slate-100 text-slate-700{% endif %}">{{ cut.status }}</span>
+                    <a href="{{ url_for('order_accessories_cut_print', job_no=order.job_no, cut_sheet_id=cut.sheet.id) }}" target="_blank" rel="noopener" class="rounded-lg bg-slate-950 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800">Print Cut A5</a>
+                </div>
+            </header>
+            <div class="overflow-x-auto">
+                <table class="w-full min-w-[640px] text-sm">
+                    <thead class="bg-slate-50 text-left text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-3 py-2">Accessory</th><th class="px-3 py-2">Required for cut</th><th class="px-3 py-2">Net issued</th><th class="px-3 py-2">Remaining</th><th class="px-3 py-2">Unit</th></tr></thead>
+                    <tbody>
+                        {% for item in cut['items'] %}
+                        <tr class="border-t border-slate-100">
+                            <td class="px-3 py-2 font-bold text-slate-900">{{ item.item }}{% if item.size %}<span class="ml-1 font-normal text-slate-500">{{ item.size }}</span>{% endif %}{% if item.quality %}<span class="ml-1 font-normal text-slate-500">{{ item.quality }}</span>{% endif %}</td>
+                            <td class="px-3 py-2 font-bold">{{ '{:,.2f}'.format(item.display_required) }}</td>
+                            <td class="px-3 py-2">{{ '{:,.2f}'.format(item.display_net_issued) }}</td>
+                            <td class="px-3 py-2">{{ '{:,.2f}'.format(item.display_remaining) }}</td>
+                            <td class="px-3 py-2">{{ item.display_unit or '—' }}</td>
+                        </tr>
+                        {% else %}<tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No accessory requirements are configured for this cut.</td></tr>{% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </article>
+        {% else %}
+        <p class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">No cutting sheets with a positive cutting quantity are available for this order.</p>
+        {% endfor %}
+    </section>
+
+    <p class="text-xs text-slate-500">Accessory returns are not recorded in the current stock issue system. Issues shown here are the existing stock issue transactions; they do not create a second stock deduction.</p>
+</main>
+</div>
+{% endblock %}

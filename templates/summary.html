@@ -1,0 +1,635 @@
+{% extends 'base.html' %}
+{% block content %}
+{% include 'navbar.html' %}
+<div class="max-w-full mx-auto p-4 space-y-6 pt-20 md:pt-20 print:p-0 print:pt-0">
+
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 print:shadow-none print:border-none print:p-0">
+        <!-- Filter Form & Actions (Hidden on Print) -->
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 print:hidden">
+            <div>
+                <h2 class="text-3xl font-extrabold text-slate-800">Master Summary Sheet</h2>
+                <p class="text-sm text-slate-500">Review production cost, cuts matrix, and quantities.</p>
+            </div>
+        </div>
+
+        <form method="POST" class="flex gap-3 items-end mb-5 bg-slate-50 p-3 rounded-xl no-print" id="summaryFilters">
+            <input type="hidden" name="form_action" value="filter_summary">
+            <div class="w-48">
+                <label class="block text-s font-bold text-slate-500 mb-1">Period</label>
+                <select name="filter_type" id="filter_type" class="w-full px-3 py-1.5 bg-white border rounded-xl text-s font-bold">
+                    <option value="MONTHLY" {% if current_filter == 'MONTHLY' %}selected{% endif %}>Monthly</option>
+                    <option value="WEEKLY" {% if current_filter and current_filter.startswith('WEEKLY') %}selected{% endif %}>Weekly</option>
+                    <option value="CUSTOM" {% if current_filter == 'CUSTOM' %}selected{% endif %}>Custom Range</option>
+                </select>
+            </div>
+            <div class="w-60" id="month_picker">
+                <label class="block text-s font-bold text-slate-500 mb-1">Month</label>
+                <input type="month" name="filter_month" value="{{ current_month or (now().strftime('%Y-%m') if now is defined else '') }}" class="w-full px-3 py-1.5 bg-white border rounded-xl text-s font-bold">
+            </div>
+            <div class="w-60" id="week_picker" style="display:none">
+                <label class="block text-s font-bold text-slate-500 mb-1">Week</label>
+                <select name="filter_week" class="w-full px-3 py-1.5 bg-white border rounded-xl text-s font-bold">
+                    <option value="1-7" {% if current_week == '1-7' %}selected{% endif %}>1-7</option>
+                    <option value="8-14" {% if current_week == '8-14' %}selected{% endif %}>8-14</option>
+                    <option value="15-21" {% if current_week == '15-21' %}selected{% endif %}>15-21</option>
+                    <option value="22-30" {% if current_week == '22-30' %}selected{% endif %}>22-30</option>
+                </select>
+            </div>
+            <div class="w-60" id="custom_start_picker" style="display:none">
+                <label class="block text-s font-bold text-slate-500 mb-1">Start</label>
+                <input type="date" name="filter_start" value="{{ custom_start or '' }}" class="w-full px-3 py-1.5 bg-white border rounded-xl text-s font-bold">
+            </div>
+            <div class="w-60" id="custom_end_picker" style="display:none">
+                <label class="block text-s font-bold text-slate-500 mb-1">End</label>
+                <input type="date" name="filter_end" value="{{ custom_end or '' }}" class="w-full px-3 py-1.5 bg-white border rounded-xl text-s font-bold">
+            </div>
+            <!-- Worker selector removed per request -->
+            <div class="w-80">
+                <label class="block text-s font-bold text-slate-500 mb-1">Select Lot</label>
+                <select name="filter_job" class="w-full px-3 py-2 bg-white border rounded-xl text-sm font-bold">
+                    <option value="">ALL ORDERS</option>
+                    {% for p in parties %}
+                    <option value="{{ p.job_no }}" data-article="{{ (p.article_name or p.article) | e }}" {% if filter_job == p.job_no %}selected{% endif %}>{{ p.name }} ({{ p.job_no }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Auto-submit enabled; Load Matrix button removed -->
+        </form>
+
+        <script>
+        // Auto-submit filters form when relevant inputs change
+        (function(){
+            const form = document.getElementById('summaryFilters');
+            if (!form) return;
+            const submitForm = function(){
+                // small debounce to avoid multiple rapid submits
+                if (form._submitTimeout) clearTimeout(form._submitTimeout);
+                form._submitTimeout = setTimeout(()=> form.submit(), 200);
+            };
+
+            const namesToWatch = new Set(['filter_type','filter_month','filter_week','filter_start','filter_end','filter_job']);
+            const fields = form.querySelectorAll('select, input');
+            fields.forEach(function(f){
+                if (namesToWatch.has(f.name)) f.addEventListener('change', submitForm);
+            });
+        })();
+        </script>
+
+        <!-- Printable Table Container -->
+        <div id="printable-area" class="space-y-10">
+            {% if job_summaries %}
+                {% for job in job_summaries %}
+                <div id="job-summary-{{ job.job_no|replace('/', '-')|replace(' ', '-')|replace('.', '-')|replace(':', '-') }}" class="table-sticky-container job-print-section">
+                    <div class="flex flex-col md:flex-row items-start justify-between gap-4 mb-4">
+                        <div>
+                            <h3 class="text-xl font-bold print:hidden">{{ job.job_no }}</h3>
+                        </div>
+                        <button type="button" onclick="printJob('job-summary-{{ job.job_no|replace('/', '-')|replace(' ', '-')|replace('.', '-')|replace(':', '-') }}')" class="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow hover:bg-slate-800">Print This Order</button>
+                    </div>
+                    <div class="summary-order-header overflow-x-auto border border-slate-400 bg-white mb-4">
+                        <table class="w-full border-collapse border border-slate-400 text-center text-[14px] font-sans leading-tight">
+                            <thead>
+                                <tr class="border-b border-slate-400">
+                                    <th class="border border-slate-400 p-1 bg-slate-200 text-left font-bold w-24">PARTY</th>
+                                    <th colspan="3" class="border border-slate-400 p-1 text-left font-bold">{{ job.display_party }}</th>
+                                    <th class="border border-slate-400 p-1 bg-slate-200 font-bold">M/O</th>
+                                    <th colspan="5" class="border border-slate-400 p-1 text-left font-bold">{{ current_calendar_month }}</th>
+                                    <th colspan="5" class="border border-slate-400 p-2 text-sm font-extrabold tracking-wider bg-white uppercase">SUMMARY SHEET</th>
+                                    <th class="border border-slate-400 p-1 bg-slate-200 font-bold" colspan="2">FILE NO</th>
+                                    <th class="border border-slate-400 p-1 font-bold bg-emerald-200 text-center">{{ job.display_file_no }}</th>
+                                </tr>
+                                <tr class="border-b border-slate-400">
+                                    <th class="border border-slate-400 p-1 bg-slate-200 text-left font-bold">ARTICLE</th>
+                                    <th colspan="3" class="border border-slate-400 p-1 text-left font-bold">{{ job.order.article_name }}</th>
+                                    <th class="border border-slate-400 p-1 bg-slate-200 font-bold">PERIOD</th>
+                                    <th colspan="5" class="border border-slate-400 p-1 text-left font-bold">{{ job.display_period }}</th>
+                                    <th colspan="5" class="border border-slate-400 p-2 text-sm font-extrabold tracking-wider bg-white uppercase">{{ job.job_no }}</th>
+                                    <th class="border border-slate-400 p-1 bg-slate-200 font-bold" colspan="2">DATE</th>
+                                    <th class="border border-slate-400 p-1 font-bold text-center">{{ job.display_date | format_ddmmyyyy }}</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+
+                    {% for cut_group in job.cut_groups %}
+                    {% set group_start = loop.index0 * 10 %}
+                    {% set group_index = loop.index0 %}
+                    <div class="cut-group-print-section overflow-x-auto border border-slate-400 bg-white {% if not loop.first %}print-cut-group-break {% endif %}{% if not loop.last %}mb-4{% endif %}">
+                        <table class="w-full border-collapse border border-slate-400 text-center text-[12px] font-sans leading-tight">
+                            <thead>
+                                <tr class="bg-slate-300 font-bold border-b border-slate-400">
+                                    <th class="border border-slate-400 p-1 w-24">OPERATION</th>
+                                    <th class="border border-slate-400 p-1 w-24">CUT NO</th>
+                                    {% for cut in cut_group %}
+                                    <th class="border border-slate-400 p-1 w-24">{{ cut.label }}</th>
+                                    {% endfor %}
+                                    {% for i in range(10 - cut_group|length) %}
+                                    <th class="border border-slate-400 p-1"></th>
+                                    {% endfor %}
+                                    <th class="border border-slate-400 p-1 bg-slate-300 w-16 sticky-col-total">TOTAL PCS</th>
+                                    <th class="border border-slate-400 p-1 bg-slate-300 w-16 sticky-col-rate"></th>
+                                    <th class="border border-slate-400 p-1 bg-slate-300 w-20 sticky-col-amount"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-300 font-medium text-slate-800">
+                                {% if cut_group %}
+                                <tr>
+                                    <td rowspan="5" class="border border-slate-400 p-1 font-bold bg-slate-100 align-middle">CUTTING</td>
+                                    <td class="border border-slate-400 p-1 text-left bg-slate-100 font-bold">CUT DATE</td>
+                                    {% for cut in cut_group %}
+                                    <td class="border border-slate-400 p-1">{{ cut.cut_date|format_ddmmyyyy if cut.cut_date else '-' }}</td>
+                                    {% endfor %}
+                                    {% for i in range(10 - cut_group|length) %}
+                                    <td class="border border-slate-400 p-1"></td>
+                                    {% endfor %}
+                                    <td class="border border-slate-400 p-1 bg-yellow-100 font-bold">-</td>
+                                    <td rowspan="5" class="border border-slate-400 p-1 bg-slate-300 font-bold align-middle">RATE/PCS</td>
+                                    <td rowspan="5" class="border border-slate-400 p-1 bg-slate-300 font-bold align-middle">AMOUNT</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-400 p-1 text-left bg-slate-100 font-bold">CUTTING PCS</td>
+                                    {% for cut in cut_group %}
+                                    <td class="border border-slate-400 p-1">{{ cut.pcs or '' }}</td>
+                                    {% endfor %}
+                                    {% for i in range(10 - cut_group|length) %}
+                                    <td class="border border-slate-400 p-1"></td>
+                                    {% endfor %}
+                                    <td class="border border-slate-400 p-1 bg-slate-300 font-bold">{{ cut_group|map(attribute='pcs')|sum }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-400 p-1 text-left bg-slate-100 font-bold">B/Q UNSTITCH</td>
+                                    {% for cut in cut_group %}
+                                    <td class="border border-slate-400 p-1">{{ cut.bq_unstitch or '' }}</td>
+                                    {% endfor %}
+                                    {% for i in range(10 - cut_group|length) %}
+                                    <td class="border border-slate-400 p-1"></td>
+                                    {% endfor %}
+                                    <td class="border border-slate-400 p-1 bg-slate-300 font-bold">{{ cut_group|map(attribute='bq_unstitch')|sum }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-400 p-1 text-left bg-slate-100 font-bold">B/Q STITCHED</td>
+                                    {% for cut in cut_group %}
+                                    <td class="border border-slate-400 p-1">{{ cut.bq_stitched or '' }}</td>
+                                    {% endfor %}
+                                    {% for i in range(10 - cut_group|length) %}
+                                    <td class="border border-slate-400 p-1"></td>
+                                    {% endfor %}
+                                    <td class="border border-slate-400 p-1 bg-slate-300 font-bold">{{ cut_group|map(attribute='bq_stitched')|sum }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-400 p-1 text-left bg-slate-300 font-bold">TOTAL A/Q</td>
+                                    {% for cut in cut_group %}
+                                    <td class="border border-slate-400 font-bold bg-slate-300 p-1">{{ cut.total_aq }}</td>
+                                    {% endfor %}
+                                    {% for i in range(10 - cut_group|length) %}
+                                    <td class="border border-slate-400 bg-slate-300 p-1"></td>
+                                    {% endfor %}
+                                    <td class="border border-slate-400 p-1 bg-slate-300 font-bold">{{ cut_group|map(attribute='total_aq')|sum }}</td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="15" class="border border-slate-400 p-4 text-left text-slate-600">Select a lot or update cutting sheets to show cuts for this order.</td>
+                                </tr>
+                                {% endif %}
+
+                                </tbody>
+                                {% if job.summary_sections %}
+                                    {% for section in job.summary_sections %}
+                                    <tbody class="operation-print-section font-medium text-slate-800">
+                                        {% for row in section.rows %}
+                                        <tr>
+                                            {% if loop.first %}
+                                            <td rowspan="{{ section.rows|length + 1 }}" class="border border-slate-400 p-1 font-bold bg-slate-300 align-middle text-center">{{ section.operation }}</td>
+                                            {% endif %}
+                                            <td class="border border-slate-400 p-1 text-left">{{ row.worker or 'UNKNOWN' }}</td>
+                                            {% for cut in cut_group %}
+                                            <td class="border border-slate-400 p-1 text-purple-600">{{ row.cuts[cut.cut_no] or '' }}</td>
+                                            {% endfor %}
+                                            {% for i in range(10 - cut_group|length) %}
+                                            <td class="border border-slate-400 p-1"></td>
+                                            {% endfor %}
+                                            {% set row_group_total = row.group_totals[group_index] %}
+                                            {% set row_group_amount = row.group_amounts[group_index] %}
+                                            {% set row_group_rate = (row_group_amount / row_group_total) if row_group_total else 0 %}
+                                            <td class="border border-slate-400 p-1 bg-slate-300 font-bold sticky-col-total">{{ row_group_total }}</td>
+                                            <td class="border border-slate-400 p-1 sticky-col-rate">{{ "{:,.2f}".format(row_group_rate) if row_group_rate else '' }}</td>
+                                            <td class="border border-slate-400 p-1 text-right sticky-col-amount">{{ "{:,.2f}".format(row_group_amount) if row_group_amount else '' }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                        <tr class="bg-slate-200 font-bold">
+                                            <td class="border border-slate-400 p-1 text-left">TOTAL</td>
+                                            {% for cut in cut_group %}
+                                            {% set cut_index = group_start + loop.index0 %}
+                                            {% set total = section.cut_totals[cut_index] if cut_index < section.cut_totals|length else 0 %}
+                                            {% set cut_aq = job.cuts[cut_index].total_aq if cut_index < job.cuts|length else '' %}
+                                            {% set historical_total = section.historical_cut_totals[cut_index] if cut_index < section.historical_cut_totals|length else total %}
+                                            <td class="border border-slate-400 p-1" style="{% if cut_aq is not string and historical_total > 0 and historical_total < cut_aq %}background-color: #ef4444; color: white;{% else %}background-color: #e2e8f0;{% endif %}">{{ total }}</td>
+                                            {% endfor %}
+                                            {% for i in range(10 - cut_group|length) %}
+                                            <td class="border border-slate-400 p-1"></td>
+                                            {% endfor %}
+                                            {% set total_aq_sum = cut_group|map(attribute='total_aq')|sum %}
+                                            {% set group_total = section.group_totals[group_index] %}
+                                            {% set group_rate = section.group_rates[group_index] %}
+                                            {% set group_amount = section.group_amounts[group_index] %}
+                                            <td class="border border-slate-400 p-1 sticky-col-total" style="{% if total_aq_sum is not string and group_total and group_total < total_aq_sum %}background-color: #ef4444; color: white;{% else %}background-color: #e2e8f0;{% endif %}">{{ group_total }}</td>
+                                            <td class="border border-slate-400 p-1 sticky-col-rate">{{ "{:,.2f}".format(group_rate) if group_rate else '' }}</td>
+                                            <td class="border border-slate-400 p-1 text-right sticky-col-amount">{{ "{:,.2f}".format(group_amount) if group_amount else '' }}</td>
+                                        </tr>
+                                    </tbody>
+                                    {% endfor %}
+                                {% elif cut_group %}
+                                    <tbody class="operation-print-section font-medium text-slate-800">
+                                    <tr>
+                                        <td colspan="15" class="border border-slate-400 p-4 text-left text-slate-600">No production logs found for this order in the selected month.</td>
+                                    </tr>
+                                    </tbody>
+                                {% endif %}
+                        </table>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="overflow-x-auto border border-slate-400 bg-white p-4 text-left text-slate-600">No production logs found for the selected month.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+(function () {
+    const storageKey = 'cutting_sheet_summary_{{ filter_job or selected_party.job_no or order.job_no or "" }}';
+    if (!storageKey || !window.localStorage) {
+        return;
+    }
+
+    try {
+        const savedData = window.localStorage.getItem(storageKey);
+        if (!savedData) {
+            return;
+        }
+
+        const rows = JSON.parse(savedData);
+        const visibleRows = Array.isArray(rows)
+            ? rows.filter(function (row) {
+                return row && (row.meter || row.palla || row.pcs || row.cp);
+            })
+            : [];
+
+        const headerCells = Array.from(document.querySelectorAll('[data-cut-header-cell]'));
+        const pcsCells = Array.from(document.querySelectorAll('[data-cut-pcs-cell]'));
+
+        if (!visibleRows.length) {
+            return;
+        }
+
+        headerCells.forEach(function (cell, index) {
+            const row = visibleRows[index];
+            if (row && row.cut_no !== undefined && row.cut_no !== null) {
+                cell.textContent = `CUT ${row.cut_no}`;
+            }
+        });
+
+        pcsCells.forEach(function (cell, index) {
+            const row = visibleRows[index];
+            if (row && row.pcs !== undefined && row.pcs !== null) {
+                cell.textContent = row.pcs || '';
+            }
+        });
+    } catch (error) {
+        console.error('Unable to load cutting summary snapshot', error);
+    }
+})();
+</script>
+    <script>
+    // Update Items header (article) when lot selection changes
+    (function () {
+        const select = document.querySelector('select[name="filter_job"]');
+        const display = document.getElementById('filter_item_display');
+        if (!select || !display) return;
+
+        function updateArticle() {
+            const opt = select.options[select.selectedIndex];
+            const article = opt && opt.dataset ? opt.dataset.article : '';
+            if (article && article.trim() !== '') {
+                display.textContent = article;
+            } else {
+                display.textContent = '{{ filter_item|default(order.article_name or order.article or "DIPER (2X3X2)") }}';
+            }
+        }
+
+        select.addEventListener('change', updateArticle);
+        // run on load
+        updateArticle();
+    })();
+    </script>
+
+    <script>
+    // Toggle filter inputs based on filter_type
+    function updateSummaryFilterInputs() {
+        const t = document.getElementById('filter_type').value;
+        document.getElementById('month_picker').style.display = (t === 'MONTHLY' || t === 'WEEKLY') ? 'block' : 'none';
+        document.getElementById('week_picker').style.display = (t === 'WEEKLY') ? 'block' : 'none';
+        document.getElementById('custom_start_picker').style.display = (t === 'CUSTOM') ? 'block' : 'none';
+        document.getElementById('custom_end_picker').style.display = (t === 'CUSTOM') ? 'block' : 'none';
+    }
+    const filterTypeEl = document.getElementById('filter_type');
+    if (filterTypeEl) {
+        filterTypeEl.addEventListener('change', updateSummaryFilterInputs);
+        document.addEventListener('DOMContentLoaded', function(){ updateSummaryFilterInputs(); });
+    }
+    </script>
+
+<!-- Print-specific Styles -->
+<style>
+.print-page-timestamp {
+    display: none;
+}
+
+@page {
+    size: A4 landscape;
+    margin: 10mm 8mm 16mm 8mm;
+    @bottom-center {
+        content: "Page " counter(page) " of " counter(pages);
+        font-size: 11pt;
+        font-weight: 600;
+        color: #111827;
+    }
+    @bottom-right {
+        content: "Printed on: " attr(data-timestamp);
+        font-size: 11pt;
+        font-weight: 600;
+        color: #111827;
+    }
+    @bottom-left {
+        content: "Prepared By: " attr(data-prepared-by);
+        font-size: 11pt;
+        font-weight: 600;
+        color: #111827;
+    }
+}
+
+@media print {
+    .print-page-timestamp {
+        display: none !important;
+    }
+
+    /* Hide everything on the page except the table container */
+    body * {
+        visibility: hidden;
+    }
+    #printable-area, #printable-area * {
+        visibility: visible;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    #printable-area {
+        position: static !important;
+        width: 100%;
+        border: none !important;
+        margin: 0;
+        padding: 0;
+        overflow: visible !important;
+    }
+    #printable-area > .job-print-section {
+        margin-top: 0 !important;
+    }
+    .summary-order-header,
+    .summary-order-header-copy {
+        display: block !important;
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+        margin-bottom: 1rem !important;
+    }
+    .summary-order-header-copy {
+        display: block !important;
+    }
+    .print-button,
+    button {
+        display: none !important;
+    }
+    table {
+        width: 100% !important;
+        table-layout: auto !important;
+        page-break-inside: auto !important;
+    }
+    thead {
+        display: table-header-group;
+    }
+    .operation-print-section {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    .print-cut-group-break {
+        break-before: page;
+        page-break-before: always;
+    }
+    tfoot {
+        display: table-footer-group;
+    }
+    body.print-only-mode * {
+        visibility: hidden !important;
+    }
+    body.print-only-mode .job-print-section {
+        display: none !important;
+    }
+    body.print-only-mode .job-print-section.print-only,
+    body.print-only-mode .job-print-section.print-only * {
+        visibility: visible !important;
+    }
+    body.print-only-mode .job-print-section.print-only {
+        display: block !important;
+        position: static !important;
+        width: 100%;
+        margin-top: 0 !important;
+    }
+    th,
+    td {
+        white-space: normal !important;
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+        hyphens: auto !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
+    td[style*="background-color: #ef4444"],
+    td[style*="background-color: #EF4444"] {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
+    .sticky-col-total:not([style*="background-color"]),
+    .sticky-col-rate:not([style*="background-color"]),
+    .sticky-col-amount:not([style*="background-color"]) {
+        position: static !important;
+        right: auto !important;
+        z-index: auto !important;
+        background: transparent !important;
+    }
+    td[style*="background-color: #ef4444"],
+    td[style*="background-color: #EF4444"] {
+        background: #ef4444 !important;
+    }
+}
+
+.table-sticky-container {
+    position: relative;
+}
+
+.job-print-section:not(:last-child) {
+    page-break-after: always;
+}
+
+.summary-print-footer {
+    display: none;
+}
+
+@media print {
+    .job-print-section,
+    body.print-only-mode .job-print-section.print-only {
+        box-sizing: border-box !important;
+        display: flex !important;
+        flex-direction: column !important;
+    }
+
+    .summary-print-footer {
+        display: flex !important;
+        align-items: flex-end !important;
+        justify-content: space-between !important;
+        margin-top: auto !important;
+        padding-top: 4mm !important;
+        color: #000 !important;
+        font-size: 9pt !important;
+        page-break-inside: avoid !important;
+    }
+
+    .summary-print-footer * {
+        color: #000 !important;
+    }
+}
+
+
+.overflow-x-auto.border,
+table,
+th,
+td {
+    border-color: black !important;
+}
+
+th,
+td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    hyphens: auto;
+    color: black !important;
+}
+
+.overflow-x-auto.border,
+table,
+th,
+td {
+    border-color: black !important;
+}
+
+.sticky-col-total,
+.sticky-col-rate,
+.sticky-col-amount {
+    position: sticky;
+    background: transparent;
+    z-index: 2;
+}
+
+.sticky-col-amount {
+    right: 0;
+}
+
+.sticky-col-rate {
+    right: 80px;
+}
+
+.sticky-col-total {
+    right: 80px;
+}
+</style>
+
+<script>
+function printTable() {
+    window.print();
+}
+
+function updateSummaryPrintTimestamps() {
+    const printedAt = new Date().toLocaleString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
+
+    const stamp = document.getElementById('print-timestamp-text');
+    if (stamp) {
+        stamp.textContent = printedAt;
+    }
+
+    document.documentElement.setAttribute('data-timestamp', printedAt);
+}
+
+document.documentElement.setAttribute('data-prepared-by', {{ (session.get('name') or session.get('user') or '') | tojson }});
+updateSummaryPrintTimestamps();
+window.addEventListener('beforeprint', updateSummaryPrintTimestamps);
+
+function duplicatePrintHeaders() {
+    document.querySelectorAll('.summary-order-header-copy').forEach(function (clone) {
+        clone.remove();
+    });
+
+    document.querySelectorAll('.job-print-section').forEach(function (jobSection) {
+        const originalHeader = jobSection.querySelector('.summary-order-header');
+        if (!originalHeader) return;
+
+        const groups = jobSection.querySelectorAll('.cut-group-print-section');
+        groups.forEach(function (group, index) {
+            if (index === 0) return;
+
+            const clone = originalHeader.cloneNode(true);
+            clone.classList.add('summary-order-header-copy');
+            clone.classList.remove('mb-4');
+            clone.style.marginBottom = '1rem';
+            group.insertBefore(clone, group.firstChild);
+        });
+    });
+}
+
+window.addEventListener('beforeprint', duplicatePrintHeaders);
+window.addEventListener('afterprint', function () {
+    document.querySelectorAll('.summary-order-header-copy').forEach(function (clone) {
+        clone.remove();
+    });
+});
+
+function printJob(jobId) {
+    const target = document.getElementById(jobId);
+    if (!target) {
+        window.print();
+        return;
+    }
+
+    target.classList.add('print-only');
+    document.body.classList.add('print-only-mode');
+    duplicatePrintHeaders();
+    window.print();
+    target.classList.remove('print-only');
+    document.body.classList.remove('print-only-mode');
+}
+</script>
+
+<div class="print-page-timestamp" aria-hidden="true" id="print-timestamp-element">
+    <span id="print-timestamp-text">--</span>
+</div>
+
+{% endblock %}

@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .cut-accessories-print {
+    box-sizing: border-box;
+    width: min(210mm, calc(100vw - 2rem));
+    min-height: 148mm;
+    margin: 0 auto;
+    padding: 8mm;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.75rem;
+    background: white;
+    box-shadow: 0 12px 30px rgb(15 23 42 / 0.12);
+  }
+  .cut-accessories-print table {
+    width: 100%;
+    max-width: 100%;
+    table-layout: fixed;
+    border: 1px solid #64748b !important;
+    border-collapse: collapse !important;
+  }
+  .cut-accessories-print th,
+  .cut-accessories-print td {
+    border: 1px solid #94a3b8 !important;
+    padding: 6px 8px;
+    text-align: left;
+  }
+  .cut-accessories-print th {
+    background: #f1f5f9 !important;
+  }
+  .cut-accessories-print-toolbar {
+    width: min(210mm, calc(100vw - 2rem));
+    margin-inline: auto;
+  }
+  .cut-accessories-signature-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1.25rem;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .cut-accessories-signature {
+    padding-top: 0.45rem;
+    letter-spacing: 0.02em;
+  }
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+    margin-top: 20mm;
+  }
+  @media print {
+    html,
+    body,
+    body > div,
+    main {
+      width: 100% !important;
+      min-height: 0 !important;
+      height: auto !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: visible !important;
+      background: white !important;
+      color: black !important;
+    }
+    .no-print { display: none !important; }
+    .cut-accessories-print {
+      width: 99mm;
+      height: 130mm;
+      max-height: 130mm;
+      min-height: 0 !important;
+      box-sizing: border-box;
+      margin: 0 auto;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+      color: black;
+      overflow: hidden;
+      break-before: avoid;
+      page-break-before: avoid;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      break-after: avoid;
+      page-break-after: avoid;
+    }
+    .cut-accessories-print-content {
+      transform: scale(var(--cut-print-scale, 1));
+      transform-origin: top left;
+    }
+    .cut-accessories-print th,
+    .cut-accessories-print td {
+      border-color: black !important;
+      padding: 2px 3px;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      line-height: 1.15;
+    }
+    .cut-accessories-print table { font-size: 11pt; }
+    .cut-accessories-print th { background: white !important; }
+    thead { display: table-header-group; }
+    tr { break-inside: avoid; page-break-inside: avoid; }
+  }
+</style>
+
+<div class="cut-accessories-print-toolbar no-print mb-4 flex justify-end gap-2 pt-4">
+  <a href="{{ url_for('order_accessories', job_no=order.job_no) }}#cut-wise-accessories" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Return</a>
+  <button type="button" onclick="window.print()" class="rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white">Print A5</button>
+</div>
+
+<article class="cut-accessories-print text-black">
+  <div class="cut-accessories-print-content">
+  <header class="mb-4 border-b-2 border-black pb-3 text-center">
+    <h1 class="text-xl font-black uppercase">Cut-wise Accessory Requirements</h1>
+    <p class="mt-1 text-sm font-bold">Order {{ order.job_no }}{% if order.article_name or order.article %} · {{ order.article_name or order.article }}{% endif %}</p>
+    <p class="mt-1 text-sm">Cut {{ cutting_sheet.cut_no or cutting_sheet.id }} · {{ '{:,.2f}'.format(cutting_pcs) }} PCS</p>
+  </header>
+
+  <table class="text-xs">
+    <colgroup>
+      <col style="width: 27%">
+      <col style="width: 13%">
+      <col style="width: 14%">
+      <col style="width: 15%">
+      <col style="width: 17%">
+      <col style="width: 14%">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>Accessory</th>
+        <th>Issued To</th>
+        <th>Required</th>
+        <th>Net issued</th>
+        <th>Remaining</th>
+        <th>Unit</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr>
+        <td class="font-bold">{{ item.item }}{% if item.size %} · {{ item.size }}{% endif %}{% if item.quality %} · {{ item.quality }}{% endif %}</td>
+        <td>{{ item.issued_to_display or '—' }}</td>
+        <td>{{ '{:,.2f}'.format(item.display_required) }}</td>
+        <td>{{ '{:,.2f}'.format(item.display_net_issued) }}</td>
+        <td>{{ '{:,.2f}'.format(item.display_remaining) }}</td>
+        <td>{{ item.display_unit or '—' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="text-center">No accessory requirements are configured for this cut.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="cut-accessories-signature-row">
+    <div class="cut-accessories-signature">ISSUED BY: ________________________</div>
+    <div class="cut-accessories-signature">RECEIVED BY: ______________________</div>
+  </div>
+  </div>
+</article>
+<script>
+  function fitCutAccessoryPrint() {
+    const page = document.querySelector('.cut-accessories-print');
+    const content = document.querySelector('.cut-accessories-print-content');
+    if (!page || !content) return;
+    content.style.removeProperty('--cut-print-scale');
+    const availableHeight = page.clientHeight;
+    const contentHeight = content.scrollHeight;
+    if (contentHeight > availableHeight && contentHeight > 0) {
+      content.style.setProperty('--cut-print-scale', String(availableHeight / contentHeight));
+    }
+  }
+  window.addEventListener('beforeprint', fitCutAccessoryPrint);
+  window.addEventListener('afterprint', function () {
+    const content = document.querySelector('.cut-accessories-print-content');
+    if (content) content.style.removeProperty('--cut-print-scale');
+  });
+</script>
+{% endblock %}

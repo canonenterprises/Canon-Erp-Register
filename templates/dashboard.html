@@ -1,0 +1,602 @@
+{% extends 'base.html' %}
+{% block content %}
+
+
+
+
+{% if welcome %}
+<style>
+    .welcome-page {
+        min-height: calc(100vh - 4rem);
+        overflow: visible;
+    }
+    .portal-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .portal-card {
+        position: relative;
+        min-height: 12.5rem;
+        overflow: hidden;
+        border: 2px solid var(--portal-color);
+        border-radius: 1.25rem;
+        background: var(--portal-bg);
+        color: #12345b;
+        isolation: isolate;
+        transition: transform 180ms ease, box-shadow 180ms ease;
+    }
+    .portal-card::before {
+        position: absolute;
+        z-index: -1;
+        content: '';
+        pointer-events: none;
+        inset: 0;
+        border-radius: inherit;
+        background: repeating-linear-gradient(
+            135deg,
+            transparent 0 2px,
+            var(--portal-color) 2px 4px,
+            transparent 4px 6px
+        );
+        opacity: 0.15;
+        -webkit-mask-image: linear-gradient(to top right, transparent 0%, #000 90%);
+        mask-image: linear-gradient(to top right, transparent 0%, #000 90%);
+    }
+    .portal-card:hover {
+        transform: translateY(-0.35rem);
+        box-shadow: 0 1rem 2rem -1rem var(--portal-shadow);
+    }
+    .portal-icon {
+        color: var(--portal-color);
+        font-size: 3.75rem;
+        line-height: 1;
+    }
+    .portal-rule {
+        width: 3.6rem;
+        height: 0.35rem;
+        margin: 1.1rem auto 0;
+        border-radius: 999px;
+        background: var(--portal-color);
+    }
+    @media (max-width: 767px) {
+        .welcome-page {
+            min-height: calc(100vh - 5.5rem);
+            padding: 0.75rem;
+        }
+        .welcome-page > div:first-child { margin-bottom: 1rem; }
+        .welcome-page > div:first-child img { margin-bottom: 0.75rem; }
+        .welcome-page > div:first-child h1 { font-size: 1.4rem !important; }
+        .welcome-page > div:first-child p { margin-top: 0.35rem; }
+        .portal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .portal-grid { gap: 0.6rem; }
+        .portal-card { min-height: 7.5rem; padding: 0.75rem; }
+        .portal-icon { font-size: 2.8rem; }
+        .portal-icon { font-size: 2.2rem; }
+        .portal-card h3 { margin-top: 0.65rem; font-size: 0.8rem; line-height: 1.2; }
+        .portal-rule { width: 2.6rem; height: 0.25rem; margin-top: 0.65rem; }
+    }
+</style>
+<div class="welcome-page flex flex-col items-center justify-center p-6">
+    <div class="text-center mb-10">
+        <img src="{{ url_for('static', filename='canon logo black.webp') }}" alt="Canon Enterprises logo" class="mx-auto mb-5 h-auto w-80 max-w-full object-contain">
+        <p class="text-slate-500 mt-2">Please select your portal to continue</p>
+    </div>
+
+    <div class="portal-grid grid gap-6 w-full max-w-6xl">
+        <a href="{{ url_for('login', target_role='owner') }}" class="portal-card group flex flex-col items-center justify-center p-6 text-center" style="--portal-color: #dc2626; --portal-bg: #fef2f2; --portal-shape: #fecaca; --portal-shadow: #dc262666;">
+            <i class="portal-icon fa-solid fa-gear" aria-hidden="true"></i>
+            <h3 class="mt-5 text-lg font-black uppercase">Administration</h3>
+            <div class="portal-rule"></div>
+        </a>
+
+        <a href="{{ url_for('login', target_role='manager') }}" class="portal-card group flex flex-col items-center justify-center p-6 text-center" style="--portal-color: #2563eb; --portal-bg: #eff6ff; --portal-shape: #dbeafe; --portal-shadow: #2563eb66;">
+            <i class="portal-icon fa-solid fa-scissors" aria-hidden="true"></i>
+            <h3 class="mt-5 text-lg font-black uppercase">Operations &amp; Payroll</h3>
+            <div class="portal-rule"></div>
+        </a>
+
+        <a href="{{ url_for('login', target_role='operations') }}" class="portal-card group flex flex-col items-center justify-center p-6 text-center" style="--portal-color: #ca8a04; --portal-bg: #fefce8; --portal-shape: #fef08a; --portal-shadow: #ca8a0466;">
+            <i class="portal-icon fa-solid fa-truck-fast" aria-hidden="true"></i>
+            <h3 class="mt-5 text-lg font-black uppercase">Production &amp; Logistics</h3>
+            <div class="portal-rule"></div>
+        </a>
+
+        <a href="{{ url_for('login', target_role='assistant_manager') }}" class="portal-card group flex flex-col items-center justify-center p-6 text-center" style="--portal-color: #7440df; --portal-bg: #f7f2ff; --portal-shape: #eadfff; --portal-shadow: #7440df66;">
+            <i class="portal-icon fa-solid fa-users" aria-hidden="true"></i>
+            <h3 class="mt-5 text-lg font-black uppercase">Coordinator</h3>
+            <div class="portal-rule"></div>
+        </a>
+
+        <a href="{{ url_for('login', target_role='worker') }}" class="portal-card group flex flex-col items-center justify-center p-6 text-center" style="--portal-color: #ed7935; --portal-bg: #fff7f0; --portal-shape: #ffe8d7; --portal-shadow: #ed793566;">
+            <i class="portal-icon fa-solid fa-hard-hat" aria-hidden="true"></i>
+            <h3 class="mt-5 text-lg font-black uppercase">Worker Ledger</h3>
+            <div class="portal-rule"></div>
+        </a>
+
+        <a href="{{ url_for('login', target_role='stock') }}" class="portal-card group flex flex-col items-center justify-center p-6 text-center" style="--portal-color: #016201; --portal-bg: #f0fdf4; --portal-shape: #bbf7d0; --portal-shadow: #228b2266;">
+            <i class="portal-icon fa-solid fa-warehouse" aria-hidden="true"></i>
+            <h3 class="mt-5 text-lg font-black uppercase">Stocks</h3>
+            <div class="portal-rule"></div>
+        </a>
+        <a href="{{ url_for('login', target_role='challan') }}" class="portal-card group flex flex-col items-center justify-center p-6 text-center" style="--portal-color: #db2777; --portal-bg: #fdf2f8; --portal-shape: #fbcfe8; --portal-shadow: #db277766;">
+            <i class="portal-icon fa-solid fa-file-invoice" aria-hidden="true"></i>
+            <h3 class="mt-5 text-lg font-black uppercase">Challan Ledger</h3>
+            <div class="portal-rule"></div>
+        </a>
+        <a href="{{ url_for('accounts_portal') }}" class="portal-card group flex flex-col items-center justify-center p-6 text-center" style="--portal-color: #0fb6a8; --portal-bg: #f0fdfa; --portal-shape: #ccfbf1; --portal-shadow: #09353166;">
+            <i class="portal-icon fa-solid fa-coins" aria-hidden="true"></i>
+            <h3 class="mt-5 text-lg font-black uppercase">Accounts</h3>
+            <div class="portal-rule"></div>
+        </a>
+    </div>
+</div>
+{% endif %}
+
+
+
+
+
+
+{% if active_tab == 'list' %}
+<div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between mb-6">
+        <h2 class="text-2xl font-black">Select Article</h2>
+        <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3 w-full lg:w-auto">
+            <form method="get" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto sm:pr-0 lg:pr-10">
+                <input type="hidden" name="tab" value="list">
+                <input type="text" name="article_search" value="{{ article_search }}" placeholder="Search by article no, name, style or color" class="w-full sm:w-64 lg:w-80 p-2 border border-slate-500 rounded-lg">
+                <button type="submit" class="bg-slate-800 text-white px-4 py-2 rounded-lg font-bold hover:bg-slate-700">Search</button>
+                {% if article_search %}
+                <a href="{{ url_for('manager_dashboard', tab='list') }}" class="text-sm font-bold text-slate-500 underline text-center">Clear</a>
+                {% endif %}
+            </form>
+            <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                {% if session.get('role') != 'assistant_manager' %}
+                <a href="{{ url_for('manager_dashboard', tab='add_party') }}" class="text-s bg-indigo-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-indigo-700 text-center">+ New Order</a>
+                {% endif %}
+                {% if session.get('role') in ('owner', 'manager') %}
+                <a href="{{ url_for('new_article') }}" class="text-s bg-emerald-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-emerald-700 text-center">+ New Article</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% if article_search and not article_groups %}
+    <div class="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">No articles matched your search.</div>
+    {% endif %}
+
+    <div class="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
+        <div class="mb-4 flex items-center justify-between gap-3">
+            <h3 class="text-lg font-black uppercase tracking-wide text-slate-700">Article Heads</h3>
+            <span class="rounded-full bg-slate-800 px-2.5 py-1 text-xs font-bold uppercase text-white">{{ article_heads|length }} heads</span>
+        </div>
+        {% if article_heads %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-s min-w-[700px]">
+                <thead class="text-slate-400 uppercase">
+                    <tr>
+                        <th class="text-center p-2">Party Name</th>
+                        <th class="text-center p-2">Article Name</th>
+                        <th class="text-center p-2">Color</th>
+                        <th class="text-center p-2">Articles</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for head in article_heads %}
+                    <tr class="group border-t hover:bg-indigo-50 cursor-pointer text-center" data-href="{{ url_for('article_head_detail', head_party=head.party, head_article_name=head.article_name, head_color=head.color) }}" onclick="window.location.href=this.dataset.href">
+                        <td class="p-4 font-bold text-slate-900">{{ head.party or '—' }}</td>
+                        <td class="p-4 text-slate-600">{{ head.article_name or '—' }}</td>
+                        <td class="p-4 font-bold text-slate-700">{{ head.color or '—' }}</td>
+                        <td class="p-4 font-bold text-slate-600">{{ head.article_count }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">No article heads found.</div>
+        {% endif %}
+    </div>
+
+
+
+
+
+
+{% elif active_tab == 'add_party' %}
+<div class="bg-white p-8 rounded-2xl border border-slate-100 shadow-sm">
+    <a href="{{ url_for('manager_dashboard', tab='list') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 hover:text-slate-900 mb-6">← Back to List</a>
+        <div class="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4">
+        <form method="get" class="flex flex-col gap-3 md:flex-row md:items-center">
+            <input type="hidden" name="tab" value="add_party">
+            <label class="text-sm font-bold text-slate-600 uppercase">Search previous article</label>
+            <input type="text" name="article_search" value="{{ article_search }}" placeholder="Search by article no, name, color or style" class="flex-1 p-2 border rounded-lg">
+            <button type="submit" class="bg-slate-800 text-white px-4 py-2 rounded-lg font-bold hover:bg-slate-700">Search</button>
+            {% if article_search %}
+            <a href="{{ url_for('manager_dashboard', tab='add_party') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 hover:text-slate-900">Clear</a>
+            {% endif %}
+        </form>
+
+        {% if article_search %}
+        <div class="mt-4">
+            <h3 class="text-sm font-black uppercase text-slate-600 mb-2">Previous matching articles</h3>
+            {% if search_results %}
+            <div class="space-y-2">
+                {% for result in search_results %}
+                <div class="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-3">
+                    <div>
+                        <div class="font-bold text-slate-800">{{ result.article_no or '—' }}</div>
+                        <div class="text-sm text-slate-500">{{ result.article_name or '—' }} • {{ result.party_name or '—' }} • {{ result.color or '—' }} • {{ result.style or '—' }}</div>
+                    </div>
+                    <a href="{{ url_for('manager_dashboard', tab='add_party', article_search=article_search, selected_article_id=result.id) }}" class="rounded-lg bg-indigo-600 px-3 py-2 text-sm font-bold text-white hover:bg-indigo-700">Select</a>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-500">No previous orders matched your search.</p>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    <h2 class="text-3xl font-black mb-6">MERCHANDISING</h2>
+    {% if editing_order %}
+    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+        Editing saved entry: <span class="font-bold">{{ editing_order.job_no }}</span>
+    </div>
+    {% elif prefill_order %}
+    <div class="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
+        Prefilled from saved article: <span class="font-bold">{{ prefill_order.article or prefill_order.job_no }}</span>
+    </div>
+    {% endif %}
+
+    <div class="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 bg-slate-50 border border-slate-200 rounded-2xl p-4">
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">New Order Qty (Dozen)</label><input type="number" id="new_qty_dozen" name="new_qty_dozen" class="w-full p-2 border rounded-lg {% if editing_order %}bg-slate-100{% endif %}" min="0" placeholder="Enter dozen" value="{{ form_order.new_qty_dozen if form_order else '' }}" {% if editing_order %}readonly{% endif %}></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">New Order Qty (Pcs)</label><input type="number" id="new_qty_pcs" name="new_qty_pcs" class="w-full p-2 border rounded-lg {% if editing_order %}bg-slate-100{% endif %}" min="0" placeholder="Enter pcs" value="{{ form_order.new_qty_pcs if form_order else '' }}" {% if editing_order %}readonly{% endif %}></div>
+        {% if editing_order %}
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Extension Order Pcs</label><input type="number" id="extension_order_pcs" name="extension_order_pcs" class="w-full p-2 border rounded-lg border-amber-400 bg-amber-50" min="0" step="1" placeholder="Enter extension pcs" value="{{ editing_order.extension_order_pcs or '0' }}"></div>
+        {% endif %}
+        <div class="md:col-span-2 flex items-end gap-3">
+            <div class="text-sm text-slate-500 pt-2">Order qty updates automatically when you enter Dozen or Pcs{% if editing_order %}, but qty is locked in edit mode{% endif %}{% if editing_order %}. Extension pcs are added when you save{% endif %}.</div>
+        </div>
+    </div>
+
+
+    <form id="order_form" method="POST" enctype="multipart/form-data" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <input type="hidden" name="form_action" value="add_party">
+        <input type="hidden" name="active_tab" value="add_party">
+        <input type="hidden" name="order_id" value="{{ editing_order.id if editing_order else '' }}">
+        <input type="hidden" name="selected_article_id" value="{{ selected_article_id if selected_article_id else '' }}">
+        <!-- Hidden copies so inputs above the form are submitted -->
+        <input type="hidden" id="hidden_new_qty_dozen" name="new_qty_dozen" value="{{ form_order.new_qty_dozen if form_order else '' }}">
+        <input type="hidden" id="hidden_new_qty_pcs" name="new_qty_pcs" value="{{ form_order.new_qty_pcs if form_order else '' }}">
+        {% if editing_order %}<input type="hidden" id="hidden_extension_order_pcs" name="extension_order_pcs" value="{{ editing_order.extension_order_pcs or '0' }}">{% endif %}
+        <input type="hidden" id="qty_input_mode" name="qty_input_mode" value="">
+        
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Date</label><input type="date" name="date" class="w-full p-2 border rounded-lg" value="{{ form_order.date if form_order else '' }}" required></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">P/O NO</label><input type="text" name="po_no" class=" w-full p-2 border rounded-lg" value="{{ form_order.po_no if form_order else '' }}" required></div>
+        <div>
+            <label class="text-[15px] font-bold text-slate-600 uppercase">C/FILE NO</label>
+            <div class="flex w-full">
+                <span class="flex items-center rounded-l-lg border border-r-0 bg-slate-100 px-3 font-bold text-slate-600">FILE-</span>
+                <input type="text" name="file_no" class="w-full rounded-r-lg border p-2" value="{{ (form_order.file_no|replace('FILE-', '', 1)) if form_order else '' }}" inputmode="numeric" pattern="[0-9]+" required>
+            </div>
+        </div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">YEAR</label><input type="text" name="year" class=" w-full p-2 border rounded-lg" id="current_year" readonly></div>
+        
+        <div class="col-span-2"><label class="text-[15px] font-bold text-slate-600 uppercase">Party Name</label><input type="text" name="party_name" class="font-bold w-full p-2 border rounded-lg {% if article_details_locked %}font-bold bg-slate-300{% endif %}" value="{{ form_order.name if form_order else '' }}" {% if article_details_locked %}readonly{% endif %} required></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Article Name</label><input type="text" name="article_name" class="font-bold w-full p-2 border rounded-lg {% if article_details_locked %}bg-slate-300{% endif %}" value="{{ form_order.article_name if form_order else '' }}" placeholder="Enter article name" {% if article_details_locked %}readonly{% endif %} required></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Style</label><input type="text" name="style" class="font-bold w-full p-2 border rounded-lg {% if article_details_locked %}bg-slate-300{% endif %}" value="{{ form_order.style if form_order else '' }}" {% if article_details_locked %}readonly{% endif %} required></div>
+        
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Color</label><input type="text" name="color" class="font-bold w-full p-2 border rounded-lg {% if article_details_locked %}bg-slate-300{% endif %}" value="{{ form_order.color if form_order else '' }}" {% if article_details_locked %}readonly{% endif %} required></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Order Qty (PCS)</label><input type="number" name="qty" id="qty" class="font-bold w-full p-2 border rounded-lg bg-slate-300" value="{{ form_order.qty if form_order else '' }}" readonly required></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Finish Size</label><input type="text" name="body_size" value="{{ form_order.body_size if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+        {% set cut_size_text = (form_order.cut_size or '')|lower|replace('×', 'x') if form_order else '' %}
+        {% set cut_size_parts = cut_size_text.split('x', 1) if cut_size_text else [] %}
+        <div>
+            <label class="text-[15px] font-bold text-slate-600 uppercase">Cut Size</label>
+            <div class="flex items-center gap-2">
+                <input type="text" id="cut_size_left" value="{{ cut_size_parts[0]|trim if cut_size_parts else '' }}" inputmode="decimal" class="w-full min-w-0 p-2 border rounded-lg" aria-label="Cut size first factor" required>
+                <span class="shrink-0 text-lg font-black text-slate-600" aria-hidden="true">×</span>
+                <input type="text" id="cut_size_right" value="{{ cut_size_parts[1]|trim if cut_size_parts|length > 1 else '' }}" inputmode="decimal" class="w-full min-w-0 p-2 border rounded-lg" aria-label="Cut size second factor" required>
+            </div>
+            <input type="hidden" id="cut_size" name="cut_size" value="{{ form_order.cut_size if form_order else '' }}">
+        </div>
+        
+        <div class="mb-2 bg-slate-50 border border-slate-400 rounded-2xl p-4">
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">PCS Per Side</label><input type="number" id="pcs_per_side" name="pcs_per_side" class="font-bold w-full p-2 border rounded-lg bg-slate-300 {% if editing_order %}bg-slate-300{% endif %}" min="0" placeholder="Enter pcs per side" value="{{ form_order.pcs_per_side if form_order else '' }}" ></div>
+        </div>
+        <div class="mb-2 bg-slate-50 border border-slate-400 rounded-2xl p-4">
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Margin %</label><input type="number" id="margin_percent" name="margin" class="font-bold w-full p-2 border rounded-lg bg-slate-300 {% if editing_order %}bg-slate-300{% endif %}" min="0" placeholder="Enter margin %" value="{{ form_order.margin if form_order else '' }}" ></div>
+        </div>
+        <div class="mb-2 bg-slate-50 border border-slate-400 rounded-2xl p-4">
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Usage/Doz %</label><input type="text" name="usage" value="{{ form_order.usage if form_order else '' }}" class="font-bold w-full p-2 border rounded-lg bg-slate-300" readonly required></div>
+        </div>
+        <div class="mb-2 bg-slate-50 border border-slate-400 rounded-2xl p-4">
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Req Fabric</label><input type="text" name="fab" value="{{ form_order.fab if form_order else '' }}" class="font-bold w-full p-2 border rounded-lg bg-slate-300" readonly required></div>
+        </div>
+        
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Req Fabric Width</label><input type="text" name="fab_width" value="{{ form_order.fab_width if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Original Sample</label><select name="sample" class="w-full p-2 border rounded-lg"><option value="Yes" {% if form_order and form_order.sample == 'Yes' %}selected{% endif %}>Yes</option><option value="No" {% if form_order and form_order.sample == 'No' %}selected{% endif %} required>No</option></select></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">RN</label><input type="text" name="rn" value="{{ form_order.rn if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Washing Card</label><input type="text" name="wash" value="{{ form_order.wash if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Label Qty</label><input type="text" id="label_input" name="label" value="{{ form_order.label if form_order else '' }}" class="w-full p-2 border rounded-lg bg-slate-100" required></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Label 1</label><input type="text" name="label_1" value="{{ form_order.label_1 if form_order else '' }}" class="w-full p-2 border rounded-lg"></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Label 2</label><input type="text" name="label_2" value="{{ form_order.label_2 if form_order else '' }}" class="w-full p-2 border rounded-lg"></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Label 3</label><input type="text" name="label_3" value="{{ form_order.label_3 if form_order else '' }}" class="w-full p-2 border rounded-lg"></div>
+
+        <div class="col-span-1 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Logo</label><select name="logo" class="w-full p-2 border rounded-lg"><option value="Yes" {% if form_order and form_order.logo == 'Yes' %}selected{% endif %}>Yes</option><option value="No" {% if form_order and form_order.logo == 'No' %}selected{% endif %} required>No</option></select></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Embroidery</label><select name="emb" class="w-full p-2 border rounded-lg"><option value="Yes" {% if form_order and form_order.emb == 'Yes' %}selected{% endif %}>Yes</option><option value="No" {% if form_order and form_order.emb == 'No' %}selected{% endif %} required>No</option></select></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Print</label><select name="print" class="w-full p-2 border rounded-lg"><option value="Yes" {% if form_order and form_order.print_field == 'Yes' %}selected{% endif %}>Yes</option><option value="No" {% if form_order and form_order.print_field == 'No' %}selected{% endif %} required>No</option></select></div>
+        </div>
+        <div class="col-span-1 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Poly Bag Size</label><input type="text" name="poly_size" value="{{ form_order.poly_size if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Pcs Per Poly</label><input type="number" name="pcs_poly" value="{{ form_order.pcs_poly if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Carton Size</label><input type="text" name="ctn_size" value="{{ form_order.ctn_size if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Carton Label</label><input type="text" name="ctn_label" value="{{ form_order.ctn_label if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Barcode</label><input type="text" name="barcode" value="{{ form_order.barcode if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+        </div>
+        
+        <div class="col-span-1 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Qty Per Bail</label><input type="number" name="qty_bail" value="{{ form_order.qty_bail if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Gross Weight Bail</label><input type="text" name="gross_w_bail" value="{{ form_order.gross_w_bail if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Net Weight Bail</label><input type="text" name="net_w_bail" value="{{ form_order.net_w_bail if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Total Bails</label><input type="number" name="total_bails" value="{{ form_order.total_bails if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+        </div>
+        <div class="col-span-1 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Qty Per CTN</label><input type="number" name="qty_ctn" value="{{ form_order.qty_ctn if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Gross Weight CTN</label><input type="text" name="gross_w" value="{{ form_order.gross_w if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Net Weight CTN</label><input type="text" name="net_w" value="{{ form_order.net_w if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Total CTN</label><input type="number" name="total_ctn" value="{{ form_order.total_ctn if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+        </div>
+
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Shipment Date</label><input type="date" name="ship_date" value="{{ form_order.ship_date if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+        <div><label class="text-[15px] font-bold text-slate-600 uppercase">Challan No</label><input type="text" name="challan" value="{{ form_order.challan if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+        <div class="col-span-1 sm:col-span-2 lg:col-span-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <label class="text-[15px] font-bold text-slate-600 uppercase">Order Pictures</label>
+            <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                {% for image_index in range(1, 11) %}
+                <div class="rounded-lg border border-slate-200 bg-white p-2">
+                    {% if image_index <= saved_image_files|length %}
+                    <a href="{{ saved_image_files[image_index - 1] }}" target="_blank" rel="noopener" class="mb-2 block truncate text-xs font-bold text-indigo-600 underline">View picture {{ image_index }}</a>
+                    <label class="mb-1 block text-xs font-bold uppercase text-slate-500">Replace picture {{ image_index }}</label>
+                    {% else %}
+                    <label class="mb-1 block text-xs font-bold uppercase text-slate-500">Upload picture {{ image_index }}</label>
+                    {% endif %}
+                    <input type="file" name="image_file_{{ image_index }}" accept="image/png,image/jpg,image/jpeg,image/webp" class="w-full text-sm">
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <button type="submit" class="md:col-span-4 bg-indigo-600 text-white py-4 rounded-xl font-black mt-4 hover:bg-indigo-700">{{ 'Update Entry' if editing_order else 'SAVE ENTRY' }}</button>
+
+        <script>
+            const yearInput = document.getElementById('current_year');
+            if (yearInput && !yearInput.value) {
+                yearInput.value = new Date().getFullYear();
+            }
+
+            const dozenInput = document.getElementById('new_qty_dozen');
+            const pcsInput = document.getElementById('new_qty_pcs');
+            const qtyInput = document.getElementById('qty');
+            const labelInput = document.getElementById('label_input');
+            const hiddenDozen = document.getElementById('hidden_new_qty_dozen');
+            const hiddenPcs = document.getElementById('hidden_new_qty_pcs');
+            const extensionInput = document.getElementById('extension_order_pcs');
+            const hiddenExtension = document.getElementById('hidden_extension_order_pcs');
+            const orderForm = document.getElementById('order_form');
+            const originalOrderPcs = pcsInput ? (parseFloat(pcsInput.value) || 0) : 0;
+            const originalExtensionPcs = extensionInput ? (parseFloat(extensionInput.value) || 0) : 0;
+            const baseOrderPcs = Math.max(0, originalOrderPcs - originalExtensionPcs);
+
+            function syncLabelWithPcs() {
+                if (labelInput && pcsInput) labelInput.value = pcsInput.value || '';
+            }
+
+            syncLabelWithPcs();
+
+            if (extensionInput && hiddenExtension) {
+                extensionInput.addEventListener('input', function () {
+                    const extensionPcs = Math.max(0, parseFloat(extensionInput.value) || 0);
+                    const updatedPcs = Math.round(baseOrderPcs + extensionPcs);
+                    const updatedDozen = updatedPcs / 12;
+                    pcsInput.value = String(updatedPcs);
+                    dozenInput.value = updatedDozen.toFixed(3);
+                    qtyInput.value = String(updatedPcs);
+                    hiddenPcs.value = String(updatedPcs);
+                    hiddenDozen.value = updatedDozen.toFixed(3);
+                    hiddenExtension.value = extensionInput.value || '';
+                    if (labelInput) labelInput.value = String(updatedPcs);
+                });
+            }
+
+            function syncHidden() {
+                if (!hiddenDozen || !hiddenPcs) return;
+                // prefer computed hidden values (kept in sync by input handlers)
+                // fallback: copy visible inputs if present
+                if (hiddenDozen.value === '' && dozenInput) hiddenDozen.value = dozenInput.value || '';
+                if (hiddenPcs.value === '' && pcsInput) hiddenPcs.value = pcsInput.value || '';
+            }
+
+            function onDozenInput() {
+                if (!dozenInput || !pcsInput || !qtyInput || !hiddenDozen || !hiddenPcs) return;
+                const val = dozenInput.value.trim();
+                if (val !== '') {
+                    document.getElementById('qty_input_mode').value = 'dozen';
+                    // user provided dozens — show the calculated pcs in the visible field
+                    const dozens = parseFloat(val) || 0;
+                    const pcs = Math.round(dozens * 12);
+                    pcsInput.value = String(pcs);
+                    if (labelInput) labelInput.value = String(pcs);
+                    // Show order quantity in pieces.
+                    qtyInput.value = String(pcs);
+                    hiddenDozen.value = String(dozens);
+                    hiddenPcs.value = String(pcs);
+                } else {
+                    // cleared dozen input
+                    pcsInput.value = '';
+                    syncLabelWithPcs();
+                    hiddenDozen.value = '';
+                    hiddenPcs.value = '';
+                    qtyInput.value = '';
+                }
+                calculateUsage();
+            }
+
+            function onPcsInput() {
+                if (!dozenInput || !pcsInput || !qtyInput || !hiddenDozen || !hiddenPcs) return;
+                const val = pcsInput.value.trim();
+                if (val !== '') {
+                    document.getElementById('qty_input_mode').value = 'pcs';
+                    // user provided pcs — show the calculated dozen value in the visible field
+                    const pcs = parseInt(val, 10) || 0;
+                    const dozens = pcs / 12;
+                    dozenInput.value = Number(dozens.toFixed(3));
+                    if (labelInput) labelInput.value = String(pcs);
+                    // Show order quantity in pieces.
+                    qtyInput.value = String(pcs);
+                    hiddenPcs.value = String(pcs);
+                    hiddenDozen.value = String(dozens);
+                } else {
+                    dozenInput.value = '';
+                    syncLabelWithPcs();
+                    hiddenPcs.value = '';
+                    hiddenDozen.value = '';
+                    qtyInput.value = '';
+                }
+                calculateUsage();
+            }
+
+            if (dozenInput) dozenInput.addEventListener('input', onDozenInput);
+            if (pcsInput) pcsInput.addEventListener('input', onPcsInput);
+
+            // Ensure hidden fields are updated before the form is submitted
+            if (orderForm) {
+                orderForm.addEventListener('submit', function () {
+                    // sync in case user didn't click Update
+                    if (dozenInput && dozenInput.value.trim() !== '') onDozenInput();
+                    if (pcsInput && pcsInput.value.trim() !== '') onPcsInput();
+                    syncHidden();
+                });
+            }
+
+            // Usage/Doz % calculator
+            const pcsPerSideInput = document.getElementById('pcs_per_side');
+            const marginPercentInput = document.getElementById('margin_percent');
+            const cutSizeLeftInput = document.getElementById('cut_size_left');
+            const cutSizeRightInput = document.getElementById('cut_size_right');
+            const cutSizeValueInput = document.getElementById('cut_size');
+            const usageDisplay = document.querySelector('input[name="usage"]');
+            const reqFabDisplay = document.querySelector('input[name="fab"]');
+
+            function syncCutSizeValue() {
+                if (!cutSizeValueInput) return;
+                const leftValue = cutSizeLeftInput?.value.trim() || '';
+                const rightValue = cutSizeRightInput?.value.trim() || '';
+                cutSizeValueInput.value = leftValue && rightValue
+                    ? `${leftValue} x ${rightValue}`
+                    : leftValue || rightValue;
+            }
+
+            function parseFirstCutSizeFactor(value) {
+                const firstFactor = String(value || '').trim().split(/[x×]/i, 1)[0].trim();
+                const parsed = Number.parseFloat(firstFactor);
+                return Number.isFinite(parsed) ? parsed : 0;
+            }
+
+            function calculateUsage() {
+                const pcsPerSide = parseFloat(pcsPerSideInput && pcsPerSideInput.value || 0) || 0;
+                const cutSize = parseFirstCutSizeFactor(cutSizeLeftInput && cutSizeLeftInput.value);
+                const marginPercent = parseFloat(marginPercentInput && marginPercentInput.value || 0) || 0;
+                if (!cutSize || !pcsPerSide) {
+                    return;
+                }
+                const base = (cutSize * pcsPerSide) / 39.35;
+                const usageValue = base + ((base * marginPercent) / 100);
+                const usageRounded = Number(usageValue.toFixed(3));
+
+                const orderDozens = parseFloat(dozenInput && dozenInput.value || 0) || 0;
+                const reqFab = orderDozens * usageRounded;
+
+                if (usageDisplay) usageDisplay.value = usageRounded;
+                if (reqFabDisplay) reqFabDisplay.value = Number(reqFab.toFixed(3));
+
+                const usageField = document.querySelector('input[name="usage"]');
+                const fabField = document.querySelector('input[name="fab"]');
+                if (usageField) usageField.value = usageRounded;
+                if (fabField) fabField.value = Number(reqFab.toFixed(3));
+            }
+
+            if (pcsPerSideInput) pcsPerSideInput.addEventListener('input', calculateUsage);
+            if (marginPercentInput) marginPercentInput.addEventListener('input', calculateUsage);
+            [cutSizeLeftInput, cutSizeRightInput].forEach(function (input) {
+                if (!input) return;
+                input.addEventListener('input', function () {
+                    syncCutSizeValue();
+                    calculateUsage();
+                });
+            });
+            syncCutSizeValue();
+        </script>
+    </form>
+    <div class="mt-8 border-t border-slate-200 pt-6">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-2xl font-black">Saved Entries</h3>
+            <a href="{{ url_for('manager_dashboard', tab='add_party') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 hover:text-slate-900">Clear Edit</a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-m">
+                <thead class="text-slate-400 uppercase">
+                    <tr>
+                        <th class="text-left p-2">Order ID</th>
+                        <th class="text-left p-2">Party</th>
+                        <th class="text-left p-2">Article</th>
+                        <th class="text-left p-2">Date</th>
+                        <th class="text-left p-2">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in parties %}
+                    <tr class="group border-t hover:bg-slate-50">
+                        <td class="p-2 font-bold text-indigo-600">{{ p.job_no }}</td>
+                        <td class="p-2">{{ p.name }}</td>
+                        <td class="p-2">{{ p.article }}</td>
+                        <td class="p-2">{{ p.date|format_ddmmyyyy if p.date else '' }}</td>
+                        <td class="p-2">
+                            <div class="flex gap-2">
+                                {% if read_only_profile %}
+                                <a href="{{ url_for('order_details', job_no=p.job_no) }}" class="inline-flex items-center rounded-lg border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-sm font-bold text-white shadow-sm transition hover:border-indigo-600 hover:bg-white hover:text-indigo-600">View Order</a>
+                                {% else %}
+                                <a href="{{ url_for('manager_dashboard', tab='add_party', edit_order_id=p.id) }}" class="inline-flex items-center rounded-lg border border-indigo-600 bg-indigo-600 px-3 py-1.5 text-sm font-bold text-white shadow-sm transition hover:border-indigo-600 hover:bg-white hover:text-indigo-600">View / Edit</a>
+                                <form method="POST" class="inline" onsubmit="return confirm('Are you sure you want to delete this entry?');">
+                                    <input type="hidden" name="form_action" value="delete_party">
+                                    <input type="hidden" name="delete_order_id" value="{{ p.id }}">
+                                    <button type="submit" class="inline-flex items-center rounded-lg border border-red-600 bg-red-600 px-3 py-1.5 text-sm font-bold text-white shadow-sm transition hover:border-red-600 hover:bg-white hover:text-red-600 opacity-0 translate-y-1 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:translate-y-0 group-focus-within:pointer-events-auto">Delete</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="p-4 text-center text-slate-500">No saved entries yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <a href="{{ url_for('manager_dashboard', tab='list') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 hover:text-slate-900">← Back to List</a>
+</div>
+{% endif %}
+
+<script>
+    document.querySelectorAll('.dashboard-article-row').forEach(function (row) {
+        row.addEventListener('click', function (event) {
+            if (event.target.closest('a, button, input, select, textarea')) return;
+            window.location.href = row.dataset.href;
+        });
+    });
+</script>
+{% endblock %}
