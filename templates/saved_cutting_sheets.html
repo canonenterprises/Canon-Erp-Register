@@ -59,6 +59,9 @@
                         <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ sheet.created_at.strftime('%Y-%m-%d %H:%M') if sheet.created_at else '-' }}</td>
                         <td class="border-b border-slate-100 px-4 py-3">
                             <div class="flex justify-end gap-2">
+                                {% if read_only_profile %}
+                                <a href="{{ url_for('cutting_sheet', job_no=selected_job, edit_id=sheet.id) }}" class="inline-flex items-center rounded-lg border border-green-800 bg-green-800 px-3 py-1.5 text-xs font-bold text-white transition hover:border-green-300 hover:bg-green-300 hover:text-black">View</a>
+                                {% else %}
                                 {% if session.get('role') in ('owner', 'manager') and transfer_state.remaining_transferable > 0 %}
                                 <button type="button" class="transfer-excess-button rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-800"
                                     data-source-sheet-id="{{ sheet.id }}"

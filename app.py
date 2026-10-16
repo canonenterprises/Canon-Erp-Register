@@ -11173,6 +11173,10 @@ def save_inventory():
     job_no = request.args.get('job_no') or request.form.get('job_no') or request.args.get('order_id') or request.args.get('auto_job') or ''
     order = Order.query.filter_by(job_no=job_no).first() if job_no else None
     inventory_id = request.form.get('inventory_id') or request.args.get('inv_id')
+    if inventory_id and (
+        session.get('role') not in ('owner', 'manager') or is_read_only_profile()
+    ):
+        return reject_read_only_edit('Only the owner and manager can update saved inventory records.')
     serial_no = request.form.get('serial_no') or request.args.get('serial_no') or generate_inventory_serial()
 
     required_header_keys = [

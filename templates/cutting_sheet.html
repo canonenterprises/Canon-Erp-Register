@@ -368,7 +368,9 @@
             <p class="text-[30px] text-black-950 text-right mt-0 pt-0">Printed on: <span id="print-time"></span></p>
         </div>
         <div class="no-print mt-6 flex flex-wrap gap-3 justify-end">
+                    {% if not (read_only_profile and cutting_sheet) %}
                     <button type="submit" class="px-4 py-2 rounded-lg bg-emerald-600 text-white font-bold">Save Cutting Sheet</button>
+                    {% endif %}
             <a href="{{ url_for('saved_cutting_sheets', job_no=selected_job) }}" class="px-4 py-2 rounded-lg bg-slate-700 text-white font-bold">View Saved Sheets</a>
             <button type="button" onclick="printCuttingSheet()" class="px-4 py-2 rounded-lg bg-slate-950 text-white font-bold">Print Cutting Sheet</button>
         </div>
