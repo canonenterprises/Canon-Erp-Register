@@ -129,6 +129,7 @@
 
             <!-- Signature + Timestamp -->
             <div class="print-only mt-6">
+                <p class="text-xs pt-2">Prepared By: {{ session.get('name') | upper }}</p>
                 <p class="text-xs pt-6">Receiver Signature: ______________________</p>
                 <p class="mt-0 text-[10px] text-slate-500 text-right">
                     Printed on: <span id="print-time"></span>
@@ -143,7 +144,7 @@
                 <button type="button" onclick="printSlip('Requirement Slip - Canon Copy')" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold">
                     Print Canon Copy
                 </button>
-                <button type="button" onclick="printSlip('Requirement Slip')" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-sky-600 text-white text-xs font-bold">
+                <button type="button" onclick="printSlip('Requirement Slip - Customer Copy')" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-sky-600 text-white text-xs font-bold">
                     Print Customer Copy
                 </button>
                 <button type="submit" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold">

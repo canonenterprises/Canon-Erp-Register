@@ -91,7 +91,7 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-6 gap-4 mb-6">
                 <div>
                     <label class="block text-xs font-bold text-black-500">Recieved Date</label>
                     <input type="date" name="recv_date" value="{{ inventory.recv_date if inventory and inventory.recv_date else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
@@ -109,8 +109,12 @@
                     <input type="text" name="place" value="{{ inventory.place if inventory and inventory.place else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-black-500">1 Meter = 100 CM (Rolls)</label>
-                    <input type="text" name="meter_note" value="{{ inventory.meter_note if inventory and inventory.meter_note else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                    <label class="block text-xs font-bold text-black-500">1 METER = 100 CM</label>
+                    <input type="text" name="meter_note" value="{{ inventory_avg_value or (inventory.meter_note if inventory and inventory.meter_note else '') }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-black-500">ROLLS</label>
+                    <input type="text" value="{{ inventory_rolls or '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
             </div>
 
@@ -738,9 +742,12 @@ input[type="number"]::-webkit-outer-spin-button {
         grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     }
 
-    #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(2),
-    #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(3) {
+    #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(2) {
         grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    }
+
+    #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(3) {
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
     }
 
     #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(4) {

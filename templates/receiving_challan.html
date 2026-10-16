@@ -142,6 +142,7 @@
 
         <!-- Signature + Timestamp -->
         <div class="print-only mt-12">
+            <p class="text-sm">Prepared By: {{ session.get('name', '') | upper }}</p>
             <p class="text-sm">Receiver Signature: ______________________</p>
             <p class="mt-6 text-xs text-slate-500 text-right">
                 Printed on: <span id="print-time"></span>

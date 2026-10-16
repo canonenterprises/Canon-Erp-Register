@@ -6,7 +6,7 @@
         <div>
             <p class="text-sm font-bold uppercase tracking-[0.22em] text-slate-700">Fabric Position Summary</p>
             <h1 class="mt-2 text-2xl font-black uppercase">{{ party_name or 'Party' }}</h1>
-            <p class="mt-2 text-sm font-bold text-slate-700">{{ start_date }} TO {{ end_date }}</p>
+            <p class="mt-2 text-sm font-bold text-slate-700">{% if start_date and start_date|length == 10 %}{{ start_date[8:10] }}-{{ start_date[5:7] }}-{{ start_date[:4] }}{% else %}{{ start_date }}{% endif %} TO {% if end_date and end_date|length == 10 %}{{ end_date[8:10] }}-{{ end_date[5:7] }}-{{ end_date[:4] }}{% else %}{{ end_date }}{% endif %}</p>
         </div>
         <a href="{{ url_for('fabric_ledger') }}" class="no-print mt-4 inline-block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Fabric Ledger</a>
     </header>
@@ -40,8 +40,11 @@
     <div class="rounded-xl border border-dashed border-slate-300 p-12 text-center text-slate-500">Select a party and valid date range to generate the article sheet.</div>
     {% endif %}
     <footer class="report-print-footer">
-        <span>Prepared by: {{ prepared_by }}</span>
-        <span>Printed on: <span class="print-timestamp"></span></span>
+        <div class="print-footer-note">THIS DOCUMENT IS SYSTEM GENERATED AGAINST THE FABRIC INVENTORY AND SHIPMENTS RECORDED</div>
+        <div class="print-footer-details">
+            <span>Prepared by: {{ prepared_by }}</span>
+            <span>Printed on: <span class="print-timestamp"></span></span>
+        </div>
     </footer>
 </div>
 </div>
@@ -54,15 +57,19 @@
     .article-block { break-inside: avoid; margin-bottom: 8mm; }
     .article-block h2 { font-size: 16pt; }
     .article-block table { font-size: 10pt; }
-    .report-print-footer { position: fixed; right: 0; bottom: 4mm; left: 0; display: flex; justify-content: space-between; gap: 8px; margin-top: 0; border-top: 1px solid #64748b; padding-top: 2mm; font-size: 9pt; }
+    .report-print-footer { position: fixed; right: 0; bottom: 4mm; left: 0; display: flex; flex-direction: column; gap: 1.5mm; margin-top: 0; font-size: 9pt; }
+    .print-footer-note { border-bottom: 1px solid #000; padding-bottom: 1.5mm; text-align: center; font-weight: 700; }
+    .print-footer-details { display: flex; justify-content: space-between; gap: 8px; }
 }
 </style>
 <script>
     window.addEventListener('beforeprint', function () {
         const printedAt = new Date();
-        const date = new Intl.DateTimeFormat('en-US', {
-            weekday: 'long', month: 'long', day: '2-digit', year: 'numeric'
-        }).format(printedAt);
+        const date = [
+            String(printedAt.getDate()).padStart(2, '0'),
+            String(printedAt.getMonth() + 1).padStart(2, '0'),
+            printedAt.getFullYear()
+        ].join('-');
         const time = new Intl.DateTimeFormat('en-US', {
             hour: '2-digit', minute: '2-digit', hour12: true
         }).format(printedAt);

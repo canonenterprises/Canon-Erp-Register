@@ -1,6 +1,7 @@
 ﻿import os
 import json
 import math
+from decimal import Decimal, ROUND_DOWN
 from flask import Flask, abort, g, render_template, request, redirect, url_for, session, flash, jsonify, has_app_context
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
@@ -2299,9 +2300,9 @@ def update_receiving_challan_schema():
 
 
 ADMIN_USERS = {
-    "owner": {"password": "123", "role": "owner", "name": "Muhammad Iqbal (Owner)"},
-    "arsalaniqbal": {"password": "canon-arsalan", "role": "manager", "name": "Arsalan Iqbal (Manager)"},
-    "assistant1": {"password": "123", "role": "assistant_manager", "name": "Hashir Kamran (Assistant Manager)"},
+    "owner": {"password": "123", "role": "owner", "name": "MUHAMMAD IQBAL"},
+    "arsalaniqbal": {"password": "canon-arsalan", "role": "manager", "name": "Arsalan Iqbal"},
+    "assistant1": {"password": "123", "role": "assistant_manager", "name": "Hashir Kamran"},
 }
 
 
@@ -9648,6 +9649,32 @@ def build_inventory_prefill_from_challan(challan, serial_no):
     )
 
 
+def calculate_inventory_cutting_average(serial_no, order_id=None):
+    if not serial_no:
+        return ''
+
+    order_ids = {order_id} if order_id else set()
+    if order_id:
+        order_ids.update(get_article_order_numbers(order_id))
+
+    query = CuttingSheet.query
+    if order_ids:
+        query = query.filter(CuttingSheet.order_id.in_(order_ids))
+
+    average_values = []
+    for sheet in query.all():
+        if serial_no not in split_inventory_serials(sheet.inventory_serial_no):
+            continue
+        for value in (sheet.avg_99, sheet.avg_100):
+            if value is not None and str(value).strip():
+                average_values.append(Decimal(str(parse_numeric(value))))
+
+    if not average_values:
+        return ''
+    average = sum(average_values, Decimal('0')) / Decimal(len(average_values))
+    return f'{average.quantize(Decimal("0.01"), rounding=ROUND_DOWN):.2f}'
+
+
     
 
 @app.route('/manager/receiving-challan', methods=['GET', 'POST'])
@@ -11161,12 +11188,20 @@ def inventory():
     if remaining_fabric_balance and b_quality_applied:
         fabric_balance_status = 'COMPLETED' if parse_numeric(remaining_fabric_balance) == 0 else 'NOT COMPLETED'
     inventory_status = get_inventory_status(inventory) if inventory else 'NOT USED'
+    linked_challan = ReceivingChallan.query.filter_by(serial_no=serial_no).first() if serial_no else None
+    inventory_rolls = linked_challan.rolls if linked_challan else ''
+    inventory_avg_value = calculate_inventory_cutting_average(
+        serial_no,
+        inventory.order_id if inventory and getattr(inventory, 'order_id', None) else job_no,
+    )
     return render_template(
         'inventory.html',
         selected_job=job_no,
         order=order,
         serial_no=serial_no,
         inventory=inventory,
+        inventory_rolls=inventory_rolls,
+        inventory_avg_value=inventory_avg_value,
         inventory_status=inventory_status,
         rows=rows,
         second_rows=second_rows,
@@ -11199,6 +11234,9 @@ def save_inventory():
     ):
         return reject_read_only_edit('Only the owner and manager can update saved inventory records.')
     serial_no = request.form.get('serial_no') or request.args.get('serial_no') or generate_inventory_serial()
+    linked_challan = ReceivingChallan.query.filter_by(serial_no=serial_no).first() if serial_no else None
+    inventory_rolls = linked_challan.rolls if linked_challan else ''
+    inventory_avg_value = calculate_inventory_cutting_average(serial_no, job_no)
 
     required_header_keys = [
         'recv_date', 'suppliers', 'received_from', 'challan_no', 'place', 'meter_note', 'file_no',
@@ -11435,7 +11473,7 @@ def save_inventory():
         inv_obj = build_inventory_form_object()
         db.session.rollback()
         flash('Please fill all required header fields before saving.', 'danger')
-        return render_template('inventory.html', selected_job=job_no, order=order, serial_no=serial_no, inventory=inv_obj, inventory_status=get_inventory_status(inventory_entry), rows=rows, second_rows=second_rows, remaining_a_quality=calculate_inventory_consumption_state(inventory_entry, order_id=job_no)['a_remaining'])
+        return render_template('inventory.html', selected_job=job_no, order=order, serial_no=serial_no, inventory=inv_obj, inventory_rolls=inventory_rolls, inventory_avg_value=inventory_avg_value, inventory_status=get_inventory_status(inventory_entry), rows=rows, second_rows=second_rows, remaining_a_quality=calculate_inventory_consumption_state(inventory_entry, order_id=job_no)['a_remaining'])
 
     try:
         db.session.flush()
@@ -11630,7 +11668,7 @@ def save_inventory():
                 ))
 
         inv_obj = build_inventory_form_object()
-        return render_template('inventory.html', selected_job=job_no, order=order, serial_no=serial_no, inventory=inv_obj, inventory_status=get_inventory_status(inventory_entry), rows=rows, remaining_a_quality=calculate_inventory_consumption_state(inventory_entry, order_id=job_no)['a_remaining'])
+        return render_template('inventory.html', selected_job=job_no, order=order, serial_no=serial_no, inventory=inv_obj, inventory_rolls=inventory_rolls, inventory_avg_value=inventory_avg_value, inventory_status=get_inventory_status(inventory_entry), rows=rows, remaining_a_quality=calculate_inventory_consumption_state(inventory_entry, order_id=job_no)['a_remaining'])
 
 
 @app.route('/manager/saved-inventory')
@@ -18967,7 +19005,9 @@ def print_challan(challan_id):
         shipment_total_pcs = parse_numeric(challan.shipped_pcs)
     print_mode = request.args.get('mode', 'customer')
     shipper = normalize_challan_shipper(challan.shipped_by_party)
-    if print_mode == 'canon_customer':
+    if print_mode == 'all':
+        copy_labels = ['CUSTOMER COPY', 'BILLING COPY', 'CANON COPY']
+    elif print_mode == 'canon_customer':
         copy_labels = ['CUSTOMER COPY', f'{shipper.upper()} COPY']
     elif print_mode == 'billing':
         copy_labels = ['FOR BILLING']

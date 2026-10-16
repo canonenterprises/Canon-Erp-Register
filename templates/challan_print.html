@@ -12,12 +12,8 @@
         </a>
 
         <div class="flex items-center gap-2">
-            <a href="{{ url_for('print_challan', challan_id=challan.id, mode='canon_customer') }}" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[10px] font-bold text-white bg-slate-900 hover:bg-slate-800 transition shadow-sm">
-                🖨️ CANON/CUSTOMER
-            </a>
-
-            <a href="{{ url_for('print_challan', challan_id=challan.id, mode='billing') }}" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[10px] font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 transition shadow-sm">
-                🧾 BILLING
+            <a href="{{ url_for('print_challan', challan_id=challan.id, mode='all') }}" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-[10px] font-bold text-white bg-slate-900 hover:bg-slate-800 transition shadow-sm">
+                <i class="fa-solid fa-print" aria-hidden="true"></i> PRINT ALL 3 COPIES
             </a>
         </div>
     </div>
@@ -354,7 +350,7 @@
     }
 </style>
 
-{% if print_mode in ('canon_customer', 'billing') %}
+{% if print_mode in ('canon_customer', 'billing', 'all') %}
 <script>
     window.addEventListener('load', function () {
         window.print();

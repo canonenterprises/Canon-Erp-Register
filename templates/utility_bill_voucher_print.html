@@ -145,7 +145,7 @@
 
           <!-- CHEQUE IMAGE -->
           <tr class="cheque-row">
-            <td class="cheque-image-cell" rowspan="3">
+            <td class="cheque-image-cell" rowspan="5">
               {% if cheque_image_url is defined and cheque_image_url %}
                 <img class="cheque-image"
                      src="{{ cheque_image_url }}"
@@ -160,6 +160,14 @@
             <td class="blank-cell"></td>
             <td class="blank-cell"></td>
             <td class="blank-cell"></td>
+          </tr>
+
+          <tr class="writing-row">
+            <td></td><td></td><td></td>
+          </tr>
+
+          <tr class="writing-row">
+            <td></td><td></td><td></td>
           </tr>
 
           <tr class="writing-row">
@@ -205,21 +213,19 @@
     <!-- SIGNATURES -->
     <footer class="voucher-footer">
       <div class="signature">
+        <span class="signature-name">{{ session.get('name', '') }}</span>
         <span class="signature-line"></span>
-        <span>PREPARED BY</span>
+        <span>ACCOUNTANT</span>
       </div>
 
       <div class="signature">
-        <span class="signature-line"></span>
-        <span>CHECKED BY</span>
-      </div>
-
-      <div class="signature">
+        <span class="signature-name"></span>
         <span class="signature-line"></span>
         <span>AUTHORIZED BY</span>
       </div>
 
       <div class="signature">
+        <span class="signature-name"></span>
         <span class="signature-line"></span>
         <span>RECEIVED BY</span>
       </div>
@@ -227,7 +233,7 @@
 
     <div class="voucher-print-meta">
       <span>{{ company_name or '' }}</span>
-      <span>{{ print_timestamp or '' }}</span>
+      <span>Printed On:{{ print_timestamp or '' }}</span>
     </div>
 
   </article>
@@ -240,13 +246,14 @@
    ========================================= */
 
 .payment-page {
-  color: #111;
+  color: #000;
   font-family: Arial, Helvetica, sans-serif;
 }
 
 .payment-voucher,
 .payment-voucher * {
   box-sizing: border-box;
+  color: #000;
 }
 
 .payment-voucher {
@@ -255,8 +262,8 @@
   min-height: 650px;
   padding: 22px;
   background: #fff;
-  color: #111;
-  border: 1px solid #cbd0d6;
+  color: #000;
+  border: 1px solid #000;
   border-radius: 5px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -269,7 +276,7 @@
   display: grid;
   grid-template-columns: 42% 58%;
   min-height: 112px;
-  border: 1.5px solid #222;
+  border: 1.5px solid #000;
 }
 
 .company-block {
@@ -278,7 +285,7 @@
   align-items: center;
   justify-content: center;
   padding: 8px 12px;
-  border-right: 1.5px solid #222;
+  border-right: 1.5px solid #000;
   text-align: center;
 }
 
@@ -336,8 +343,8 @@
   justify-content: center;
   min-width: 0;
   padding: 5px 9px;
-  border-right: 1px solid #c4c4c4;
-  border-bottom: 1px solid #c4c4c4;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
 }
 
 .meta-item:nth-child(even) {
@@ -347,7 +354,7 @@
 .meta-label {
   display: block;
   margin-bottom: 3px;
-  color: #454545;
+  color: #000;
   font-size: 9px;
   line-height: 1.1;
   font-weight: 800;
@@ -383,7 +390,7 @@
   margin: 0;
   border-collapse: collapse;
   table-layout: fixed;
-  border: 1.5px solid #222;
+  border: 1.5px solid #000;
 }
 
 .account-col { width: 46%; }
@@ -393,7 +400,7 @@
 
 .accounts-table th,
 .accounts-table td {
-  border: 1px solid #b8b8b8;
+  border: 1px solid #000;
   padding: 5px 7px;
   vertical-align: middle;
 }
@@ -401,8 +408,8 @@
 .accounts-table thead th {
   height: 30px;
   background: #f0f2f4;
-  color: #111;
-  border-bottom: 1.5px solid #222;
+  color: #000;
+  border-bottom: 1.5px solid #000;
   text-align: center;
   font-size: 10px;
   font-weight: 800;
@@ -412,6 +419,7 @@
 .accounts-table tbody td {
   height: 27px;
   font-size: 10.5px;
+  color: #000;
 }
 
 .accounts-table .account-name {
@@ -428,9 +436,9 @@
 .account-detail {
   display: block;
   margin-top: 2px;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 400;
-  color: #333;
+  color: #000;
 }
 
 .accounts-table .ref-number {
@@ -463,19 +471,24 @@
 }
 
 .accounts-table .cheque-image-cell {
-  height: 63px;
+  height: 111px;
   padding: 3px;
   text-align: center;
   vertical-align: middle;
   overflow: hidden;
+  background: #fff;
 }
 
 .cheque-image {
   display: block;
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   object-position: center;
+  border: 0;
+  margin: 0 auto;
 }
 
 .cheque-placeholder {
@@ -486,8 +499,8 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  border: 1px dashed #b8b8b8;
-  color: #666;
+  border: 1px dashed #000;
+  color: #000;
   background: #fafafa;
 }
 
@@ -501,7 +514,7 @@
 
 .accounts-table tfoot td {
   height: 30px;
-  border-top: 1.5px solid #222;
+  border-top: 1.5px solid #000;
   background: #f0f2f4;
 }
 
@@ -541,6 +554,7 @@
   font-size: 9px;
   font-weight: 800;
   letter-spacing: .045em;
+  color: #000;
 }
 
 .detail-colon {
@@ -553,9 +567,10 @@
   min-width: 0;
   min-height: 19px;
   padding: 2px 4px 3px;
-  border-bottom: 1px dotted #777;
+  border-bottom: 1px dotted #000;
   overflow-wrap: anywhere;
   text-transform: uppercase;
+  color: #000;
 }
 
 .narration-row {
@@ -582,11 +597,21 @@
   letter-spacing: .05em;
 }
 
+.signature-name {
+  display: block;
+  width: 100%;
+  height: 1.2em;
+  overflow: hidden;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .signature-line {
   display: block;
   width: 100%;
   height: 13px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid #000;
 }
 
 .voucher-print-meta {
@@ -595,7 +620,7 @@
   gap: 10px;
   margin-top: 10px;
   color: #444;
-  font-size: 8px;
+  font-size: 14px;
 }
 
 .voucher-print-meta span {
@@ -617,7 +642,7 @@
 
   .company-block {
     border-right: 0;
-    border-bottom: 1px solid #222;
+    border-bottom: 1px solid #000;
   }
 
   .voucher-meta {
@@ -691,7 +716,7 @@
     margin: 0 !important;
     padding: 3mm !important;
     overflow: visible !important;
-    border: 1px solid #222 !important;
+    border: 1px solid #000 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     font-size: 12px !important;
@@ -704,11 +729,12 @@
     grid-template-columns: 42% 58% !important;
     min-height: 25mm !important;
     height: 25mm !important;
+    border-color: #000 !important;
   }
 
   .company-block {
     padding: 1.5mm 2mm !important;
-    border-right: 1px solid #222 !important;
+    border-right: 1px solid #000 !important;
     border-bottom: 0 !important;
   }
 
@@ -744,17 +770,23 @@
   }
 
   .meta-item {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 2mm !important;
     padding: 1mm 2mm !important;
-    border-color: #999 !important;
+    border-color: #000 !important;
   }
 
   .meta-label {
-    margin-bottom: 0.5mm !important;
-    color: #222 !important;
+    flex: 0 0 auto !important;
+    margin-bottom: 0 !important;
+    color: #000 !important;
     font-size: 9px !important;
   }
 
   .meta-value {
+    min-width: 0 !important;
     font-size: 11px !important;
   }
 
@@ -777,7 +809,7 @@
   .accounts-table th,
   .accounts-table td {
     padding: 1mm 1.5mm !important;
-    border: 1px solid #999 !important;
+    border: 1px solid #000 !important;
     color: #000 !important;
     text-align: center !important;
   }
@@ -785,7 +817,7 @@
   .accounts-table thead th {
     height: 7mm !important;
     background: #f0f2f4 !important;
-    border-bottom: 1.5px solid #222 !important;
+    border-bottom: 1.5px solid #000 !important;
     font-size: 11px !important;
   }
 
@@ -795,7 +827,7 @@
   }
 
   .accounts-table .account-detail {
-    font-size: 9px !important;
+    font-size: calc(10px / var(--voucher-print-scale, 1)) !important;
   }
 
   .accounts-table .ref-number {
@@ -819,14 +851,18 @@
   }
 
   .accounts-table .cheque-image-cell {
-    height: 17mm !important;
+    height: 33mm !important;
     padding: 0.5mm !important;
+    background: #fff !important;
   }
 
   .cheque-image {
     width: 100% !important;
     height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
     object-fit: contain !important;
+    object-position: center !important;
   }
 
   .cheque-placeholder {
@@ -836,7 +872,7 @@
   .accounts-table tfoot td {
     height: 7mm !important;
     background: #f0f2f4 !important;
-    border-top: 1.5px solid #222 !important;
+    border-top: 1.5px solid #000 !important;
   }
 
   .accounts-table .total-label {
@@ -880,7 +916,7 @@
 
   .signature {
     gap: 1mm !important;
-    font-size: 8px !important;
+    font-size: 14px !important;
   }
 
   .signature-line {
@@ -889,12 +925,157 @@
 
   .voucher-print-meta {
     margin-top: 2mm !important;
-    color: #222 !important;
-    font-size: 8px !important;
+    color: #000 !important;
+    font-size: 14px !important;
   }
 
   .payment-actions {
     display: none !important;
+  }
+}
+
+.payment-voucher {
+  font-size: 13px;
+}
+
+.company-name,
+.voucher-number {
+  font-size: 17px;
+}
+
+.voucher-title {
+  font-size: 15px;
+}
+
+.accounts-table .final-total {
+  font-size: 12px;
+}
+
+.meta-label,
+.detail-label {
+  font-size: 10px;
+}
+
+.accounts-table .total-label {
+  font-size: 12px;
+}
+
+.meta-value {
+  font-size: 13px;
+}
+
+.meta-label {
+  font-size: 12px;
+}
+
+.accounts-table thead th {
+  font-size: 13px;
+}
+
+.accounts-table .ref-number {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.accounts-table tbody td {
+  font-size: 14px;
+}
+
+.accounts-table .amount-cell {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.accounts-table .account-main {
+  font-size: 12px;
+}
+
+.cheque-placeholder strong {
+  font-size: 12px;
+}
+
+.accounts-table .account-detail {
+  font-size: 10px;
+}
+
+.cheque-placeholder small,
+.voucher-print-meta {
+  font-size: 12px;
+}
+
+.detail-row,
+.detail-label,
+.detail-value,
+.signature {
+  font-size: 14px;
+}
+
+@media print {
+  .payment-voucher {
+    font-size: 13px !important;
+  }
+
+  .company-name,
+  .voucher-title,
+  .voucher-number {
+    font-size: 15px !important;
+  }
+
+  .meta-label,
+  .detail-label {
+    font-size: 10px !important;
+  }
+
+  .meta-label {
+    font-size: 12px !important;
+  }
+
+  .accounts-table .total-label {
+    font-size: 11px !important;
+  }
+
+  .accounts-table tbody td {
+    font-size: 13px !important;
+  }
+
+  .accounts-table .amount-cell {
+    font-size: calc(12px / var(--voucher-print-scale, 1)) !important;
+  }
+
+  .accounts-table thead th {
+    font-size: 12px !important;
+  }
+
+  .accounts-table .ref-number,
+  .accounts-table .amount-cell {
+    font-size: calc(12px / var(--voucher-print-scale, 1)) !important;
+  }
+
+  .accounts-table .final-total {
+    font-size: calc(12px / var(--voucher-print-scale, 1)) !important;
+  }
+
+  .accounts-table .account-detail {
+    font-size: calc(10px / var(--voucher-print-scale, 1)) !important;
+  }
+
+  .accounts-table .account-main {
+    font-size: calc(12px / var(--voucher-print-scale, 1)) !important;
+  }
+
+  .meta-value {
+    font-size: 16px !important;
+  }
+
+  .voucher-print-meta {
+    font-size: 12px !important;
+  }
+
+  .detail-row,
+  .detail-label,
+  .detail-value,
+  .signature {
+    font-size: 14px !important;
   }
 }
 </style>

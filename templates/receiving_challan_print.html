@@ -102,6 +102,7 @@
 
     <!-- Footer Signatures & Print timestamp -->
     <div class="print-footer-info">
+        <p class="receiver-sign-line pt-2">Prepared By: {{ session.get('name', '') | upper }}</p>
         <p class="receiver-sign-line pt-2">Signature: ______________________</p>
         <p>Printed on: <span id="print-time"></span></p>
     </div>

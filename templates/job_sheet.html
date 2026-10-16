@@ -284,7 +284,7 @@
             {% endfor %}
         </div>
         <div class="print-only job-sheet-print-footer pr-2 pl-2">
-            <span>Prepared By: {{ session.get('name') or session.get('user') or '________________' }}</span>
+            <span>Prepared By: {{ (session.get('name') or session.get('user') or '________________') | upper }}</span>
             <p>Printed on: <span id="print-time"></span></p>
         </div>
 </div>

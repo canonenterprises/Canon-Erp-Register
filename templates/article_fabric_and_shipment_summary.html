@@ -235,8 +235,11 @@
 
         </div>
         <footer class="article-print-footer">
-          <span>Prepared by: {{ prepared_by }}</span>
-          <span>Printed on: <span class="print-timestamp"></span></span>
+          <div class="print-footer-note">THIS DOCUMENT IS SYSTEM GENERATED AGAINST THE FABRIC INVENTORY AND SHIPMENTS RECORDED</div>
+          <div class="print-footer-details">
+            <span>Prepared by: {{ prepared_by }}</span>
+            <span>Printed on: <span class="print-timestamp"></span></span>
+          </div>
         </footer>
       </section>
       {% else %}
@@ -275,14 +278,25 @@
     bottom: 4mm;
     left: 0;
     display: flex !important;
+    flex-direction: column;
     flex: 0 0 auto;
     width: 100%;
+    gap: 1.5mm;
+    margin-top: 0;
+    font-size: 9px;
+  }
+
+  .print-footer-note {
+    border-bottom: 1px solid #000;
+    padding-bottom: 1.5mm;
+    text-align: center;
+    font-weight: 700;
+  }
+
+  .print-footer-details {
+    display: flex;
     justify-content: space-between;
     gap: 8px;
-    margin-top: 0;
-    border-top: 1px solid #000;
-    padding-top: 1.5mm;
-    font-size: 9px;
   }
 
   header {
