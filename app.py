@@ -4931,13 +4931,31 @@ def login(target_role):
 
 @app.route('/accounts')
 def accounts_portal():
-    if session.get('role') not in ('owner', 'manager', 'accounts'):
+    if not session_has_portal_access('accounts'):
         return redirect(url_for('login', target_role='accounts', next=url_for('accounts_portal')))
     return render_template('accounts.html')
 
 
+def session_has_portal_access(portal):
+    if owner_only():
+        return True
+    username = session.get('user')
+    if not username:
+        return False
+    account = PortalAccount.query.filter_by(username=username).first()
+    profile_role = session.get('profile_role', session.get('role'))
+    expected_session_role = 'manager' if profile_role == 'operations_manager' else profile_role
+    if (
+        not account
+        or account.role != profile_role
+        or session.get('role') != expected_session_role
+    ):
+        return False
+    return portal in account_portals(account)
+
+
 def accounts_management_access(default_role='accounts'):
-    if session.get('role') in ('owner', 'manager', 'accounts'):
+    if session_has_portal_access('accounts'):
         return None
     return redirect(url_for('login', target_role=default_role, next=request.full_path))
 
@@ -8289,8 +8307,8 @@ PAGE_ACCESS_OPTIONS = [
     ('inventory', 'Inventory', ('manager', 'operations', 'assistant_manager')),
     ('requirements', 'Requirement Slips', ('manager', 'operations', 'assistant_manager')),
     ('order_accessories', 'Order Accessories', ('manager', 'operations', 'assistant_manager')),
-    ('cutting', 'Cutting Sheets', ('manager', 'operations', 'assistant_manager', 'stock', 'challan', 'accounts')),
-    ('bundle_stickers', 'Bundle Stickers', ('manager', 'operations', 'assistant_manager', 'stock', 'challan', 'accounts')),
+    ('cutting', 'Cutting Sheets', ('manager', 'operations', 'assistant_manager')),
+    ('bundle_stickers', 'Bundle Stickers', ('manager', 'operations', 'assistant_manager')),
     ('production_entry', 'Production Entry', ('manager', 'operations', 'assistant_manager')),
     ('production_log', 'Production Log', ('manager', 'operations', 'assistant_manager')),
     ('summary', 'Master Summary', ('manager', 'operations', 'assistant_manager')),
@@ -8306,13 +8324,14 @@ PAGE_ACCESS_OPTIONS = [
     ('factory_ledger', 'Factory In/Out Ledger', ('manager', 'operations', 'assistant_manager')),
     ('stock_home', 'Stock Portal', ('stock',)),
     ('fabric', 'Fabric Ledger & Reports', ('stock',)),
-    ('accessories', 'Accessories', ('manager', 'operations', 'assistant_manager', 'stock', 'challan', 'accounts')),
+    ('accessories', 'Accessories', ('manager', 'operations', 'assistant_manager', 'stock')),
     ('warehouse', 'Warehouse', ('stock',)),
     ('shipments', 'Goods Delivery & Shipments', ('stock',)),
-    ('customer_billing', 'Customer Billing', ('accounts',)),
     ('stock_challan', 'Delivery Challan', ('challan',)),
     ('accounts_home', 'Accounts Home', ('accounts',)),
+    ('customer_billing', 'Customer Billing', ('accounts',)),
     ('credit_debit', 'Party Credit/Debit', ('accounts',)),
+    ('company_credit_debit', 'Company Credit/Debit', ('accounts',)),
     ('petty_cash', 'Petty Cash', ('accounts',)),
     ('accessories_billing', 'Accessories Billing', ('accounts',)),
     ('utility_bills', 'Utility Bills', ('accounts',)),
@@ -8420,7 +8439,9 @@ def required_page_for_request():
         return 'order_accessories'
     if path.startswith(('/manager/dashboard', '/manager/articles', '/manager/article/', '/order/')):
         return 'orders'
-    if path.startswith(('/accounts/credit-debit-ledger', '/accounts/company-credit-debit')):
+    if path.startswith('/accounts/company-credit-debit'):
+        return 'company_credit_debit'
+    if path.startswith('/accounts/credit-debit-ledger'):
         return 'credit_debit'
     if path.startswith('/accounts/petty-cash'):
         return 'petty_cash'

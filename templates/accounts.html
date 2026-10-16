@@ -18,6 +18,8 @@
         <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-cyan-800">Finance · Parties</p><h2 class="mt-2 text-xl font-black text-slate-950">Party Credit/Debit</h2><p class="mt-2 text-sm text-slate-600">Review credits and debits by customer, supplier, utility provider, or worker.</p></div><i class="fa-solid fa-arrow-right-arrow-left mt-1 text-2xl text-cyan-700" aria-hidden="true"></i></div>
         <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-cyan-900">Open party ledger <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
       </a>
+      {% endif %}
+      {% if 'company_credit_debit' in page_access_keys %}
       <a href="{{ url_for('accounts_company_credit_debit') if can_access_accounts else url_for('login', target_role='stock', next=url_for('accounts_company_credit_debit')) }}" class="group border-l-4 border-indigo-600 bg-indigo-50 p-5 transition hover:bg-indigo-100">
         <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-indigo-800">Finance · Companies</p><h2 class="mt-2 text-xl font-black text-slate-950">Company Credit/Debit</h2><p class="mt-2 text-sm text-slate-600">View separate Canon and Haram credits, debits, and balances.</p></div><i class="fa-solid fa-building-columns mt-1 text-2xl text-indigo-700" aria-hidden="true"></i></div>
         <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-indigo-900">Open company ledger <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
