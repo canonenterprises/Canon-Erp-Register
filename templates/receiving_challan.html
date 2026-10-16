@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 {% include 'navbar.html' %}
+{% set challan_read_only = (session.get('role') not in ('owner', 'manager') or read_only_profile) and editing_challan and editing_challan.id %}
 <div class="max-w-6xl mx-auto p-6 pt-20 md:pt-20" id="print-area">
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
         
@@ -42,6 +43,7 @@
             <input type="hidden" name="challan_id" value="{{ editing_challan.id if editing_challan else '' }}">
             <input type="hidden" name="job_no" value="{{ selected_job or '' }}">
             <input type="hidden" name="serial_no" value="{{ serial_no or '' }}">
+            <fieldset {% if challan_read_only %}disabled{% endif %}>
 
             <div class="grid grid-cols-3 gap-4 mb-6">
                 <div><label class="block text-sm font-bold text-slate-500">Serial No.</label><input type="text" name="serial_no_display" value="{{ serial_no or '' }}" readonly class="w-full border rounded-lg p-2 text-xl text-emerald-700 font-bold bg-slate-100" required></div>
@@ -75,9 +77,20 @@
         <div class="grid grid-cols-3 gap-4 mb-6 pt-4"></div>
 
         <!-- Quantities -->
-        <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="grid grid-cols-5 gap-4 mb-6">
             <div><label class="block text-sm font-bold text-slate-500">Per Dozen Consumption</label><input type="text" name="per_dozen_consumption" value="{{ editing_challan.per_dozen_consumption if editing_challan and editing_challan.per_dozen_consumption else (order.usage if order else '') }}" class="w-full border rounded-lg p-2" required></div>
-            <div><label class="block text-sm font-bold text-slate-500">Required CTN / Bails</label><input type="text" name="required_ctn_bails" value="{{ editing_challan.required_ctn_bails if editing_challan and editing_challan.required_ctn_bails else (order.total_ctn if order else '') }}" class="w-full border rounded-lg p-2" required></div>
+            {% set required_ctn_parts = editing_challan.required_ctn_bails.split('/') if editing_challan and editing_challan.required_ctn_bails else [] %}
+            {% set required_ctn_value = required_ctn_parts[0] if required_ctn_parts else (order.total_ctn if order else '') %}
+            {% set required_bails_value = required_ctn_parts[1] if required_ctn_parts|length > 1 else (order.total_bails if order else '') %}
+            <div>
+                <label class="block text-sm font-bold text-slate-500">Required Bails</label>
+                <input type="text" id="required_bails_input" value="{{ required_bails_value or '' }}" class="w-full border rounded-lg p-2" required>
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-slate-500">Required CTN</label>
+                <input type="text" id="required_ctn_input" value="{{ required_ctn_value or '' }}" class="w-full border rounded-lg p-2" required>
+                <input type="hidden" id="required_ctn_bails_input" name="required_ctn_bails" value="{{ (required_ctn_value ~ '/' ~ required_bails_value) if required_ctn_value and required_bails_value else (required_ctn_value or required_bails_value or '') }}">
+            </div>
             <div><label class="block text-sm font-bold text-slate-500">Received From</label><input type="text" name="received_from" value="{{ editing_challan.received_from if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
             <div>
                 <label class="block text-sm font-bold text-slate-500">Challan No.</label>
@@ -114,12 +127,15 @@
                 <a href="{{ editing_challan.image_file }}" target="_blank" rel="noopener" class="inline-block mt-2 px-3 py-1 rounded bg-indigo-600 text-white text-xs font-bold">View Uploaded Picture</a>
                 {% endif %}
             </div>
+            </fieldset>
 
         <!-- Action Buttons -->
         <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end sm:items-center sm:gap-3 no-print">
             <a href="{{ url_for('saved_receiving_challans', job_no=selected_job) }}" class="w-full sm:w-auto text-center px-5 py-2 rounded-lg bg-slate-950 text-white text-xs font-bold">View Saved Receiving Challans</a>
             <button type="button" id="print-btn" onclick="openReceivingChallanPrint()" class="w-full sm:w-auto px-5 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed" disabled>Print Receiving Challan</button>
+            {% if not challan_read_only %}
             <button type="submit" class="w-full sm:w-auto px-5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold">{{ 'Update Receiving Challan' if editing_challan else 'Save Receiving Challan' }}</button>
+            {% endif %}
         </div>
         </form>
 
@@ -221,6 +237,23 @@ document.addEventListener('DOMContentLoaded', function () {
             el.addEventListener('input', calculateAndValidateTotal);
         }
     });
+
+    const requiredBailsInput = document.getElementById('required_bails_input');
+    const requiredCtnInput = document.getElementById('required_ctn_input');
+    const requiredCtnBailsInput = document.getElementById('required_ctn_bails_input');
+    function syncRequiredCtnBails() {
+        const requiredBails = requiredBailsInput.value.trim();
+        const requiredCtn = requiredCtnInput.value.trim();
+        requiredCtnBailsInput.value = requiredCtn && requiredBails
+            ? requiredCtn + '/' + requiredBails
+            : requiredCtn || requiredBails;
+    }
+    [requiredBailsInput, requiredCtnInput].forEach(function (input) {
+        if (input) input.addEventListener('input', syncRequiredCtnBails);
+    });
+    if (requiredBailsInput && requiredCtnInput && requiredCtnBailsInput) {
+        syncRequiredCtnBails();
+    }
 
     calculateAndValidateTotal();
 });

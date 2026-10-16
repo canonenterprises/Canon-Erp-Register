@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 {% include 'navbar.html' %}
+{% set inventory_read_only = (session.get('role') not in ('owner', 'manager') or read_only_profile) and inventory and inventory.id %}
 <div class="max-w-9xl mx-auto p-6 pt-20 md:pt-20" id="print-area">
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8">
         
@@ -34,6 +35,7 @@
         <form id="inventory-form" method="POST" action="{{ url_for('save_inventory', job_no=selected_job) }}">
             <input type="hidden" name="serial_no" value="{{ serial_no or '' }}">
             <input type="hidden" name="inventory_id" value="{{ inventory.id if inventory else '' }}">
+            <fieldset {% if inventory_read_only %}disabled{% endif %}>
             <!-- Header -->
             <div class="flex justify-between items-center mb-6">
                 <div>
@@ -174,6 +176,7 @@
                             <th class="border px-2 py-1">Cut No</th>
                             <th class="border px-2 py-1">Cut Size</th>
                             <th class="border px-2 py-1">Cutting Pcs</th>
+                            <th class="border px-2 py-1">AVG/ PCS</th>
                             <th class="border px-2 py-1">Fabric Req</th>
                             <th class="border px-2 py-1">Fabric Issue</th>
                             <th class="border px-2 py-1">Fabric Use</th>
@@ -204,6 +207,7 @@
                             <td class="border px-1 py-1"><input type="number" name="cut_no_{{ i }}" value="{{ r.cut_no if r and r.cut_no else '' }}" class="w-full p-1 border rounded" readonly></td>
                             <td class="border px-1 py-1"><input type="number" name="cut_size_{{ i }}" value="{{ r.cut_size if r and r.cut_size else '' }}" class="w-full p-1 border rounded" readonly></td>
                             <td class="border px-1 py-1"><input type="number" name="cutting_pcs_{{ i }}" value="{{ r.cutting_pcs if r and r.cutting_pcs is not none else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="text" value="{{ r.avg_pcs if r and r.avg_pcs else '' }}" class="w-full p-1 border rounded" readonly></td>
                             <td class="border px-1 py-1"><input type="number" step="0.01" name="fabric_req_{{ i }}" value="{{ r.fabric_req if r and r.fabric_req else '' }}" class="w-full p-1 border rounded" readonly></td>
                             <td class="border px-1 py-1"><input type="number" step="0.01" name="fabric_issue_{{ i }}" value="{{ r.fabric_issue if r and r.fabric_issue else '' }}" class="w-full p-1 border rounded" readonly></td>
                             <td class="border px-1 py-1"><input type="number" step="0.01" name="fabric_use_{{ i }}" value="{{ r.fabric_use if r and r.fabric_use else '' }}" class="w-full p-1 border rounded" readonly></td>
@@ -308,6 +312,7 @@
                     Printed on: <span id="print-time"></span>
                 </p>
             </div>
+            </fieldset>
             <!-- Action Buttons -->
             <div class="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end sm:items-center sm:gap-3 no-print">
                 <a href="{{ url_for('saved_inventory', job_no=selected_job) }}" class="w-full sm:w-auto text-center px-5 py-2 rounded-lg bg-slate-950 text-white text-xs font-bold">
@@ -316,9 +321,11 @@
                 <button type="button" onclick="printInventory()" class="w-full sm:w-auto px-5 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold">
                     Print Inventory
                 </button>
+                {% if not inventory_read_only %}
                 <button type="submit" class="w-full sm:w-auto px-5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold">
                     Save Inventory Record
                 </button>
+                {% endif %}
             </div>
         </form>
     </div>
@@ -710,42 +717,42 @@ input[type="number"]::-webkit-outer-spin-button {
     }
     .serial-box input { width: 90px; }
 
-    #inventory-form > .flex.justify-between {
+    #inventory-form fieldset > .flex.justify-between {
         margin-bottom: 5px !important;
     }
 
     #inventory-form h2 { font-size: 20px !important; }
-    #inventory-form > .upper-inventory-fields {
+    #inventory-form fieldset > .upper-inventory-fields {
         display: block;
         padding-top: 8px;
         margin-bottom: 10px !important;
     }
 
-    #inventory-form > .upper-inventory-fields > .grid {
+    #inventory-form fieldset > .upper-inventory-fields > .grid {
         display: grid;
         gap: 4px 8px !important;
         margin-bottom: 10px !important;
     }
 
-    #inventory-form > .upper-inventory-fields > .grid:nth-child(1) {
+    #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(1) {
         grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     }
 
-    #inventory-form > .upper-inventory-fields > .grid:nth-child(2),
-    #inventory-form > .upper-inventory-fields > .grid:nth-child(3) {
+    #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(2),
+    #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(3) {
         grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
     }
 
-    #inventory-form > .upper-inventory-fields > .grid:nth-child(4) {
+    #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(4) {
         grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
         margin-bottom: 0 !important;
     }
 
-    #inventory-form > .upper-inventory-fields > .grid > div {
+    #inventory-form fieldset > .upper-inventory-fields > .grid > div {
         margin: 0 !important;
     }
 
-    #inventory-form > .upper-inventory-fields > .grid > div {
+    #inventory-form fieldset > .upper-inventory-fields > .grid > div {
         min-height: 28px;
         display: flex;
         flex-direction: column;
@@ -758,7 +765,7 @@ input[type="number"]::-webkit-outer-spin-button {
         border-radius: 0;
     }
 
-    #inventory-form > .upper-inventory-fields > .grid > div label {
+    #inventory-form fieldset > .upper-inventory-fields > .grid > div label {
         margin: 0;
         color: #000 !important;
         font-size: 10px !important;
@@ -769,7 +776,7 @@ input[type="number"]::-webkit-outer-spin-button {
         text-align: left;
     }
 
-    #inventory-form > .upper-inventory-fields > .grid > div input.upper {
+    #inventory-form fieldset > .upper-inventory-fields > .grid > div input.upper {
         width: 100%;
         height: 20px !important;
         padding: 13px 7px !important;
@@ -783,7 +790,7 @@ input[type="number"]::-webkit-outer-spin-button {
         box-shadow: none !important;
     }
 
-    #inventory-form > .upper-inventory-fields > .grid > div input.upper:focus {
+    #inventory-form fieldset > .upper-inventory-fields > .grid > div input.upper:focus {
         outline: none;
     }
 

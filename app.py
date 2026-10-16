@@ -955,29 +955,37 @@ def build_cut_accessory_rows(order, cutting_sheet):
                 and (issue.requirement.size or '').strip().casefold() == spec_size
                 and (issue.requirement.quality or '').strip().casefold() == spec_quality
             ]
-            stock_requirement = next((
+            received_issue_requirements = [
                 requirement for requirement in matching_issue_requirements
                 if accessory_layer_received_qty(requirement) > 0
-            ), None)
+            ]
+            stock_requirement = next((
+                requirement for requirement in received_issue_requirements
+                if (requirement.issue_unit or '').strip()
+            ), None) or next(iter(received_issue_requirements), None)
             if not stock_requirement:
                 matching_receipts = SavedRequirement.query.filter(
                     func.lower(func.trim(SavedRequirement.item)) == (spec.item_name or '').strip().casefold(),
                 ).order_by(SavedRequirement.id.asc()).all()
-                stock_requirement = next((
+                matching_received_receipts = [
                     requirement for requirement in matching_receipts
                     if (requirement.size or '').strip().casefold() == spec_size
                     and (requirement.quality or '').strip().casefold() == spec_quality
                     and accessory_layer_received_qty(requirement) > 0
-                ), None)
+                ]
+                stock_requirement = next((
+                    requirement for requirement in matching_received_receipts
+                    if (requirement.issue_unit or '').strip()
+                ), None) or next(iter(matching_received_receipts), None)
             if not stock_requirement:
                 stock_requirement = order_requirement
-            item_master = ItemMaster.query.filter(
-                func.lower(func.trim(ItemMaster.item_name)) == (spec.item_name or '').strip().casefold()
-            ).first()
             if stock_requirement:
+                has_received_stock = accessory_layer_received_qty(stock_requirement) > 0
+                receipt_issue_unit = (stock_requirement.issue_unit or '').strip()
                 display_unit = (
-                    (item_master.issue_unit or '').strip() if item_master else ''
-                ) or stock_requirement.issue_unit or stock_requirement.unit
+                    receipt_issue_unit if has_received_stock and receipt_issue_unit
+                    else stock_requirement.unit
+                ) or spec.unit or ''
                 group = get_group(
                     stock_requirement.item, stock_requirement.size, stock_requirement.quality,
                     display_unit, spec.sort_order or 0,
@@ -989,27 +997,16 @@ def build_cut_accessory_rows(order, cutting_sheet):
                     required_qty = math.ceil(required_qty - 1e-10)
                 else:
                     required_qty = round_accessory_qty_to_issue_unit(stock_requirement, required_qty)
-                normalized_display_unit = (display_unit or '').strip().casefold()
-                normalized_stock_unit = (stock_requirement.unit or '').strip().casefold()
-                normalized_receipt_issue_unit = (stock_requirement.issue_unit or '').strip().casefold()
-                normalized_master_issue_unit = (
-                    (item_master.issue_unit or '').strip().casefold() if item_master else ''
-                )
                 stock_per_issue_unit = 1.0
-                if normalized_display_unit != normalized_stock_unit:
-                    if normalized_display_unit == normalized_receipt_issue_unit:
-                        stock_per_issue_unit = parse_numeric(stock_requirement.issue_unit_factor) or 1.0
-                    elif normalized_display_unit == normalized_master_issue_unit and item_master:
-                        stock_per_issue_unit = parse_numeric(item_master.issue_unit_factor) or 1.0
-                    else:
-                        stock_per_issue_unit = unit_conversion_factor(
-                            stock_requirement.unit, display_unit
-                        ) or 1.0
+                if (
+                    has_received_stock
+                    and receipt_issue_unit.casefold() == (display_unit or '').strip().casefold()
+                    and receipt_issue_unit.casefold() != (stock_requirement.unit or '').strip().casefold()
+                ):
+                    stock_per_issue_unit = parse_numeric(stock_requirement.issue_unit_factor) or 1.0
                 group['required'] += required_qty / stock_per_issue_unit
                 continue
-            display_unit = (
-                (item_master.issue_unit or '').strip() if item_master else ''
-            ) or spec.unit
+            display_unit = spec.unit or ''
             group = get_group(
                 spec.item_name,
                 spec.size,
@@ -1018,15 +1015,14 @@ def build_cut_accessory_rows(order, cutting_sheet):
                 spec.sort_order or 0,
             )
             required_qty = cutting_pcs * parse_numeric(spec.qty_per_piece)
-            stock_per_issue_unit = (
-                parse_numeric(item_master.issue_unit_factor) or 1.0
-                if item_master and (display_unit or '').strip().casefold() != (spec.unit or '').strip().casefold()
-                else 1.0
-            )
-            group['required'] += required_qty / stock_per_issue_unit
+            group['required'] += required_qty
     elif order_pcs > 0 and not order.article_id:
         for requirement in SavedRequirement.query.filter_by(order_id=order.job_no).all():
-            display_unit = requirement.issue_unit or requirement.unit
+            has_received_stock = accessory_layer_received_qty(requirement) > 0
+            display_unit = (
+                (requirement.issue_unit or '').strip()
+                if has_received_stock else (requirement.unit or '').strip()
+            ) or requirement.unit or ''
             group = get_group(
                 requirement.item,
                 requirement.size,
@@ -1037,7 +1033,7 @@ def build_cut_accessory_rows(order, cutting_sheet):
             required_qty = parse_numeric(requirement.qty) * cutting_pcs / order_pcs
             stock_per_issue_unit = (
                 parse_numeric(requirement.issue_unit_factor) or 1.0
-                if (display_unit or '').strip().casefold() != (requirement.unit or '').strip().casefold()
+                if has_received_stock and (display_unit or '').strip().casefold() != (requirement.unit or '').strip().casefold()
                 else 1.0
             )
             group['required'] += required_qty / stock_per_issue_unit
@@ -1046,7 +1042,13 @@ def build_cut_accessory_rows(order, cutting_sheet):
         requirement = issue.requirement
         if not requirement:
             continue
-        display_unit = issue.issued_as_unit or requirement.issue_unit or requirement.unit
+        has_received_stock = accessory_layer_received_qty(requirement) > 0
+        stock_unit = (requirement.unit or '').strip()
+        receipt_issue_unit = (requirement.issue_unit or '').strip()
+        display_unit = (
+            (receipt_issue_unit or issue.issued_as_unit or stock_unit)
+            if has_received_stock else stock_unit
+        ) or issue.issued_as_unit or ''
         group = get_group(
             requirement.item,
             requirement.size,
@@ -1057,8 +1059,10 @@ def build_cut_accessory_rows(order, cutting_sheet):
         issued_qty = parse_numeric(issue.issued_qty)
         returned_qty = accessory_issue_returned_qty(issue)
         issue_conversion_factor = (
-            parse_numeric(issue.issue_conversion_factor) or parse_numeric(requirement.issue_unit_factor) or 1.0
-            if (display_unit or '').strip().casefold() != (requirement.unit or '').strip().casefold()
+            parse_numeric(requirement.issue_unit_factor)
+            or parse_numeric(issue.issue_conversion_factor)
+            or 1.0
+            if has_received_stock and (display_unit or '').strip().casefold() != stock_unit.casefold()
             else 1.0
         )
         entered_qty = parse_numeric(issue.issued_as_qty)
@@ -1204,6 +1208,10 @@ def accessory_storage_location_label(location):
         return label
     if location.location_type == 'FLOOR':
         return f'{room} · Floor'
+    if location.location_type == 'CTN_ON_FLOOR':
+        return f'{room} · CTN on Floor'
+    if location.location_type == 'BORA_ON_FLOOR':
+        return f'{room} · BORA on Floor'
     if location.location_type in {'CABINET', 'CUPBOARD'}:
         return f'{room} · {location.location_type.title()}'
     return room
@@ -1220,7 +1228,10 @@ def accessory_storage_form_values(form):
     description = (form.get('description') or '').strip()
     quantity = parse_numeric(form.get('quantity'))
 
-    if location_type not in {'RACK_SHELF', 'FLOOR', 'CABINET', 'CUPBOARD'}:
+    if location_type not in {
+        'RACK_SHELF', 'FLOOR', 'CABINET', 'CUPBOARD',
+        'CTN_ON_FLOOR', 'BORA_ON_FLOOR',
+    }:
         raise ValueError('Choose a valid storage location type.')
     if not department or not Department.query.filter(
         func.lower(func.trim(Department.name)) == department.casefold()
@@ -2965,6 +2976,7 @@ class UtilityBillSummary(db.Model):
     utility_bill_id = db.Column(db.Integer, db.ForeignKey('utility_bill.id', ondelete='CASCADE'), nullable=False, index=True)
     title = db.Column(db.String(200), nullable=False, default='')
     invoice_to = db.Column(db.String(200), nullable=False, default='')
+    bank_name = db.Column(db.String(100), nullable=False, default='')
     invoice_no = db.Column(db.String(40), unique=True, nullable=True, index=True)
     invoice_date = db.Column(db.String(10), nullable=False, default='')
     cheque_image = db.Column(db.String(255), nullable=False, default='')
@@ -4294,9 +4306,14 @@ def ensure_table_columns(engine):
                         conn.execute(text(column_def))
         if 'utility_bill_summary' in inspector.get_table_names():
             summary_columns = {column['name'] for column in inspector.get_columns('utility_bill_summary')}
-            if 'cheque_image' not in summary_columns:
-                with engine.begin() as conn:
-                    conn.execute(text("ALTER TABLE utility_bill_summary ADD COLUMN cheque_image VARCHAR(255) NOT NULL DEFAULT ''"))
+            summary_column_migrations = {
+                'cheque_image': "ALTER TABLE utility_bill_summary ADD COLUMN cheque_image VARCHAR(255) NOT NULL DEFAULT ''",
+                'bank_name': "ALTER TABLE utility_bill_summary ADD COLUMN bank_name VARCHAR(100) NOT NULL DEFAULT ''",
+            }
+            for column_name, migration in summary_column_migrations.items():
+                if column_name not in summary_columns:
+                    with engine.begin() as conn:
+                        conn.execute(text(migration))
     except Exception:
         pass
 
@@ -6109,6 +6126,77 @@ def accounts_utility_bills():
     )
 
 
+UTILITY_BILL_BANKS = (
+    'Al Baraka Bank (Pakistan) Limited',
+    'Allied Bank Limited',
+    'Apna Microfinance Bank Limited',
+    'Askari Bank Limited',
+    'Bank Alfalah Limited',
+    'Bank AL Habib Limited',
+    'Bank of Azad Jammu and Kashmir',
+    'Bank of China Limited',
+    'Bank of Khyber',
+    'Bank of Punjab',
+    'BankIslami Pakistan Limited',
+    'Citibank N.A.',
+    'Deutsche Bank AG',
+    'Dubai Islamic Bank Pakistan Limited',
+    'Faysal Bank Limited',
+    'First Women Bank Limited',
+    'Habib Bank Limited',
+    'Habib Metropolitan Bank Limited',
+    'HBL Microfinance Bank Limited',
+    'Industrial and Commercial Bank of China Limited',
+    'JS Bank Limited',
+    'Khushhali Microfinance Bank Limited',
+    'LOLC Microfinance Bank Limited',
+    'MCB Bank Limited',
+    'MCB Islamic Bank Limited',
+    'Meezan Bank Limited',
+    'Mobilink Microfinance Bank Limited',
+    'MUFG Bank Limited',
+    'National Bank of Pakistan',
+    'NRSP Microfinance Bank Limited',
+    'Pak Oman Microfinance Bank Limited',
+    'Punjab Provincial Cooperative Bank Limited',
+    'Samba Bank Limited',
+    'Sindh Bank Limited',
+    'Sindh Microfinance Bank Limited',
+    'Soneri Bank Limited',
+    'Standard Chartered Bank (Pakistan) Limited',
+    'Telenor Microfinance Bank Limited',
+    'U Microfinance Bank Limited',
+    'United Bank Limited',
+    'Zarai Taraqiati Bank Limited',
+)
+
+
+def next_utility_bill_voucher_no():
+    stored_numbers = UtilityBillSummary.query.with_entities(UtilityBillSummary.invoice_no).filter(
+        UtilityBillSummary.invoice_no.isnot(None)
+    ).all()
+    voucher_numbers = []
+    for (invoice_no,) in stored_numbers:
+        if not invoice_no:
+            continue
+        if invoice_no.isdigit():
+            voucher_numbers.append(int(invoice_no))
+            continue
+        legacy_match = re.fullmatch(r'UBS-\d{4}-(\d+)', invoice_no)
+        if legacy_match:
+            voucher_numbers.append(int(legacy_match.group(1)))
+    highest_number = max(voucher_numbers, default=0)
+    return f'{highest_number + 1:04d}'
+
+
+def normalize_utility_bill_voucher_no(summary):
+    legacy_match = re.fullmatch(r'UBS-\d{4}-(\d+)', summary.invoice_no or '')
+    if not legacy_match:
+        return False
+    summary.invoice_no = f'{int(legacy_match.group(1)):04d}'
+    return True
+
+
 @app.route('/accounts/utility-bill-summary', methods=['GET', 'POST'])
 def accounts_utility_bill_summary():
     denied = accounts_management_access('accounts')
@@ -6134,12 +6222,13 @@ def accounts_utility_bill_summary():
         company = (request.form.get('company') or 'Canon').strip().title()
         provider = (request.form.get('provider') or '').strip()
         account_reference = (request.form.get('account_reference') or '').strip()
+        bank_name = (request.form.get('bank_name') or '').strip()
         billing_period = (request.form.get('billing_period') or '').strip()
         bill_date = (request.form.get('bill_date') or '').strip()
         due_date = (request.form.get('due_date') or '').strip()
 
         row_fields = (
-            'meter_no', 'bill_no', 'location', 'previous_reading', 'present_reading', 'units', 'rate',
+            'meter_no', 'bill_no', 'location', 'previous_reading', 'present_reading', 'units', 'electric_charges',
             'adjustment', 'fuel_charges', 'additional_surcharge', 'tariff_difference',
             'maintenance_charges', 'water_charges',
         )
@@ -6185,19 +6274,30 @@ def accounts_utility_bill_summary():
                         raise ValueError(f'Enter a valid number for {field.replace("_", " ")} in row {index + 1}.')
                 if numbers['units'] == 0 and numbers['present_reading'] >= numbers['previous_reading']:
                     numbers['units'] = numbers['present_reading'] - numbers['previous_reading']
-                line_total = numbers['units'] * numbers['rate'] + sum(
+                total_electric_charges = numbers['electric_charges'] + sum(
                     numbers[field] for field in (
                         'adjustment', 'fuel_charges', 'additional_surcharge', 'tariff_difference',
-                        'maintenance_charges', 'water_charges',
                     )
                 )
-                summary_rows.append({**raw, **numbers, 'electric_charges': round(numbers['units'] * numbers['rate'], 2), 'total': round(line_total, 2)})
+                line_total = total_electric_charges + numbers['maintenance_charges'] + numbers['water_charges']
+                rate = total_electric_charges / numbers['units'] if numbers['units'] else 0
+                summary_rows.append({
+                    **raw,
+                    **numbers,
+                    'rate': round(rate, 2),
+                    'total_electric_charges': round(total_electric_charges, 2),
+                    'total': round(line_total, 2),
+                })
             if not summary_rows:
                 raise ValueError('Add at least one meter row to the summary.')
             invoice_date = (request.form.get('invoice_date') or '').strip()
+            if bank_name and bank_name not in UTILITY_BILL_BANKS:
+                raise ValueError('Select a valid bank.')
             if action == 'create_invoice':
                 if not (request.form.get('invoice_to') or '').strip():
                     raise ValueError('Enter who this invoice is for.')
+                if not bank_name:
+                    raise ValueError('Select a bank.')
                 datetime.strptime(invoice_date, '%Y-%m-%d')
                 if not cheque_filename and not (summary and summary.cheque_image):
                     raise ValueError('Upload the cheque image before generating the invoice.')
@@ -6231,6 +6331,7 @@ def accounts_utility_bill_summary():
 
         summary.title = (request.form.get('title') or bill.provider or 'Utility Bill Summary').strip()[:200]
         summary.invoice_to = (request.form.get('invoice_to') or '').strip()[:200]
+        summary.bank_name = bank_name
         summary.invoice_date = invoice_date if action == 'create_invoice' else (summary.invoice_date or today)
         if cheque_filename:
             cheque_upload.save(os.path.join(app.config['UPLOAD_FOLDER'], cheque_filename))
@@ -6242,8 +6343,9 @@ def accounts_utility_bill_summary():
         summary.created_by = summary.created_by or session.get('name') or session.get('user') or ''
         db.session.add(summary)
         db.session.flush()
+        normalize_utility_bill_voucher_no(summary)
         if action == 'create_invoice' and not summary.invoice_no:
-            summary.invoice_no = f'UBS-{datetime.utcnow().year}-{summary.id:05d}'
+            summary.invoice_no = next_utility_bill_voucher_no()
         db.session.commit()
         flash('Bill summary saved.' if action == 'save_summary' else 'Invoice created from the bill summary.', 'success')
         return redirect(url_for('accounts_utility_bill_summary', summary_id=summary.id, view='invoice' if action == 'create_invoice' else None))
@@ -6253,7 +6355,11 @@ def accounts_utility_bill_summary():
         summary_rows = json.loads(summary.rows_json or '[]')
     else:
         summary_rows = []
+    normalized_current_number = normalize_utility_bill_voucher_no(summary) if summary else False
     summaries = UtilityBillSummary.query.order_by(UtilityBillSummary.created_at.desc(), UtilityBillSummary.id.desc()).limit(100).all()
+    normalized_list_numbers = [normalize_utility_bill_voucher_no(item) for item in summaries]
+    if normalized_current_number or any(normalized_list_numbers):
+        db.session.commit()
     return render_template(
         'utility_bill_summary.html',
         summary=summary,
@@ -6261,6 +6367,7 @@ def accounts_utility_bill_summary():
         summary_rows=summary_rows or [{}],
         summaries=summaries,
         utility_types=utility_types,
+        bank_names=UTILITY_BILL_BANKS,
         today=today,
         current_month=datetime.utcnow().strftime('%Y-%m'),
         view=request.args.get('view', 'edit'),
@@ -6277,21 +6384,37 @@ def print_utility_bill_summary(summary_id, document_type):
     summary = UtilityBillSummary.query.get_or_404(summary_id)
     if document_type == 'invoice' and not summary.invoice_no:
         abort(404)
-    template_name = 'utility_bill_invoice_print.html' if document_type == 'invoice' else 'utility_bill_summary_print.html'
+    if normalize_utility_bill_voucher_no(summary):
+        db.session.commit()
+    bill = summary.utility_bill
+    print_time = datetime.now(timezone(timedelta(hours=5), name='PKT'))
+    try:
+        billing_month_display = datetime.strptime(bill.billing_period or '', '%Y-%m').strftime('%b-%y').upper()
+    except ValueError:
+        billing_month_display = bill.billing_period or ''
+    try:
+        prd_date_display = datetime.strptime(bill.bill_date or '', '%Y-%m-%d').strftime('%d-%m-%Y')
+    except ValueError:
+        prd_date_display = bill.bill_date or ''
+    template_name = 'utility_bill_voucher_print.html' if document_type == 'invoice' else 'utility_bill_summary_print.html'
     template_context = {
         'summary': summary,
-        'bill': summary.utility_bill,
+        'bill': bill,
+        'billing_month_display': billing_month_display,
+        'prd_date_display': prd_date_display,
         'summary_rows': json.loads(summary.rows_json or '[]'),
         'document_type': document_type,
+        'prepared_by': session.get('name') or session.get('user') or 'System',
+        'print_timestamp': f"{print_time.strftime('%A, %B')} {print_time.day}, {print_time.strftime('%Y at %I:%M %p')}",
         'company_name': 'HARAM ENTERPRISES' if summary.utility_bill.company == 'Haram' else 'CANON ENTERPRISES',
         'company_logo_screen': 'haram-black.png' if summary.utility_bill.company == 'Haram' else 'canon logo black.webp',
         'company_logo_print': 'haram-black.png' if summary.utility_bill.company == 'Haram' else 'canon logo black.webp',
+        'bank_name': summary.bank_name or bill.provider,
     }
     if document_type == 'invoice':
         template_context.update(
             amount_words=amount_in_words(summary.total_amount, indian=True),
             cheque_image_url=summary.cheque_image,
-            print_timestamp=datetime.now().strftime('%m/%d/%Y / %I:%M %p'),
         )
     return render_template(
         template_name,
@@ -6315,22 +6438,33 @@ def utility_bill_invoice(bill_id):
     latest_payment = payments[-1]
     summary = UtilityBillSummary.query.filter_by(utility_bill_id=bill.id).order_by(UtilityBillSummary.id.desc()).first()
     if summary:
+        normalize_utility_bill_voucher_no(summary)
         if not summary.invoice_no:
-            summary.invoice_no = f'UBS-{datetime.utcnow().year}-{summary.id:05d}'
+            summary.invoice_no = next_utility_bill_voucher_no()
         if not summary.invoice_date:
             summary.invoice_date = latest_payment.paid_on or bill.bill_date
         invoice_summary = summary
         summary_rows = json.loads(summary.rows_json or '[]')
     else:
-        invoice_summary = SimpleNamespace(
-            id=None,
-            invoice_no=f'UB-{bill.created_at.year}-{bill.id:05d}',
+        summary_rows = [{
+            'meter_no': bill.account_reference or '',
+            'bill_no': bill.provider,
+            'location': bill.utility_type,
+            'total': bill.amount,
+        }]
+        invoice_summary = UtilityBillSummary(
+            utility_bill_id=bill.id,
+            title=f'{bill.utility_type} Bill Summary',
             invoice_date=latest_payment.paid_on or bill.bill_date,
             invoice_to=bill.company,
+            invoice_no=next_utility_bill_voucher_no(),
+            rows_json=json.dumps(summary_rows),
             total_amount=bill.amount,
             notes=bill.notes or '',
+            created_by=bill.created_by or '',
         )
-        summary_rows = []
+        db.session.add(invoice_summary)
+        summary = invoice_summary
     db.session.commit()
 
     if not summary_rows:
@@ -6343,7 +6477,7 @@ def utility_bill_invoice(bill_id):
     cheque_payment = next((payment for payment in reversed(payments) if payment.cheque_image), None)
     cheque_image_url = cheque_payment.cheque_image if cheque_payment else (summary.cheque_image if summary else '')
     return render_template(
-        'utility_bill_invoice_print.html',
+        'utility_bill_voucher_print.html',
         summary=invoice_summary,
         bill=bill,
         summary_rows=summary_rows,
@@ -6353,10 +6487,10 @@ def utility_bill_invoice(bill_id):
         amount_words=amount_in_words(bill.amount, indian=True),
         cheque_image_url=cheque_image_url,
         cheque_no=latest_payment.cheque_number or latest_payment.tid or '',
-        bank_name=latest_payment.method,
         payment_date=latest_payment.paid_on,
         payment_reference_label='PAYMENT REF',
-        payment_method_label='METHOD',
+        payment_method_label='BANK' if summary and summary.bank_name else 'METHOD',
+        bank_name=summary.bank_name if summary and summary.bank_name else latest_payment.method,
         invoice_title='UTILITY BILL PAYMENT INVOICE',
         invoice_back_url=url_for('accounts_utility_bills'),
         print_timestamp=datetime.now().strftime('%m/%d/%Y / %I:%M %p'),
@@ -7318,26 +7452,7 @@ def order_accessories(job_no):
         group_item = stock_requirement.item if stock_requirement else spec.item_name
         group_size = stock_requirement.size if stock_requirement else spec.size
         group_quality = stock_requirement.quality if stock_requirement else spec.material
-        received_qty = accessory_layer_received_qty(stock_requirement) if stock_requirement else 0.0
-        item_master = ItemMaster.query.filter(
-            func.lower(func.trim(ItemMaster.item_name)) == (spec.item_name or '').strip().casefold()
-        ).first()
-        display_unit = (
-            ((item_master.issue_unit or '').strip() if item_master else '')
-            or ((stock_requirement.issue_unit or '').strip() if stock_requirement else '')
-            or requirement_unit
-            or spec.unit
-            or ''
-        )
-        display_factor = (
-            parse_numeric(stock_requirement.issue_unit_factor) or 1.0
-            if stock_requirement and received_qty > 0 and display_unit.casefold() == (stock_requirement.issue_unit or '').strip().casefold()
-            else unit_conversion_factor(requirement_unit, display_unit) or 1.0
-            if stock_requirement and display_unit.casefold() != (requirement_unit or '').casefold()
-            else parse_numeric(item_master.issue_unit_factor) or 1.0
-            if item_master and display_unit.casefold() != (requirement_unit or '').casefold()
-            else 1.0
-        )
+        display_unit = requirement_unit or spec.unit or ''
         key = accessory_stock_key(group_item, group_size, group_quality, display_unit)
         group = accessory_groups.setdefault(key, {
             'item': group_item or 'UNSPECIFIED',
@@ -7345,7 +7460,6 @@ def order_accessories(job_no):
             'quality': group_quality or '',
             'unit': display_unit,
             'display_unit': display_unit,
-            'display_factor': 1.0,
             'display_issued': 0.0,
             'display_returned': 0.0,
             'roll_length_m': roll_length_m,
@@ -7366,13 +7480,13 @@ def order_accessories(job_no):
             required_qty = math.ceil(required_qty - 1e-10)
         elif stock_requirement:
             required_qty = round_accessory_qty_to_issue_unit(stock_requirement, required_qty)
-        group['required'] += required_qty / display_factor
+        group['required'] += required_qty
 
     for issue in issue_rows:
         receipt = issue.requirement
         if not receipt:
             continue
-        display_unit = issue.issued_as_unit or receipt.issue_unit or receipt.unit or ''
+        display_unit = receipt.unit or issue.issued_as_unit or receipt.issue_unit or ''
         key = accessory_stock_key(receipt.item, receipt.size, receipt.quality, display_unit)
         group = accessory_groups.setdefault(key, {
             'item': receipt.item or 'UNSPECIFIED',
@@ -7380,7 +7494,6 @@ def order_accessories(job_no):
             'quality': receipt.quality or '',
             'unit': display_unit,
             'display_unit': display_unit,
-            'display_factor': 1.0,
             'display_issued': 0.0,
             'display_returned': 0.0,
             'roll_length_m': parse_numeric(receipt.roll_length_m),
@@ -7396,14 +7509,8 @@ def order_accessories(job_no):
         net_issued_qty = max(0.0, issued_qty - returned_qty)
         unit_rate = accessory_receipt_unit_rate(receipt) or parse_numeric(issue.unit_rate)
         group['cost'] += net_issued_qty * unit_rate
-        display_factor = parse_numeric(issue.issue_conversion_factor) or parse_numeric(receipt.issue_unit_factor) or 1.0
-        entered_qty = parse_numeric(issue.issued_as_qty)
-        display_issued = (
-            entered_qty
-            if entered_qty > 0 and (issue.issued_as_unit or '').strip().casefold() == display_unit.strip().casefold()
-            else issued_qty / display_factor
-        )
-        display_returned = returned_qty / display_factor
+        display_issued = issued_qty
+        display_returned = returned_qty
         group['issued'] += display_issued
         group['returned'] += display_returned
         group['net_issued'] += max(0.0, display_issued - display_returned)
@@ -8181,7 +8288,9 @@ PAGE_ACCESS_OPTIONS = [
     ('receiving_challan', 'Receiving Challan', ('manager', 'operations', 'assistant_manager')),
     ('inventory', 'Inventory', ('manager', 'operations', 'assistant_manager')),
     ('requirements', 'Requirement Slips', ('manager', 'operations', 'assistant_manager')),
-    ('cutting', 'Cutting Sheets', ('manager', 'operations', 'assistant_manager')),
+    ('order_accessories', 'Order Accessories', ('manager', 'operations', 'assistant_manager')),
+    ('cutting', 'Cutting Sheets', ('manager', 'operations', 'assistant_manager', 'stock', 'challan', 'accounts')),
+    ('bundle_stickers', 'Bundle Stickers', ('manager', 'operations', 'assistant_manager', 'stock', 'challan', 'accounts')),
     ('production_entry', 'Production Entry', ('manager', 'operations', 'assistant_manager')),
     ('production_log', 'Production Log', ('manager', 'operations', 'assistant_manager')),
     ('summary', 'Master Summary', ('manager', 'operations', 'assistant_manager')),
@@ -8197,7 +8306,7 @@ PAGE_ACCESS_OPTIONS = [
     ('factory_ledger', 'Factory In/Out Ledger', ('manager', 'operations', 'assistant_manager')),
     ('stock_home', 'Stock Portal', ('stock',)),
     ('fabric', 'Fabric Ledger & Reports', ('stock',)),
-    ('accessories', 'Accessories', ('stock',)),
+    ('accessories', 'Accessories', ('manager', 'operations', 'assistant_manager', 'stock', 'challan', 'accounts')),
     ('warehouse', 'Warehouse', ('stock',)),
     ('shipments', 'Goods Delivery & Shipments', ('stock',)),
     ('customer_billing', 'Customer Billing', ('accounts',)),
@@ -8207,6 +8316,7 @@ PAGE_ACCESS_OPTIONS = [
     ('petty_cash', 'Petty Cash', ('accounts',)),
     ('accessories_billing', 'Accessories Billing', ('accounts',)),
     ('utility_bills', 'Utility Bills', ('accounts',)),
+    ('utility_bill_summary', 'Utility Bill Summary', ('accounts',)),
 ]
 SPECIAL_ACCESS_OPTIONS = [
     ('fabric_reports', 'Fabric report sections', ('stock',)),
@@ -8279,7 +8389,7 @@ def required_page_for_request():
     if path.startswith(('/manager/cutting-sheet', '/manager/saved-cutting-sheets', '/manager/delete-cutting-sheet', '/manager/cutting-transfer')):
         return 'cutting'
     if path.startswith('/manager/bundle-stickers'):
-        return 'cutting'
+        return 'bundle_stickers'
     if path.startswith(('/manager/inventory', '/manager/save-inventory', '/manager/saved-inventory', '/manager/delete-inventory')):
         return 'inventory'
     if path.startswith('/manager/production_entry'):
@@ -8304,12 +8414,18 @@ def required_page_for_request():
         return 'departments'
     if path.startswith('/factory-in-out-ledger'):
         return 'factory_ledger'
+    if path.startswith('/manager/article-head'):
+        return 'article_head_detail'
+    if path.startswith('/order/') and '/accessories' in path:
+        return 'order_accessories'
     if path.startswith(('/manager/dashboard', '/manager/articles', '/manager/article/', '/order/')):
         return 'orders'
     if path.startswith(('/accounts/credit-debit-ledger', '/accounts/company-credit-debit')):
         return 'credit_debit'
     if path.startswith('/accounts/petty-cash'):
         return 'petty_cash'
+    if path.startswith('/accounts/utility-bill-summary'):
+        return 'utility_bill_summary'
     if path.startswith('/accounts/accessories-billing'):
         return 'accessories_billing'
     if path.startswith('/accounts/utility-bills'):
@@ -8359,14 +8475,28 @@ def enforce_profile_portal_access():
     session_role = 'manager' if profile_role == 'operations_manager' else profile_role
     if account and account.role == profile_role and session.get('role') == session_role:
         allowed_portals = account_portals(account)
-        if required_portal is None or required_portal in allowed_portals or (
+        bundle_stickers_portal_access = (
+            request.path.startswith('/manager/bundle-stickers') and bool(allowed_portals)
+        )
+        accessories_portal_access = (
+            request.path.startswith('/stock-portal/accessories') and bool(allowed_portals)
+        )
+        cutting_sheet_portal_access = (
+            request.path.startswith(('/manager/cutting-sheet', '/manager/saved-cutting-sheets'))
+            and bool(allowed_portals)
+        )
+        if required_portal is None or required_portal in allowed_portals or bundle_stickers_portal_access or accessories_portal_access or cutting_sheet_portal_access or (
             profile_role == 'operations_manager'
             and required_portal == 'manager'
             and 'operations' in allowed_portals
         ):
             g.page_access_keys = account_page_access(account)
             required_page = required_page_for_request()
-            if required_page is None or required_page in g.page_access_keys:
+            if required_page is None:
+                return None
+            if required_page == 'article_head_detail' and 'orders' in g.page_access_keys:
+                return None
+            if required_page in g.page_access_keys:
                 return None
             abort(403)
     elif required_portal is None:
@@ -9512,8 +9642,10 @@ def receiving_challan():
 
     if request.method == 'POST':
         challan_id = request.form.get('challan_id')
-        if challan_id and is_read_only_profile():
-            return reject_read_only_edit()
+        if challan_id and (
+            session.get('role') not in ('owner', 'manager') or is_read_only_profile()
+        ):
+            return reject_read_only_edit('Only the owner and manager can update saved receiving challans.')
         serial_no = request.form.get('serial_no') or generate_receiving_serial()
         supplier_value = request.form.get('suppliers', '')
 
@@ -9761,6 +9893,8 @@ def saved_receiving_challans():
 def delete_receiving_challan():
     if not session.get('role'):
         return redirect(url_for('index'))
+    if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
+        return reject_read_only_edit('Only the owner and manager can delete receiving challans.')
 
     challan_id = request.form.get('challan_id')
     job_no = request.form.get('job_no', '')
@@ -9780,6 +9914,8 @@ def delete_receiving_challan():
 def delete_inventory():
     if not session.get('role'):
         return redirect(url_for('index'))
+    if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
+        return reject_read_only_edit('Only the owner and manager can delete inventory records.')
 
     inventory_id = request.form.get('inventory_id')
     job_no = request.form.get('job_no', '')
@@ -9902,7 +10038,6 @@ def cutting_sheet():
             'calc_cut_size': 'Cut size',
             'calc_factor_1': 'Cut size factor',
             'pcs_in_row': 'PCS in row',
-            'range_margin': 'Range margin',
             'pcs_in_range': 'PCS in range',
             'avg_other': 'Width',
             'cutter_name': 'Cutter name',
@@ -9946,10 +10081,10 @@ def cutting_sheet():
                 redirect_args['edit_id'] = edit_id
             return redirect(url_for('cutting_sheet', **redirect_args))
 
-        if edit_id and is_read_only_profile():
-            return reject_read_only_edit()
+        locked_cut_edit = False
         if edit_id:
             cutting_sheet = CuttingSheet.query.filter_by(id=edit_id, order_id=job_no).first()
+            locked_cut_edit = bool(cutting_sheet and is_read_only_profile())
             if cutting_sheet and CuttingTransfer.query.filter(
                 CuttingTransfer.source_cutting_sheet_id == cutting_sheet.id
             ).first():
@@ -9959,7 +10094,7 @@ def cutting_sheet():
             cutting_sheet = CuttingSheet(order_id=job_no)
             cutting_sheet.serial_no = request.form.get('cutting_sheet_serial_no') or generate_cutting_sheet_serial()
             cutting_sheet.cut_no = request.form.get('cut_no') or next_cut_no
-        else:
+        elif not locked_cut_edit:
             cutting_sheet.serial_no = request.form.get('cutting_sheet_serial_no') or cutting_sheet.serial_no
             cutting_sheet.cut_no = request.form.get('cut_no') or cutting_sheet.cut_no
 
@@ -9971,29 +10106,62 @@ def cutting_sheet():
             if cutting_sheet.id else None
         )
 
-        cutting_sheet.cut_size = request.form.get('calc_cut_size', '')
-        cutting_sheet.factor_1 = request.form.get('calc_factor_1', '')
-        cutting_sheet.factor_2 = request.form.get('calc_factor_2', '')
-        cutting_sheet.total = request.form.get('calc_total', '')
-        cutting_sheet.divisor = request.form.get('calc_divisor', '')
-        cutting_sheet.result = request.form.get('calc_result', '')
-        cutting_sheet.range_width = request.form.get('range_width', '')
-        cutting_sheet.range_height = request.form.get('range_height', '')
-        cutting_sheet.range_area = request.form.get('range_area', '')
-        cutting_sheet.pcs_in_row = request.form.get('pcs_in_row', '')
-        cutting_sheet.range_margin = request.form.get('range_margin', '')
-        cutting_sheet.range_result = request.form.get('range_result', '')
-        cutting_sheet.pcs_in_range = request.form.get('pcs_in_range', '')
-        cutting_sheet.avg_99 = request.form.get('avg_99', '')
-        cutting_sheet.avg_100 = request.form.get('avg_100', '')
-        cutting_sheet.avg_other = request.form.get('avg_other', '')
-        cutting_sheet.cutter_name = request.form.get('cutter_name', '')
-        cutting_sheet.fabric_issue = request.form.get('fabric_issue', '')
+        locked_cut_fields = {
+            'calc_cut_size': 'cut_size',
+            'calc_factor_1': 'factor_1',
+            'calc_factor_2': 'factor_2',
+            'calc_total': 'total',
+            'calc_divisor': 'divisor',
+            'calc_result': 'result',
+            'range_width': 'range_width',
+            'range_height': 'range_height',
+            'range_area': 'range_area',
+            'pcs_in_row': 'pcs_in_row',
+            'range_result': 'range_result',
+            'pcs_in_range': 'pcs_in_range',
+            'avg_99': 'avg_99',
+            'avg_100': 'avg_100',
+            'avg_other': 'avg_other',
+            'cutter_name': 'cutter_name',
+            'fabric_issue': 'fabric_issue',
+            'inventory_serial_no': 'inventory_serial_no',
+            'use_fabric_ch': 'use_fabric_ch',
+            'asst_cutter_name': 'asst_cutter_name',
+            'palla_check_by': 'palla_check_by',
+            'cut_date': 'cut_date',
+            'total_meter': 'total_meter',
+        }
+
+        def cutting_form_value(field_name, default=''):
+            if locked_cut_edit and field_name in locked_cut_fields:
+                value = getattr(cutting_sheet, locked_cut_fields[field_name], default)
+                return default if value is None else value
+            return request.form.get(field_name, default)
+
+        cutting_sheet.cut_size = cutting_form_value('calc_cut_size')
+        cutting_sheet.factor_1 = cutting_form_value('calc_factor_1')
+        cutting_sheet.factor_2 = cutting_form_value('calc_factor_2')
+        cutting_sheet.total = cutting_form_value('calc_total')
+        cutting_sheet.divisor = cutting_form_value('calc_divisor')
+        cutting_sheet.result = cutting_form_value('calc_result')
+        cutting_sheet.range_width = cutting_form_value('range_width')
+        cutting_sheet.range_height = cutting_form_value('range_height')
+        cutting_sheet.range_area = cutting_form_value('range_area')
+        cutting_sheet.pcs_in_row = cutting_form_value('pcs_in_row')
+        cutting_sheet.range_margin = ''
+        range_size_value = numeric_meter(cutting_sheet.cut_size) * numeric_meter(cutting_sheet.pcs_in_row)
+        cutting_sheet.range_result = f'{range_size_value:.2f}' if cutting_sheet.cut_size and cutting_sheet.pcs_in_row else ''
+        cutting_sheet.pcs_in_range = cutting_form_value('pcs_in_range')
+        cutting_sheet.avg_99 = cutting_form_value('avg_99')
+        cutting_sheet.avg_100 = cutting_form_value('avg_100')
+        cutting_sheet.avg_other = cutting_form_value('avg_other')
+        cutting_sheet.cutter_name = cutting_form_value('cutter_name')
+        cutting_sheet.fabric_issue = cutting_form_value('fabric_issue')
         previous_cut_inventory_serials = split_inventory_serials(cutting_sheet.inventory_serial_no)
-        cutting_sheet.inventory_serial_no = request.form.get('inventory_serial_no', '')
-        cutting_sheet.use_fabric_ch = request.form.get('use_fabric_ch', '')
-        cutting_sheet.asst_cutter_name = request.form.get('asst_cutter_name', '')
-        cutting_sheet.palla_check_by = request.form.get('palla_check_by', '')
+        cutting_sheet.inventory_serial_no = cutting_form_value('inventory_serial_no')
+        cutting_sheet.use_fabric_ch = cutting_form_value('use_fabric_ch')
+        cutting_sheet.asst_cutter_name = cutting_form_value('asst_cutter_name')
+        cutting_sheet.palla_check_by = cutting_form_value('palla_check_by')
         cutting_sheet.summary_total_pcs = request.form.get('summary_total_pcs', '')
         cutting_sheet.summary_avg_pcs = request.form.get('summary_avg_pcs', '')
         cutting_sheet.balance_cutting = request.form.get('balance_cutting', '')
@@ -10004,10 +10172,14 @@ def cutting_sheet():
         # Save shift-to-next-cut using the model's column name
         cutting_sheet.shift_to_next_cut = request.form.get('shift_to_next_cut', '')
         # Save total meter (fabric) calculated client-side
-        table_total_meter = numeric_meter(request.form.get('total_meter'))
-        requested_inventory_serial = (request.form.get('inventory_serial_no') or '').strip()
-        requested_secondary_serial = (request.form.get('secondary_inventory_serial') or '').strip()
+        table_total_meter = numeric_meter(cutting_form_value('total_meter'))
+        requested_inventory_serial = (cutting_form_value('inventory_serial_no') or '').strip()
         stored_inventory_serials = split_inventory_serials(cutting_sheet.inventory_serial_no)
+        requested_secondary_serial = (
+            stored_inventory_serials[1]
+            if locked_cut_edit and len(stored_inventory_serials) > 1
+            else (request.form.get('secondary_inventory_serial') or '').strip()
+        )
         if not requested_inventory_serial and stored_inventory_serials:
             requested_inventory_serial = stored_inventory_serials[0]
         if not requested_secondary_serial and len(stored_inventory_serials) > 1:
@@ -10046,7 +10218,7 @@ def cutting_sheet():
         primary_opening_balance = available_inventory_balances.get(requested_inventory_serial, 0.0)
         secondary_total_meter = available_inventory_balances.get(requested_secondary_serial, 0.0) if secondary_inventory else 0.0
         opening_balance = primary_opening_balance + fallback_total_meter + secondary_total_meter
-        fabric_issue_amount = numeric_meter(request.form.get('fabric_issue'))
+        fabric_issue_amount = numeric_meter(cutting_form_value('fabric_issue'))
         if fabric_issue_amount > opening_balance:
             message = (
                 f'Insufficient fabric. Fabric issue is {fabric_issue_amount:.2f} meters, '
@@ -10073,7 +10245,8 @@ def cutting_sheet():
         combined_inventory_serial = combine_inventory_serials(requested_inventory_serial, requested_secondary_serial)
         cutting_sheet.inventory_serial_no = combined_inventory_serial
         inventory_total_meter = numeric_meter(inventory.fabric_qty_a if inventory else 0)
-        cutting_sheet.total_meter = f'{table_total_meter:.2f}' if request.form.get('total_meter') else ''
+        if not locked_cut_edit:
+            cutting_sheet.total_meter = f'{table_total_meter:.2f}' if request.form.get('total_meter') else ''
         cutting_sheet.total_palla = request.form.get('total_palla', '')
         table_total_pcs = numeric_meter(request.form.get('total_pcs'))
         if incoming_transfer:
@@ -10093,7 +10266,7 @@ def cutting_sheet():
         cutting_sheet.bundle = request.form.get('bundle', '')
         cutting_sheet.quantity = request.form.get('quantity', '')
         cutting_sheet.issue_to_sv = request.form.get('issue_to_sv', '')
-        cutting_sheet.cut_date = request.form.get('cut_date', '')
+        cutting_sheet.cut_date = cutting_form_value('cut_date')
         cutting_sheet.issue_date = request.form.get('issue_date', '')
         cutting_sheet.time_field = request.form.get('time_field', '')
         cutting_sheet.balance_fabric = f'{balance_after_cut:.2f}' if selected_inventory else request.form.get('balance_fabric', '')
@@ -10102,21 +10275,41 @@ def cutting_sheet():
             db.session.add(cutting_sheet)
         db.session.flush()
 
-        CuttingSheetRow.query.filter_by(cutting_sheet_id=cutting_sheet.id).delete()
-        for i in range(1, 23):
-            meter = request.form.get(f'meter_{i}', '').strip()
-            palla = request.form.get(f'palla_{i}', '').strip()
-            pcs = request.form.get(f'pcs_{i}', '').strip()
-            cp = request.form.get(f'cp_{i}', '').strip() if i <= 19 else ''
-            if meter or palla or pcs or cp:
+        if locked_cut_edit:
+            mini_row = CuttingSheetRow.query.filter_by(
+                cutting_sheet_id=cutting_sheet.id,
+                idx=20,
+            ).first()
+            mini_palla = (request.form.get('mini_palla_22') or '').strip()
+            mini_pcs = (request.form.get('mini_pcs_22') or '').strip()
+            if mini_row:
+                mini_row.palla = mini_palla
+                mini_row.pcs = mini_pcs
+            elif mini_palla or mini_pcs:
                 db.session.add(CuttingSheetRow(
                     cutting_sheet_id=cutting_sheet.id,
-                    idx=i,
-                    meter=meter,
-                    palla=palla,
-                    pcs=pcs,
-                    cp=cp
+                    idx=20,
+                    meter='',
+                    palla=mini_palla,
+                    pcs=mini_pcs,
+                    cp='',
                 ))
+        else:
+            CuttingSheetRow.query.filter_by(cutting_sheet_id=cutting_sheet.id).delete()
+            for i in range(1, 23):
+                meter = request.form.get(f'meter_{i}', '').strip()
+                palla = request.form.get(f'palla_{i}', '').strip()
+                pcs = request.form.get(f'pcs_{i}', '').strip()
+                cp = request.form.get(f'cp_{i}', '').strip() if i <= 19 else ''
+                if meter or palla or pcs or cp:
+                    db.session.add(CuttingSheetRow(
+                        cutting_sheet_id=cutting_sheet.id,
+                        idx=i,
+                        meter=meter,
+                        palla=palla,
+                        pcs=pcs,
+                        cp=cp
+                    ))
 
         if selected_inventory and selected_inventory.id:
             fabric_issue = numeric_meter(cutting_sheet.fabric_issue)
@@ -10548,8 +10741,6 @@ def bundle_stickers(cutting_sheet_id):
     submitted_pcs = {}
 
     if request.method == 'POST':
-        if is_read_only_profile():
-            return reject_read_only_edit()
         if bundle_count <= 0:
             flash('Enter a whole number of bundles on the cutting sheet before recording bundle PCS.', 'danger')
         else:
@@ -10594,7 +10785,6 @@ def bundle_stickers(cutting_sheet_id):
         bundle_count=bundle_count,
         entries_by_number=entries_by_number,
         submitted_pcs=submitted_pcs,
-        read_only_profile=is_read_only_profile(),
     )
 
 
@@ -10739,6 +10929,8 @@ def transfer_excess_cutting_pcs(source_sheet_id):
 def delete_cutting_sheet():
     if not session.get('role'):
         return redirect(url_for('index'))
+    if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
+        return reject_read_only_edit('Only the owner and manager can delete cutting sheets.')
 
     cutting_sheet_id = request.form.get('cutting_sheet_id')
     job_no = request.form.get('job_no', '')
@@ -10902,6 +11094,7 @@ def inventory():
                     f'{shortage_total:.2f}'.rstrip('0').rstrip('.')
                     if shortage_total is not None else ''
                 )
+                row.avg_pcs = cutting_sheet.summary_avg_pcs if cutting_sheet else ''
         fabric_status = calculate_inventory_fabric_balances(inventory)
         actual_used = calculate_inventory_actual_used_fabric(inventory)
         inventory.used_fabric = f"{actual_used:.2f}"
@@ -11000,8 +11193,25 @@ def save_inventory():
         if inventory_entry is None and inv_id_int is not None:
             flash('Inventory record not found; creating a new record instead.', 'warning')
 
+    if inventory_entry and (
+        session.get('role') not in ('owner', 'manager') or is_read_only_profile()
+    ):
+        return reject_read_only_edit('Only the owner and manager can update saved inventory records.')
+
     supplier_value = request.form.get('suppliers', '')
     received_from_value = request.form.get('received_from', '')
+
+    def build_inventory_form_object():
+        inventory_form = SimpleNamespace(**form_headers)
+        inventory_form.serial_no = serial_no
+        inventory_form.id = inventory_entry.id if inventory_entry and getattr(inventory_entry, 'id', None) else None
+        inventory_form.rejected_fabric = request.form.get('rejected_fabric', '0')
+        inventory_form.rejected_recovered_fabric = request.form.get('re_active_fabric', '0')
+        inventory_form.fabric_b_enabled = request.form.get('enable_fabric_b') == 'on'
+        inventory_form.fabric_qty_b = request.form.get('fabric_qty_b', '')
+        inventory_form.a_returned_to_party = bool(getattr(inventory_entry, 'a_returned_to_party', False))
+        inventory_form.b_returned_to_party = bool(getattr(inventory_entry, 'b_returned_to_party', False))
+        return inventory_form
 
     fabric_a_value = parse_numeric(request.form.get('fabric_qty_a', ''))
     total_value = sum(
@@ -11197,9 +11407,7 @@ def save_inventory():
                     balance=balance or None
                 ))
 
-        inv_obj = SimpleNamespace(**{k: v for k, v in form_headers.items()})
-        inv_obj.serial_no = serial_no
-        inv_obj.id = inventory_entry.id if inventory_entry and getattr(inventory_entry, 'id', None) else None
+        inv_obj = build_inventory_form_object()
         db.session.rollback()
         flash('Please fill all required header fields before saving.', 'danger')
         return render_template('inventory.html', selected_job=job_no, order=order, serial_no=serial_no, inventory=inv_obj, inventory_status=get_inventory_status(inventory_entry), rows=rows, second_rows=second_rows, remaining_a_quality=calculate_inventory_consumption_state(inventory_entry, order_id=job_no)['a_remaining'])
@@ -11396,9 +11604,7 @@ def save_inventory():
                     balance=rbalance or None
                 ))
 
-        inv_obj = SimpleNamespace(**{k: v for k, v in form_headers.items()})
-        inv_obj.serial_no = serial_no
-        inv_obj.id = inventory_entry.id if inventory_entry and getattr(inventory_entry, 'id', None) else None
+        inv_obj = build_inventory_form_object()
         return render_template('inventory.html', selected_job=job_no, order=order, serial_no=serial_no, inventory=inv_obj, inventory_status=get_inventory_status(inventory_entry), rows=rows, remaining_a_quality=calculate_inventory_consumption_state(inventory_entry, order_id=job_no)['a_remaining'])
 
 
@@ -11877,7 +12083,7 @@ def production_log():
     job_no = request.args.get('job_no') or request.args.get('filter_job')
     selected_cut = request.args.get('cut_no') or request.args.get('filter_cut')
     if request.method == 'POST':
-        if session.get('role') not in ('owner', 'manager'):
+        if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
             flash('Only an owner or manager can delete production logs.', 'danger')
             return redirect(url_for('production_log', job_no=job_no, cut_no=selected_cut or None))
         selected_ids = set()
@@ -12025,6 +12231,11 @@ def production_log():
                     (operation_name, str(log.cut_no))
                 ]
 
+    production_bq_total = sum(
+        parse_numeric(log.bq_unstitch) + parse_numeric(log.bq_stitched)
+        for log in logs
+    )
+
     displayed_logs = []
     for log in logs:
         operation_name = (log.operation or '').upper()
@@ -12079,6 +12290,33 @@ def production_log():
             cut_no=selected_cut,
         ).order_by(CuttingSheet.id.desc()).first()
 
+    production_cutting_pcs = 0.0
+    if selected_cut:
+        production_cutting_pcs = (
+            parse_numeric(selected_cutting_sheet.quantity)
+            or parse_numeric(selected_cutting_sheet.summary_total_pcs)
+            if selected_cutting_sheet else 0.0
+        )
+        if production_cutting_pcs <= 0 and logs:
+            production_cutting_pcs = parse_numeric(logs[0].cut_pcs)
+    else:
+        order_cutting_sheets = CuttingSheet.query.filter_by(order_id=selected_order.job_no).all()
+        if order_cutting_sheets:
+            production_cutting_pcs = sum(
+                parse_numeric(sheet.quantity) or parse_numeric(sheet.summary_total_pcs)
+                for sheet in order_cutting_sheets
+            )
+        else:
+            cut_pcs_by_number = {}
+            for log in ProductionLog.query.filter_by(job_no=selected_order.job_no).all():
+                cut_pcs_by_number.setdefault(str(log.cut_no), parse_numeric(log.cut_pcs))
+            production_cutting_pcs = sum(cut_pcs_by_number.values())
+
+    production_bq_percent = (
+        production_bq_total / production_cutting_pcs * 100
+        if production_cutting_pcs > 0 else None
+    )
+
     selected_order_pcs = ''
     selected_order_month = ''
     if selected_order:
@@ -12095,6 +12333,8 @@ def production_log():
         selected_order=selected_order,
         selected_order_month=selected_order_month,
         selected_order_pcs=selected_order_pcs,
+        production_cutting_pcs=production_cutting_pcs,
+        production_bq_percent=production_bq_percent,
         current_month_label=datetime.now().strftime('%b %Y'),
         selected_inventory_serial=selected_cutting_sheet.inventory_serial_no if selected_cutting_sheet else '',
         operation_rowspans=operation_rowspans,
@@ -13933,20 +14173,38 @@ def departments():
                 flash('Department deleted successfully.', 'success')
             return redirect(url_for('departments'))
 
+        department_id = request.form.get('department_id', type=int)
         name = (request.form.get('name') or '').strip()
         if not name:
             flash('Please enter a department name.', 'danger')
             return redirect(url_for('departments'))
-        if Department.query.filter(func.lower(Department.name) == name.lower()).first():
+
+        department = Department.query.get(department_id) if department_id else None
+        if department_id and not department:
+            flash('Department not found.', 'danger')
+            return redirect(url_for('departments'))
+        duplicate_query = Department.query.filter(
+            func.lower(func.trim(Department.name)) == name.casefold()
+        )
+        if department:
+            duplicate_query = duplicate_query.filter(Department.id != department.id)
+        if duplicate_query.first():
             flash('This department already exists.', 'danger')
             return redirect(url_for('departments'))
+        if department:
+            department.name = name
+            db.session.commit()
+            flash('Department updated successfully.', 'success')
+            return redirect(url_for('departments'))
+
         db.session.add(Department(name=name))
         db.session.commit()
         flash('Department added successfully.', 'success')
         return redirect(url_for('departments'))
 
+    editing_department = Department.query.get(request.args.get('edit_id', type=int)) if request.args.get('edit_id') else None
     department_list = Department.query.order_by(func.lower(Department.name)).all()
-    return render_template('departments.html', departments=department_list)
+    return render_template('departments.html', departments=department_list, editing_department=editing_department)
 
 
 @app.route('/manager/workers/<job_no>', methods=['GET', 'POST'], endpoint='workers')
@@ -13958,8 +14216,6 @@ def workers(job_no=None):
     if request.method == 'POST':
         # Get form data
         worker_id = request.form.get('worker_id')
-        if worker_id and is_read_only_profile():
-            return reject_read_only_edit('Saved worker profiles cannot be changed.')
         name = request.form.get('name')
         email = request.form.get('email')
         phone = request.form.get('phone')
@@ -14122,8 +14378,6 @@ def workers(job_no=None):
     editing_worker = None
     new_entry = request.args.get('new_entry') == '1'
     query_worker_id = None if new_entry else (request.args.get('worker_id') or request.args.get('edit_id'))
-    if is_read_only_profile():
-        query_worker_id = None
     if query_worker_id:
         try:
             editing_worker = Worker.query.get(int(query_worker_id))
@@ -14505,8 +14759,8 @@ def worker_attendance():
 def delete_worker():
     if not session.get('role'):
         return redirect(url_for('index'))
-    if is_read_only_profile():
-        return reject_read_only_edit('Saved worker profiles cannot be deleted.')
+    if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
+        return reject_read_only_edit('Only the owner and manager can delete worker profiles.')
 
     worker_id = request.form.get('worker_id')
     worker = Worker.query.get(worker_id) if worker_id else None
@@ -15701,9 +15955,6 @@ def accessories_portal(portal_page='home'):
     if request.method == 'POST':
         action = request.form.get('action')
         if action == 'record_party_accessory':
-            if is_read_only_profile():
-                return reject_read_only_edit('This profile has read-only access to accessory stock.')
-
             sent_date = (request.form.get('party_accessory_date') or '').strip()
             order_id = (request.form.get('party_accessory_order') or '').strip()
             item_name = (request.form.get('party_accessory_item') or '').strip()
@@ -15896,9 +16147,6 @@ def accessories_portal(portal_page='home'):
         current_status = item.accessory_status or 'PENDING'
 
         if action == 'put_away':
-            if is_read_only_profile():
-                return reject_read_only_edit('This profile has read-only access to accessory locations.')
-
             try:
                 storage_values = accessory_storage_form_values(request.form)
             except ValueError as exc:
@@ -15933,9 +16181,6 @@ def accessories_portal(portal_page='home'):
             return redirect_to_portal('unallocated-stock')
 
         if action == 'return_to_supplier':
-            if is_read_only_profile():
-                return reject_read_only_edit('This profile has read-only access to accessory stock.')
-
             return_date = (request.form.get('return_date') or '').strip()
             return_type = (request.form.get('return_type') or 'RETURN').strip().upper()
             returned_qty = parse_numeric(request.form.get('returned_qty'))
@@ -16013,8 +16258,6 @@ def accessories_portal(portal_page='home'):
             return redirect_to_portal('unallocated-stock')
 
         if action == 'move_stock':
-            if is_read_only_profile():
-                return reject_read_only_edit('This profile has read-only access to accessory locations.')
             source = AccessoryStorageLocation.query.get(request.form.get('source_location_id'))
             if not source or source.requirement_id != item.id:
                 flash('Source storage location not found.', 'danger')
@@ -16051,8 +16294,8 @@ def accessories_portal(portal_page='home'):
             return redirect_to_portal('issuance-store-finder')
 
         if action == 'return_issue':
-            if is_read_only_profile():
-                return reject_read_only_edit('This profile has read-only access to accessory returns.')
+            if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
+                return reject_read_only_edit('Only the owner and manager can return accessory issues.')
             issue = AccessoryIssue.query.get(request.form.get('issue_id')) if request.form.get('issue_id') else None
             if not issue or issue.requirement_id != item.id:
                 flash('Issue entry not found.', 'danger')
@@ -16211,6 +16454,9 @@ def accessories_portal(portal_page='home'):
             return redirect_to_portal('issuance-store-finder', order_id=order_id or None)
 
         if action in {'edit_issue', 'delete_issue'}:
+            if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
+                action_label = 'edit' if action == 'edit_issue' else 'delete'
+                return reject_read_only_edit(f'Only the owner and manager can {action_label} accessory issue entries.')
             issue = AccessoryIssue.query.get(request.form.get('issue_id')) if request.form.get('issue_id') else None
             if action != 'save_issue' and (not issue or issue.requirement_id != item.id):
                 flash('Issue entry not found.', 'danger')
@@ -19103,7 +19349,7 @@ def create_combined_shipment():
 
 @app.route('/stock-portal/orders/<path:job_no>/delete-shipment', methods=['POST'])
 def delete_order_shipment(job_no):
-    if session.get('role') not in ('owner', 'manager'):
+    if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
         flash('Only owner and manager can delete shipments.', 'danger')
         return redirect(request.referrer or url_for('goods_delivery_portal'))
 

@@ -135,7 +135,6 @@
         <p class="text-[10px] font-bold uppercase tracking-wider text-cyan-700">Non-PO order receipt</p>
         <h2 class="text-lg font-black text-slate-800">ACCESSORIES SENT BY PARTY</h2>
       </div>
-      {% if not read_only_profile %}
       <details class="border-b border-slate-200 pb-4">
       <summary class="cursor-pointer rounded-lg bg-cyan-700 px-4 py-2 text-center text-sm font-bold text-white hover:bg-cyan-800">Record Party Accessory</summary>
       <form method="post" class="mt-4 grid gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -147,13 +146,12 @@
         <label class="text-xs font-bold text-slate-600">Received unit<input id="party-accessory-stock-unit" name="party_accessory_unit" value="PCS" list="party-accessory-unit-list" data-party-stock-unit required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><datalist id="party-accessory-unit-list"><option value="PCS"><option value="BUNDLE"><option value="CONE"><option value="DOZEN"><option value="PACK"><option value="ROLL"><option value="METER"><option value="INCH"><option value="KG"><option value="OTHER"></datalist></label>
         <label class="text-xs font-bold text-slate-600">Issue unit<input id="party-accessory-issue-unit" name="party_accessory_issue_unit" value="PCS" list="party-accessory-unit-list" data-stock-unit="PCS" data-conversion-field="issue-factor-party-accessory" data-auto-default="true" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
         <label id="issue-factor-label-party-accessory" class="text-xs font-bold text-slate-600">PO units per 1 issue unit<input id="issue-factor-party-accessory" type="number" name="party_accessory_issue_factor" value="1" min="0.000001" step="any" data-mode-field="issue-factor-mode-party-accessory" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><input id="issue-factor-mode-party-accessory" type="hidden" name="party_accessory_issue_factor_mode" value="STOCK_PER_ISSUE"><span class="mt-1 block text-[10px] font-normal">For BUNDLE to CONE, choose CONE and enter cones per bundle.</span></label>
-        <label class="text-xs font-bold text-slate-600">Size<input name="party_accessory_size" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
-        <label class="text-xs font-bold text-slate-600">Quality<input name="party_accessory_quality" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+        <label class="text-xs font-bold text-slate-600">Size<input name="party_accessory_size" readonly class="mt-1 w-full cursor-not-allowed rounded-lg border border-slate-300 bg-slate-100 px-3 py-2"></label>
+        <label class="text-xs font-bold text-slate-600">Quality<input name="party_accessory_quality" readonly class="mt-1 w-full cursor-not-allowed rounded-lg border border-slate-300 bg-slate-100 px-3 py-2"></label>
         <label class="text-xs font-bold text-slate-600">Notes<input name="party_accessory_note" maxlength="500" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
         <div class="flex items-end"><button type="submit" class="w-full rounded-lg bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800">Record party accessory</button></div>
       </form>
       </details>
-      {% endif %}
       <div class="overflow-x-auto rounded border border-slate-200">
         <table class="w-full min-w-[760px] text-left text-sm">
           <thead class="bg-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-600"><tr><th class="px-3 py-2">Date</th><th class="px-3 py-2">Party</th><th class="px-3 py-2">Order / Article</th><th class="px-3 py-2">Accessory</th><th class="px-3 py-2 text-right">Quantity</th><th class="px-3 py-2">Recorded By</th><th class="px-3 py-2">View</th></tr></thead>
@@ -185,14 +183,14 @@
           <tr data-unallocated-search="{{ item.item }} {{ item.size }} {{ item.quality }} {{ item.po_no }} {{ item.order_id }} {{ item.supplier }} {{ item.serial_no }} {{ item.received_at }} {{ item.date }}" class="border-t border-slate-200 [&>td]:break-words [&>td]:px-1 [&>td]:py-2">
             <td class="text-center font-bold">{{ item.item }}{% if item.size or item.quality %}<div class="text-[10px] font-normal text-slate-500">{{ item.size or '' }}{% if item.size and item.quality %} · {% endif %}{{ item.quality or '' }}</div>{% endif %}<div class="text-[10px] font-normal text-slate-500">PO {{ item.po_no or '—' }} · {{ item.unit or 'PCS' }}{% if item.roll_length_m %} ({{ '{:g}'.format(item.roll_length_m) }} m/roll){% endif %}</div></td>
             <td class="font-bold text-amber-700">{{ qty_with_issue_unit(item.unlocated_qty, item) }}</td>
-            <td><select form="put-away-{{ item.id }}" name="location_type" required class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"><option value="RACK_SHELF">Rack/Shelf</option><option value="FLOOR">Floor</option><option value="CABINET">Cabinet</option><option value="CUPBOARD">Cupboard</option></select></td>
+            <td><select form="put-away-{{ item.id }}" name="location_type" required class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"><option value="RACK_SHELF">Rack/Shelf</option><option value="FLOOR">Floor</option><option value="CTN_ON_FLOOR">CTN on Floor</option><option value="BORA_ON_FLOOR">BORA on Floor</option><option value="CABINET">Cabinet</option><option value="CUPBOARD">Cupboard</option></select></td>
             <td><select form="put-away-{{ item.id }}" name="department" required class="department-room-department w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"><option value="">Department</option>{% for department in departments %}<option value="{{ department.name }}">{{ department.name }}</option>{% endfor %}</select></td>
             <td><input form="put-away-{{ item.id }}" name="gala" maxlength="100" placeholder="Gala" class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"></td>
             <td><select form="put-away-{{ item.id }}" name="room" required disabled class="department-room-select w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"><option value="">Select department first</option></select></td>
             <td><input form="put-away-{{ item.id }}" name="rack_no" placeholder="Rack" class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"></td>
             <td><input form="put-away-{{ item.id }}" name="shelf_no" placeholder="Shelf" class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"></td>
             <td><input form="put-away-{{ item.id }}" type="number" name="quantity" min="{{ 1 if (item.unit or '')|upper in ('ROLL', 'ROLLS') else 0.01 }}" max="{{ item.unlocated_qty }}" step="{{ 1 if (item.unit or '')|upper in ('ROLL', 'ROLLS') else 0.01 }}" required class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"></td>
-            <td><div class="flex flex-col items-stretch gap-1"><form id="put-away-{{ item.id }}" method="post"><input type="hidden" name="action" value="put_away"><input type="hidden" name="item_id" value="{{ item.id }}"><button type="submit" class="w-full whitespace-normal rounded-lg bg-amber-600 px-1 py-1.5 text-[10px] font-bold text-white hover:bg-amber-700">Place stock</button></form>{% if not read_only_profile %}<button type="button" data-item-id="{{ item.id }}" data-item-name="{{ item.item|e }}" data-unit="{{ item.unit or 'PCS' }}" data-available="{{ item.unlocated_qty }}" data-po-no="{{ item.po_no or '' }}" data-order-id="{{ item.order_id or '' }}" data-supplier="{{ item.supplier or '' }}" data-return-date="{{ local_po_today }}" onclick="openSupplierReturnModal(this)" class="w-full whitespace-normal rounded-lg border border-red-300 bg-red-50 px-1 py-1.5 text-[10px] font-bold text-red-700 hover:bg-red-100">Return to supplier</button>{% endif %}</div></td>
+            <td><div class="flex flex-col items-stretch gap-1"><form id="put-away-{{ item.id }}" method="post"><input type="hidden" name="action" value="put_away"><input type="hidden" name="item_id" value="{{ item.id }}"><button type="submit" class="w-full whitespace-normal rounded-lg bg-amber-600 px-1 py-1.5 text-[10px] font-bold text-white hover:bg-amber-700">Place stock</button></form><button type="button" data-item-id="{{ item.id }}" data-item-name="{{ item.item|e }}" data-unit="{{ item.unit or 'PCS' }}" data-available="{{ item.unlocated_qty }}" data-po-no="{{ item.po_no or '' }}" data-order-id="{{ item.order_id or '' }}" data-supplier="{{ item.supplier or '' }}" data-return-date="{{ local_po_today }}" onclick="openSupplierReturnModal(this)" class="w-full whitespace-normal rounded-lg border border-red-300 bg-red-50 px-1 py-1.5 text-[10px] font-bold text-red-700 hover:bg-red-100">Return to supplier</button></div></td>
           </tr>
           {% else %}<tr id="unallocated-stock-empty-row"><td colspan="10" class="px-3 py-6 text-slate-500">All received stock has been placed in a storage location.</td></tr>{% endfor %}
         </tbody>
@@ -256,7 +254,6 @@
                           {% for row in actionable_layers %}<option value="{{ row.location.id }}" data-item-id="{{ row.location.requirement_id }}" data-unit="{{ row.unit }}" data-issue-unit="{{ row.issue_unit }}" data-issue-factor="{{ row.issue_unit_factor }}" data-roll-length="{{ row.roll_length_m }}" data-left-over="{{ row.location.quantity }}" data-location-label="{{ row.label|e }}" data-po-no="{{ row.po_no|e }}">PO {{ row.po_no or '—' }} · {{ '{:,.2f}'.format(row.location.quantity) }} {{ row.unit }}</option>{% endfor %}
                         </select>
                         <button type="button" data-issue-date="{{ local_po_today }}" data-order-id="{{ selected_order_id }}" onclick="openIssueModal(this)" class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-cyan-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-cyan-800"><i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i> Issue</button>
-                        {% if not read_only_profile %}
                         <details class="relative shrink-0">
                           <summary class="inline-flex cursor-pointer list-none items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-100"><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i> Move</summary>
                           <form method="post" class="absolute right-0 z-20 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-2 rounded-lg border border-slate-200 bg-white p-3 text-left shadow-xl">
@@ -273,7 +270,6 @@
                             <button type="submit" class="rounded-lg bg-violet-700 px-3 py-2 text-xs font-bold text-white hover:bg-violet-800">Confirm move</button>
                           </form>
                         </details>
-                        {% endif %}
                       </div>
                       {% endif %}
                       {% for row in location_group.layers %}
@@ -387,9 +383,9 @@
                     <td class="px-3 py-1.5">{{ '{:,.2f}'.format(issue.returned_value or 0) }}{% for returned in issue.return_entries|sort(attribute='id') %}<div class="text-[10px] text-slate-500">{{ returned.return_date }} · {{ '{:,.2f}'.format(returned.returned_qty) }} by {{ returned.returned_by }}</div>{% endfor %}</td>
                     <td class="px-3 py-1.5">
                       <div class="flex justify-center gap-1.5">
-                        <button type="button" data-item-id="{{ issue.requirement_id }}" data-item-name="{{ item.item|e }}" data-unit="{{ issue.requirement.unit or item.unit }}" data-issue-unit="{{ issue.issued_as_unit or issue.requirement.issue_unit or issue.requirement.unit }}" data-issue-factor="{{ issue.issue_conversion_factor or issue.requirement.issue_unit_factor or 1 }}" data-roll-length="{{ issue.requirement.roll_length_m }}" data-issue-id="{{ issue.id }}" data-cut-sheet-id="{{ issue.cut_sheet_id or '' }}" data-location-id="{{ issue.storage_location_id or '' }}" data-location-label="{{ issue.location_label|e }}" data-issue-date="{{ issue.issue_date }}" data-worker-name="{{ issue.worker_name|e }}" data-issued-qty="{{ issue.issued_as_qty if issue.issued_as_qty else (issue.issued_qty / (issue.issue_conversion_factor or 1)) }}" data-order-id="{{ issue.order_id or '' }}" data-left-over="{{ issue.editable_max_qty }}" onclick="openIssueModal(this)" class="rounded border border-slate-400 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-100">Edit</button>
-                        {% if issue.returnable and issue.returnable_remaining_qty > 0 %}<button type="button" data-item-id="{{ issue.requirement_id }}" data-issue-id="{{ issue.id }}" data-item-name="{{ item.item|e }}" data-unit="{{ issue.requirement.unit or item.unit }}" data-max-qty="{{ issue.returnable_remaining_qty }}" data-return-date="{{ local_po_today }}" onclick="openReturnModal(this)" class="rounded border border-amber-500 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100">Return</button>{% endif %}
-                        {% if issue.returned_value <= 0 %}<form method="post" onsubmit="return confirm('Delete this issue entry?');"><input type="hidden" name="item_id" value="{{ issue.requirement_id }}"><input type="hidden" name="issue_id" value="{{ issue.id }}"><input type="hidden" name="action" value="delete_issue"><button type="submit" class="rounded border border-red-400 bg-white px-2 py-1 text-[10px] font-bold text-red-700 hover:bg-red-50">Delete</button></form>{% endif %}
+                        {% if session.get('role') in ('owner', 'manager') and not read_only_profile %}<button type="button" data-item-id="{{ issue.requirement_id }}" data-item-name="{{ item.item|e }}" data-unit="{{ issue.requirement.unit or item.unit }}" data-issue-unit="{{ issue.issued_as_unit or issue.requirement.issue_unit or issue.requirement.unit }}" data-issue-factor="{{ issue.issue_conversion_factor or issue.requirement.issue_unit_factor or 1 }}" data-roll-length="{{ issue.requirement.roll_length_m }}" data-issue-id="{{ issue.id }}" data-cut-sheet-id="{{ issue.cut_sheet_id or '' }}" data-location-id="{{ issue.storage_location_id or '' }}" data-location-label="{{ issue.location_label|e }}" data-issue-date="{{ issue.issue_date }}" data-worker-name="{{ issue.worker_name|e }}" data-issued-qty="{{ issue.issued_as_qty if issue.issued_as_qty else (issue.issued_qty / (issue.issue_conversion_factor or 1)) }}" data-order-id="{{ issue.order_id or '' }}" data-left-over="{{ issue.editable_max_qty }}" onclick="openIssueModal(this)" class="rounded border border-slate-400 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-100">Edit</button>{% endif %}
+                        {% if issue.returnable and issue.returnable_remaining_qty > 0 and session.get('role') in ('owner', 'manager') and not read_only_profile %}<button type="button" data-item-id="{{ issue.requirement_id }}" data-issue-id="{{ issue.id }}" data-item-name="{{ item.item|e }}" data-unit="{{ issue.requirement.unit or item.unit }}" data-max-qty="{{ issue.returnable_remaining_qty }}" data-return-date="{{ local_po_today }}" onclick="openReturnModal(this)" class="rounded border border-amber-500 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100">Return</button>{% endif %}
+                        {% if issue.returned_value <= 0 and session.get('role') in ('owner', 'manager') and not read_only_profile %}<form method="post" onsubmit="return confirm('Delete this issue entry?');"><input type="hidden" name="item_id" value="{{ issue.requirement_id }}"><input type="hidden" name="issue_id" value="{{ issue.id }}"><input type="hidden" name="action" value="delete_issue"><button type="submit" class="rounded border border-red-400 bg-white px-2 py-1 text-[10px] font-bold text-red-700 hover:bg-red-50">Delete</button></form>{% endif %}
                       </div>
                     </td>
                   </tr>
@@ -526,9 +522,11 @@
     </dl>
   </div>
 </div>
+<script id="accessories-page-data" type="application/json">{{ {'department_store_rooms': department_store_rooms, 'issue_article_material_items': issue_article_material_items, 'purchase_order_data': po_view_data}|tojson }}</script>
 <script>
-  const departmentStoreRooms = {{ department_store_rooms|tojson }};
-  const issueArticleMaterialItems = {{ issue_article_material_items|tojson }};
+  const accessoriesPageData = JSON.parse(document.getElementById('accessories-page-data')?.textContent || '{}');
+  const departmentStoreRooms = accessoriesPageData.department_store_rooms || {};
+  const issueArticleMaterialItems = accessoriesPageData.issue_article_material_items || {};
   const purchaseOrderSearch = document.getElementById('purchase-order-search');
   const purchaseOrderSearchEmpty = document.getElementById('purchase-order-search-empty');
   const purchaseOrderListUpdaters = [];
@@ -1207,9 +1205,25 @@ function updateReceiptIssueFactor(unitInput, force = false) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+  const partyAccessoryItemInput = document.getElementById('party-accessory-item');
+  const partyAccessoryItemList = document.getElementById('party-accessory-item-list');
   const partyStockUnit = document.getElementById('party-accessory-stock-unit');
   const partyIssueUnit = document.getElementById('party-accessory-issue-unit');
   const partyFactorInput = document.getElementById('issue-factor-party-accessory');
+  if (partyAccessoryItemInput && partyAccessoryItemList && partyStockUnit && partyIssueUnit) {
+    partyAccessoryItemInput.addEventListener('change', function () {
+      const selectedItemName = this.value.trim().toLocaleLowerCase();
+      const selectedItem = Array.from(partyAccessoryItemList.options).find(function (option) {
+        return option.value.trim().toLocaleLowerCase() === selectedItemName;
+      });
+      const unit = selectedItem?.dataset.unit || 'PCS';
+      partyStockUnit.value = unit;
+      document.querySelector('[name="party_accessory_size"]').value = selectedItem?.dataset.size || '';
+      document.querySelector('[name="party_accessory_quality"]').value = selectedItem?.dataset.quality || '';
+      partyStockUnit.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
   if (partyStockUnit && partyIssueUnit && partyFactorInput) {
     const syncPartyStockUnit = function () {
       const stockUnit = String(partyStockUnit.value || '').trim();
@@ -1242,7 +1256,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <script>
-  const purchaseOrderData = {{ po_view_data|tojson }};
+  const purchaseOrderData = accessoriesPageData.purchase_order_data || {};
   const poCurrencyFormat = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   let activePurchaseOrder = null;
 

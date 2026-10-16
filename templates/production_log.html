@@ -259,19 +259,20 @@
                 </div>
             </div>
         </div>
-        <div class="grid grid-cols-2 gap-x-5 gap-y-5 p-5 text-center sm:grid-cols-3 lg:grid-cols-6 lg:p-6">
+        <div class="grid grid-cols-2 gap-x-5 gap-y-5 p-5 text-center sm:grid-cols-3 lg:grid-cols-7 lg:p-6">
             <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER M/O</p><p class="mt-1 text-base font-bold text-slate-800">{{ selected_order_month or '-' }}</p></div>
             <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER Number</p><p class="mt-1 text-base font-bold text-slate-800">{{ selected_order.job_no or '-' }}</p></div>
             <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER PCS</p><p class="mt-1 text-xl font-black text-slate-900">{{ selected_order_pcs or '-' }}</p></div>
             <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">CURRENT M/O</p><p class="mt-1 text-base font-bold text-slate-800">{{ current_month_label }}</p></div>
-            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">CUTTING PCS</p><p class="mt-1 text-xl font-black text-slate-900">{{ logs[0].cut_pcs if selected_cut and logs else '-' }}</p></div>
+            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">CUTTING PCS</p><p class="mt-1 text-xl font-black text-slate-900">{{ '{:,.0f}'.format(production_cutting_pcs) if production_cutting_pcs > 0 else '-' }}</p></div>
+            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">B/Q %</p><p class="mt-1 text-xl font-black text-slate-900">{{ '%.2f'|format(production_bq_percent) if production_bq_percent is not none else '-' }}{% if production_bq_percent is not none %}%{% endif %}</p></div>
             <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">INV#</p><p class="mt-1 text-base font-black text-slate-900">{{ selected_inventory_serial or '-' }}</p></div>
         </div>
     </div>
     {% endif %}
 
     <div class="mb-3 flex justify-end gap-2 no-print">
-        {% if session.get('role') in ('owner', 'manager') %}
+        {% if session.get('role') in ('owner', 'manager') and not read_only_profile %}
         <button type="button" id="toggle-log-selection" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100"><i class="fa-solid fa-check-double"></i> Select</button>
         <button type="submit" form="delete-production-logs" id="delete-selected-logs" class="hidden inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-red-700"><i class="fa-solid fa-trash"></i> Delete</button>
         {% endif %}

@@ -173,7 +173,7 @@
                         </div>
                       </div>
 
-                      {% if session.get('role') in ('owner', 'manager') %}
+                      {% if session.get('role') in ('owner', 'manager') and not read_only_profile %}
                       <form method="post" action="{{ url_for('delete_order_shipment', job_no=order.job_no) }}" onsubmit="return confirm('Delete this shipment for {{ order.job_no }}? This will clear this shipment entry only.');" class="mt-4" onclick="event.stopPropagation()">
                         <input type="hidden" name="shipment_id" value="{{ shipment.id }}">
                         <button type="submit" class="w-full rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-black uppercase tracking-wide text-red-700 transition hover:bg-red-100">Delete This Shipment</button>
@@ -224,7 +224,7 @@
               </div>
 
               <div class="mt-4 flex justify-end">
-                {% if session.get('role') in ('owner', 'manager') %}
+                {% if session.get('role') in ('owner', 'manager') and not read_only_profile %}
                 <form method="post" action="{{ url_for('delete_order_shipment', job_no=order.job_no) }}" onsubmit="return confirm('Delete all shipments for {{ order.job_no }}? This will clear the full shipment history and set the order back to pending.');" onclick="event.stopPropagation()">
                   {% if is_inventory_return %}
                   <input type="hidden" name="return_quality" value="{{ entry.return_quality }}">

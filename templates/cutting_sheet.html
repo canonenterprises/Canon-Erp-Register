@@ -69,7 +69,7 @@
                     <div>
                         <div class="cut-size-inputs">
                             <div class="flex flex-wrap items-center gap-1.5">
-                                <input type="number" id="calc_cut_size" name="calc_cut_size" step="0.01" value="{{ cutting_size_factor }}" class="w-24 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder=" " required oninput="updateCalculation()" />
+                                <input type="number" id="calc_cut_size" name="calc_cut_size" step="0.01" value="{{ cutting_size_factor }}" class="w-24 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder=" " readonly required oninput="updateCalculation()" />
                                 <span class="text-[15px] font-bold">×</span>
                                 <input type="number" id="calc_factor_1" name="calc_factor_1" step="0.01" value="{{ cutting_factor_1 }}" class="w-24 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder=" " required oninput="updateCalculation()" />
                             </div>
@@ -86,13 +86,11 @@
                                 <input type="number" id="range_cut_size" value="{{ cutting_size_factor }}" class="w-24 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder=" " readonly />
                                 <span class="text-s font-bold">x</span>
                                 <input type="number" id="pcs_in_row" name="pcs_in_row" step="0.01" value="{{ cutting_sheet.pcs_in_row or '' }}" class="w-24 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder="PCS" required oninput="updateRangeSize()" />
-                                <span class="text-s font-bold">+</span>
-                                <input type="number" id="range_margin" name="range_margin" step="0.01" value="{{ cutting_sheet.range_margin or '' }}" class="w-24 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder="%" required oninput="updateRangeSize()" />
                                 <span class="text-s font-bold">=</span>
                                 <input type="number" id="range_result" name="range_result" step="0.01" value="{{ cutting_sheet.range_result or '' }}" class="w-32 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder=" " readonly />
                             </div>
                         </div>
-                        <div id="range_size_print_text" class="range-size-print text-s font-bold print-only">{{ cutting_sheet.cut_size and (cutting_sheet.cut_size ~ ' x ' ~ (cutting_sheet.pcs_in_row or '') ~ ' + ' ~ (cutting_sheet.range_margin or '') ~ ' = ' ~ (cutting_sheet.range_result or '')) or '' }}</div>
+                        <div id="range_size_print_text" class="range-size-print text-s font-bold print-only">{{ cutting_sheet.cut_size and (cutting_sheet.cut_size ~ ' x ' ~ (cutting_sheet.pcs_in_row or '') ~ ' = ' ~ (cutting_sheet.range_result or '')) or '' }}</div>
                     </div>
                 </div>
 
@@ -232,7 +230,7 @@
                                         <td class="w-1/3 p-2"><input type="text" name="mini_cp_22" value="{{ cutting_sheet.mini_cp_22 if cutting_sheet and cutting_sheet.mini_cp_22 is not none else (cutting_sheet_row_map[20].cp if 20 in cutting_sheet_row_map else '') }}" class="w-full border border-black rounded px-2 py-1 text-s text-black-800 font-bold text-center" placeholder="" oninput="updateTotals()"></td>
                                     </tr>
                                     <tr class="border-b border-black text-center">
-                                        <td class="p-2 font-bold" colspan="3">SHORT FABRIC</td>
+                                        <td class="p-2 font-bold" colspan="3">WASTAGE</td>
                                     </tr>
                                     <tr class="border-b border-black bg-slate-100">
                                         <td class="border-r border-black w-1/3 p-2"><input type="text" id="mini_palla_22_grey" name="mini_palla_22_grey" value="{{ cutting_sheet.mini_palla_22_grey if cutting_sheet and cutting_sheet.mini_palla_22_grey is not none else (cutting_sheet_row_map[20].palla if 20 in cutting_sheet_row_map else '') }}" class="w-full border border-black rounded px-2 py-1 text-s text-black-800 font-bold text-center bg-slate-100" oninput="onMiniGreyInput()"></td>
@@ -297,7 +295,7 @@
                     <div><input type="text" id="quantity" name="quantity" value="{{ cutting_sheet.quantity or '' }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" readonly></div>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
-                    <div class="text-s text-black-800 font-bold">Average Pcs</div>
+                    <div class="text-s text-black-800 font-bold">Average Per Pcs</div>
                     <div><input type="text" id="summary_avg_pcs" name="summary_avg_pcs" value="{{ (cutting_sheet and cutting_sheet.summary_avg_pcs) or '' }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" oninput="updateAveragePcsColor()"></div>
                 </div>
             </div>
@@ -377,6 +375,39 @@
     </div>
     
     </form>
+    {% if read_only_profile and cutting_sheet %}
+    <script>
+    (function () {
+        const form = document.getElementById('cutting-sheet-form');
+        if (!form) return;
+
+        form.querySelectorAll(
+            '#print-top-grid .leftinfo input:not([type="hidden"]), #print-top-grid .rightinfo input, #print-top-grid textarea'
+        ).forEach(function (control) {
+            control.readOnly = true;
+            control.setAttribute('aria-readonly', 'true');
+            control.classList.add('bg-slate-100', 'cursor-not-allowed');
+        });
+
+        form.querySelectorAll('#print-top-grid select').forEach(function (select) {
+            const preservedValue = document.createElement('input');
+            preservedValue.type = 'hidden';
+            preservedValue.name = select.name;
+            preservedValue.value = select.value;
+            form.appendChild(preservedValue);
+            select.disabled = true;
+            select.classList.add('cursor-not-allowed');
+        });
+
+        form.querySelectorAll('.tableinfo input').forEach(function (input) {
+            if ((input.name || '').startsWith('mini_')) return;
+            input.readOnly = true;
+            input.setAttribute('aria-readonly', 'true');
+            input.classList.add('cursor-not-allowed');
+        });
+    })();
+    </script>
+    {% endif %}
     {% if session.get('role') in ('owner', 'manager') and transfer_destination_orders %}
     <section class="no-print mx-auto mt-6 max-w-7xl rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
         <p class="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700">Excess cutting PCS</p>
@@ -523,18 +554,16 @@ function enforceAverageChoice(changedInput) {
 function updateRangePrintText() {
     const cutSize = document.getElementById('range_cut_size')?.value.trim();
     const pcsInRow = document.getElementById('pcs_in_row')?.value.trim();
-    const margin = document.getElementById('range_margin')?.value.trim();
     const result = document.getElementById('range_result')?.value.trim();
     const el = document.getElementById('range_size_print_text');
     if (!el) return;
-    if (!cutSize && !pcsInRow && !margin) {
+    if (!cutSize && !pcsInRow) {
         el.textContent = '';
         return;
     }
     let expr = '';
     if (cutSize) expr += cutSize;
     if (pcsInRow) expr += (expr ? ' x ' : '') + pcsInRow;
-    if (margin) expr += (expr ? ' + ' : '') + margin;
     if (result) expr += ' = ' + result;
     el.textContent = expr;
     markNegativeInputs();
@@ -1005,11 +1034,10 @@ function printCuttingSheet() {
 function updateRangeSize() {
     const cutSize = parseFloat(document.getElementById('range_cut_size').value) || 0;
     const pcsInRow = parseFloat(document.getElementById('pcs_in_row').value) || 0;
-    const margin = parseFloat(document.getElementById('range_margin').value) || 0;
     const result = document.getElementById('range_result');
 
     if (cutSize && pcsInRow) {
-        result.value = ((cutSize * pcsInRow) + margin).toFixed(2);
+        result.value = (cutSize * pcsInRow).toFixed(2);
     } else {
         result.value = '';
     }
@@ -1099,7 +1127,7 @@ function getCutDefaultsKey() {
 
 function saveCutDefaults() {
     try {
-        const fields = ['calc_cut_size','calc_factor_1','pcs_in_row','range_margin','pcs_in_range','avg_other','cutter_name','inventory_serial_no','use_fabric_ch','asst_cutter_name','palla_check_by'];
+        const fields = ['calc_cut_size','calc_factor_1','pcs_in_row','pcs_in_range','avg_other','cutter_name','inventory_serial_no','use_fabric_ch','asst_cutter_name','palla_check_by'];
         const data = {};
         fields.forEach(name => {
             const el = document.querySelector(`[name='${name}']`) || document.getElementById(name);

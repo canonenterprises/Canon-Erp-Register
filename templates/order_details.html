@@ -21,6 +21,7 @@
         {% if page_key in page_access_keys %}{% set workflow_count.value = workflow_count.value + 1 %}{% endif %}
     {% endfor %}
     {% if 'requirements' in page_access_keys %}{% set workflow_count.value = workflow_count.value + 1 %}{% endif %}
+    {% if 'order_accessories' in page_access_keys %}{% set workflow_count.value = workflow_count.value + 1 %}{% endif %}
     {% set workflow_columns_sm = 1 if workflow_count.value < 2 else 2 %}
     {% set workflow_columns_lg = 2 if workflow_count.value == 4 else (3 if workflow_count.value >= 3 else workflow_columns_sm) %}
     <div class="workflow-grid grid gap-4" style="--workflow-columns-sm: {{ workflow_columns_sm }}; --workflow-columns-lg: {{ workflow_columns_lg }};">
@@ -41,6 +42,8 @@
             <span class="workflow-icon bg-amber-100 text-amber-700"><i class="fa-solid fa-clipboard-list"></i></span>
             <span class="workflow-copy"><span class="workflow-number text-amber-600">03</span><strong>Requirement Slip</strong></span><i class="fa-solid fa-arrow-right workflow-arrow"></i>
         </a>
+        {% endif %}
+        {% if 'order_accessories' in page_access_keys %}
         <a href="{{ url_for('order_accessories', job_no=order.job_no) }}" class="workflow-card workflow-glow-emerald border-emerald-500 hover:border-emerald-600">
             <span class="workflow-icon bg-emerald-100 text-emerald-700"><i class="fa-solid fa-boxes-stacked"></i></span>
             <span class="workflow-copy"><span class="workflow-number text-emerald-600">03A</span><strong>Order Accessories</strong></span><i class="fa-solid fa-arrow-right workflow-arrow"></i>
