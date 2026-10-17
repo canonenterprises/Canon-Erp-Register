@@ -260,7 +260,7 @@
                     {% else %}
                     <tr>
                         <td class="border px-2 py-2 text-s text-black-800 font-bold text-center">{{ row }}</td>
-                        <td class="border px-2 py-2"><input type="number" name="meter_{{ row }}" value="{{ cutting_sheet_row_map[row].meter if row in cutting_sheet_row_map else '' }}" class="w-full border-none outline-none text-s text-black-800 font-bold text-center" oninput="updateTotals()"></td>
+                        <td class="border px-2 py-2"><input type="number" step="0.01" name="meter_{{ row }}" value="{{ cutting_sheet_row_map[row].meter if row in cutting_sheet_row_map else '' }}" class="w-full border-none outline-none text-s text-black-800 font-bold text-center" oninput="updateTotals()"></td>
                         <td class="border px-2 py-2"><input type="number" name="palla_{{ row }}" value="{{ cutting_sheet_row_map[row].palla if row in cutting_sheet_row_map else '' }}" class="w-full border-none outline-none text-s text-black-800 font-bold text-center" readonly></td>
                         <td class="border px-2 py-2"><input type="number" name="pcs_{{ row }}" value="{{ cutting_sheet_row_map[row].pcs if row in cutting_sheet_row_map else '' }}" class="w-full border-none outline-none text-s text-black-800 font-bold text-center" readonly></td>
                         <td class="border px-2 py-2"><input type="text" name="cp_{{ row }}" value="{{ cutting_sheet_row_map[row].cp if row in cutting_sheet_row_map else '' }}" class="w-full border-none outline-none text-s text-black-800 font-bold text-center" placeholder="Shortage" aria-label="Shortage for row {{ row }}"></td>
