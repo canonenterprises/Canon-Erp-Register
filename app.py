@@ -4873,6 +4873,14 @@ def index():
                 return redirect(url_for(endpoint))
     return render_template('dashboard.html', welcome=True)
 
+def normalize_profile_name(name):
+    normalized_name = (name or '').strip()
+    owner_suffix = ' (OWNER)'
+    if normalized_name.upper().endswith(owner_suffix):
+        normalized_name = normalized_name[:-len(owner_suffix)].rstrip()
+    return normalized_name
+
+
 @app.route('/login/<target_role>', methods=['GET', 'POST'])
 def login(target_role):
     if request.method == 'POST':
@@ -4886,7 +4894,7 @@ def login(target_role):
             if target_role in ALL_PORTALS:
                 if account_role == 'owner' or target_role in account_portals(portal_account):
                     session_role = 'manager' if account_role == 'operations_manager' else account_role
-                    session.update({'user': username, 'role': session_role, 'profile_role': account_role, 'name': portal_account.name})
+                    session.update({'user': username, 'role': session_role, 'profile_role': account_role, 'name': normalize_profile_name(portal_account.name)})
                     default_endpoint = {
                         'manager': 'manager_dashboard',
                         'operations': 'manager_dashboard',
@@ -4904,7 +4912,7 @@ def login(target_role):
             session.update({
                 'user': username, 
                 'role': account_role, 
-                'name': portal_account.name
+                'name': normalize_profile_name(portal_account.name)
             })
             if account_role == 'owner':
                 return redirect_after_portal_login('owner_dashboard')
@@ -6965,7 +6973,6 @@ def manager_dashboard():
                     normalized_pcs = submitted_pcs
                     normalized_qty = request.form.get('qty') or request.form.get('order_qty', '')
                 new_order = Order(
-                    job_no=f"ORDER-{100 + Order.query.count() + 1}",
                     date=request.form.get('date') or request.form.get('start_date'),
                     name=article_record.party_name or party_name,
                     file_no=f"FILE-{request.form.get('file_no', '').strip()}",
@@ -7016,12 +7023,17 @@ def manager_dashboard():
                     image_file=getattr(form_order, 'image_file', ''),
                     image_files=getattr(form_order, 'image_files', '[]'),
                 )
+                order_numbers = [
+                    int(job_no.removeprefix('ORDER-'))
+                    for (job_no,) in Order.query.with_entities(Order.job_no).all()
+                    if job_no and job_no.startswith('ORDER-') and job_no.removeprefix('ORDER-').isdigit()
+                ]
+                new_order.job_no = f"ORDER-{max(order_numbers, default=100) + 1}"
+                db.session.add(new_order)
                 save_order_images(
                     new_order,
                     [request.files.get(f'image_file_{index}') for index in range(1, 11)]
                 )
-
-                db.session.add(new_order)
                 db.session.commit()
                 flash('Order saved successfully.', 'success')
                 if is_read_only_profile():
@@ -7487,6 +7499,8 @@ def order_accessories(job_no):
             'returned': 0.0,
             'net_issued': 0.0,
             'cost': 0.0,
+            'estimated_cost': 0.0,
+            'estimated_cost_available': True,
             'sort_order': spec.sort_order or 0,
         })
         required_qty = (
@@ -7500,6 +7514,12 @@ def order_accessories(job_no):
         elif stock_requirement:
             required_qty = round_accessory_qty_to_issue_unit(stock_requirement, required_qty)
         group['required'] += required_qty
+        unit_rate = accessory_receipt_unit_rate(stock_requirement) if stock_requirement else 0.0
+        if required_qty > 0:
+            if unit_rate > 0:
+                group['estimated_cost'] += required_qty * unit_rate
+            else:
+                group['estimated_cost_available'] = False
 
     for issue in issue_rows:
         receipt = issue.requirement
@@ -7521,6 +7541,8 @@ def order_accessories(job_no):
             'returned': 0.0,
             'net_issued': 0.0,
             'cost': 0.0,
+            'estimated_cost': 0.0,
+            'estimated_cost_available': True,
             'sort_order': 999999,
         })
         issued_qty = parse_numeric(issue.issued_qty)
@@ -7576,6 +7598,12 @@ def order_accessories(job_no):
         'issued': quantity_summary('display_net_issued'),
         'remaining': quantity_summary('display_remaining'),
         'cost': sum(row['cost'] for row in accessories),
+        'estimated_cost': sum(row['estimated_cost'] for row in accessories),
+        'estimated_cost_available': all(
+            row['estimated_cost_available']
+            for row in accessories
+            if row['required'] > 0
+        ),
     }
     cut_accessories = []
     for sheet in CuttingSheet.query.filter_by(order_id=job_no).order_by(CuttingSheet.id.asc()).all():
@@ -10269,12 +10297,17 @@ def cutting_sheet():
         fabric_issue_amount = numeric_meter(cutting_form_value('fabric_issue'))
         if fabric_issue_amount > opening_balance:
             message = (
-                f'Insufficient fabric. Fabric issue is {fabric_issue_amount:.2f} meters, '
-                f'but fabric O/B is {opening_balance:.2f} meters.'
+                'Insufficient fabric. Fabric issue is more than fabric O/B.'
+                if secondary_inventory
+                else 'Insufficient fabric. Please select a secondary inventory.'
             )
-            if not secondary_inventory:
-                message += ' Please select secondary inventory.'
             flash(message, 'danger')
+            redirect_args = {'order_id': job_no}
+            if edit_id:
+                redirect_args['edit_id'] = edit_id
+            return redirect(url_for('cutting_sheet', **redirect_args))
+        if table_total_meter > fabric_issue_amount + 0.000001:
+            flash('Insufficient fabric. Total meter is more than the fabric issue.', 'danger')
             redirect_args = {'order_id': job_no}
             if edit_id:
                 redirect_args['edit_id'] = edit_id
@@ -10322,6 +10355,23 @@ def cutting_sheet():
         if not cutting_sheet.id:
             db.session.add(cutting_sheet)
         db.session.flush()
+
+        previous_cut_quantity = 0.0
+        for previous_sheet in CuttingSheet.query.filter_by(order_id=job_no).all():
+            if previous_sheet.id == cutting_sheet.id:
+                continue
+            try:
+                previous_cut_no = int(str(previous_sheet.cut_no))
+            except (TypeError, ValueError):
+                continue
+            if previous_cut_no < current_cut_no:
+                previous_quantity = previous_sheet.quantity
+                if previous_quantity in (None, ''):
+                    previous_quantity = previous_sheet.total_pcs
+                previous_cut_quantity += numeric_meter(previous_quantity)
+        cumulative_cutting = previous_cut_quantity + numeric_meter(cutting_sheet.quantity)
+        cutting_sheet.total_cutting = f'{cumulative_cutting:.0f}'
+        cutting_sheet.balance_cutting = f'{get_effective_order_quantity(order) - cumulative_cutting:.0f}'
 
         if locked_cut_edit:
             mini_row = CuttingSheetRow.query.filter_by(
@@ -10460,7 +10510,9 @@ def cutting_sheet():
                 ))
         db.session.commit()
         flash('Cutting sheet saved successfully.', 'success')
-        return redirect(url_for('bundle_stickers', cutting_sheet_id=cutting_sheet.id))
+        if 'bundle_stickers' in getattr(g, 'page_access_keys', PAGE_ACCESS_KEYS):
+            return redirect(url_for('bundle_stickers', cutting_sheet_id=cutting_sheet.id))
+        return redirect(url_for('saved_cutting_sheets', job_no=job_no))
 
     if edit_id:
         cutting_sheet = CuttingSheet.query.filter_by(id=edit_id, order_id=job_no).first()
@@ -10476,7 +10528,7 @@ def cutting_sheet():
         .first()
         if cutting_sheet and cutting_sheet.id else None
     )
-    # Compute previous total_cutting for this order (sum of total_cutting from earlier cuts)
+    # Sum individual cut quantities; total_cutting is already cumulative per sheet.
     previous_total_cutting = 0.0
     try:
         # Determine current cut number (editing or creating)
@@ -10502,14 +10554,16 @@ def cutting_sheet():
             except Exception:
                 s_cut_no = None
             # include sheets with numeric cut_no less than current_cut_no, or include all if current_cut_no unknown
-            if s_cut_no is None or current_cut_no is None or (s_cut_no < current_cut_no):
-                try:
-                    val = float(s.total_cutting) if s.total_cutting not in (None, '') else 0.0
-                except Exception:
-                    val = 0.0
-                previous_total_cutting += val
+            if s_cut_no is not None and current_cut_no is not None and s_cut_no < current_cut_no:
+                cut_quantity = s.quantity
+                if cut_quantity in (None, ''):
+                    cut_quantity = s.total_pcs
+                previous_total_cutting += numeric_meter(cut_quantity)
     except Exception:
         previous_total_cutting = 0.0
+    current_cut_quantity = numeric_meter(cutting_sheet.quantity if cutting_sheet else 0)
+    current_total_cutting = previous_total_cutting + current_cut_quantity
+    current_balance_cutting = get_effective_order_quantity(order) - current_total_cutting
     # Compute previous total_meter for this order (sum of total_meter from earlier cuts)
     previous_total_meter = 0.0
     try:
@@ -10713,6 +10767,8 @@ def cutting_sheet():
         cutting_sheet_serial_no=cutting_sheet_serial_no,
         next_cut_no=next_cut_no,
         previous_total_cutting=previous_total_cutting,
+        current_total_cutting=current_total_cutting,
+        current_balance_cutting=current_balance_cutting,
         previous_total_meter=previous_total_meter,
         previous_balance_fabric=previous_balance_fabric,
         previous_inventory_serial_no=previous_inventory_serial_no,

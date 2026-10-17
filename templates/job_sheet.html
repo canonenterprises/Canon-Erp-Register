@@ -2,7 +2,7 @@
 {% block content %}
 {% include 'navbar.html' %}
 
-<div class="max-w-7xl mx-auto p-6 space-y-6 pt-20 md:pt-20" id="print-area">
+<div class="max-w-7xl mx-auto p-6 space-y-6 pt-20 md:pt-20" id="print-area" data-prepared-by="{{ (session.get('name') or session.get('user') or '') | upper }}">
     
 
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
@@ -283,10 +283,6 @@
             </div>
             {% endfor %}
         </div>
-        <div class="print-only job-sheet-print-footer pr-2 pl-2">
-            <span>Prepared By: {{ (session.get('name') or session.get('user') or '________________') | upper }}</span>
-            <p>Printed on: <span id="print-time"></span></p>
-        </div>
 </div>
 
 <script>
@@ -298,9 +294,12 @@ function printSheet() {
 function updatePrintTime() {
     const now = new Date();
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true };
-    const el = document.getElementById('print-time');
-    if (el) el.textContent = now.toLocaleString('en-US', options);
+    document.documentElement.setAttribute('data-timestamp', now.toLocaleString('en-US', options));
 }
+
+const printArea = document.getElementById('print-area');
+if (printArea) document.documentElement.setAttribute('data-prepared-by', printArea.dataset.preparedBy || '');
+updatePrintTime();
 
 function toggleAdditionalRowForm(button) {
     const form = button.nextElementSibling;
@@ -353,7 +352,30 @@ document.addEventListener('DOMContentLoaded', function () {
 }
 
 @media print {
-    @page { size: A4; margin: 4mm 2mm 4mm; }
+    @page {
+        size: A4;
+        margin: 4mm 2mm 16mm;
+        @bottom-center {
+            content: "Page " counter(page) " of " counter(pages);
+            font-size: 11px;
+            font-weight: 600;
+            color: #111827;
+        }
+        @bottom-right {
+            content: "Printed on: " attr(data-timestamp);
+            font-size: 11px;
+            font-weight: 600;
+            color: #111827;
+            margin-right: 2mm;
+        }
+        @bottom-left {
+            content: "Prepared By: " attr(data-prepared-by);
+            font-size: 11px;
+            font-weight: 600;
+            color: #111827;
+            margin-left: 2mm;
+        }
+    }
     body * { visibility: hidden; }
     #print-area, #print-area * { visibility: visible; }
     #print-area {
@@ -375,15 +397,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     .no-print { display: none !important; }
     .print-only { display: block; }
-    .job-sheet-print-footer {
-        display: flex !important;
-        align-items: center;
-        justify-content: space-between;
-        width: 100%;
-        margin-top: 12mm !important;
-        font-size: 9pt;
-    }
-    .job-sheet-print-footer p { margin: 0 !important; }
     .screen-total-label { display: none; }
     .print-total-label { display: inline; }
     .job-worker-print-group {

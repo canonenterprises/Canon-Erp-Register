@@ -15,10 +15,8 @@
         </div>
     </header>
 
-    <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div class="border-l-4 border-cyan-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Required</p><p class="mt-2 text-sm font-black text-slate-900">{% for total in totals.required %}{{ '{:,.2f}'.format(total.quantity) }} {{ total.unit }}{% if not loop.last %} · {% endif %}{% else %}0{% endfor %}</p></div>
-        <div class="border-l-4 border-emerald-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Net Consumed</p><p class="mt-2 text-sm font-black text-slate-900">{% for total in totals.issued %}{{ '{:,.2f}'.format(total.quantity) }} {{ total.unit }}{% if not loop.last %} · {% endif %}{% else %}0{% endfor %}</p></div>
-        <div class="border-l-4 border-amber-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Remaining</p><p class="mt-2 text-sm font-black text-slate-900">{% for total in totals.remaining %}{{ '{:,.2f}'.format(total.quantity) }} {{ total.unit }}{% if not loop.last %} · {% endif %}{% else %}0{% endfor %}</p></div>
+    <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
+        <div class="border-l-4 border-cyan-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Estimated Cost</p><p class="mt-2 text-xl font-black text-slate-900">{% if totals.estimated_cost_available %}Rs. {{ '{:,.2f}'.format(totals.estimated_cost) }}{% else %}Rate unavailable{% endif %}</p></div>
         <div class="border-l-4 border-violet-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Net accessory cost</p><p class="mt-2 text-xl font-black text-slate-900">Rs. {{ '{:,.2f}'.format(totals.cost) }}</p></div>
     </section>
 

@@ -242,10 +242,10 @@ document.addEventListener('DOMContentLoaded', function () {
     let vendorCatalog = [];
     let vendorCatalogSupplier = '';
     let vendorRequestToken = 0;
-    const reqItemMaster = {{ item_master_data | tojson }};
-    const articleUsageData = {{ article_usage_data | tojson }};
-    const orderRequirementQty = {{ order_requirement_qty|tojson }};
-    const autoCalculateRolls = {{ auto_calculate_rolls|tojson }};
+    const reqItemMaster = JSON.parse(document.getElementById('req-item-master-data')?.textContent || '[]');
+    const articleUsageData = JSON.parse(document.getElementById('req-article-usage-data')?.textContent || '[]');
+    const orderRequirementQty = JSON.parse(document.getElementById('req-order-requirement-qty')?.textContent || '0');
+    const autoCalculateRolls = JSON.parse(document.getElementById('req-auto-calculate-rolls')?.textContent || 'false');
 
     function applyItemMasterForRow(rowIndex) {
         const itemEl = document.querySelector(`[name="item_${rowIndex}"]`);
@@ -432,6 +432,11 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 });
 </script>
+
+<script type="application/json" id="req-item-master-data">{{ item_master_data | tojson | safe }}</script>
+<script type="application/json" id="req-article-usage-data">{{ article_usage_data | tojson | safe }}</script>
+<script type="application/json" id="req-order-requirement-qty">{{ order_requirement_qty | tojson | safe }}</script>
+<script type="application/json" id="req-auto-calculate-rolls">{{ auto_calculate_rolls | tojson | safe }}</script>
 
 <!-- Auto-calculate Bill Amount (Qty x Rate) -->
 <script>

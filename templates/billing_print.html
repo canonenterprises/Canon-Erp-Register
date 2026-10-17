@@ -35,7 +35,6 @@
       <div><strong>Bill No:</strong><span>{{ bill.bill_no if bill else '-' }}</span></div>
       <div><strong>Invoice Date:</strong><span>{{ invoice.invoice_date | format_ddmmyyyy }}</span></div>
       <div><strong>Challan(s):</strong><span>{% for challan in invoice.billing_challans %}{{ format_challan_number(challan.challan_no) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></div>
-      <div><strong>Challan(s):</strong><span>{% for challan in invoice.billing_challans %}{{ format_challan_number(challan.challan_no) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></div>
     </div>
 
 

@@ -300,12 +300,12 @@
                 </div>
             </div>
             <div class="border-[4px] border-black rounded-2xl p-4 space-y-3">
-                <div class="text-s text-black-800 font-bold grid grid-cols-2 lg:grid-cols-[1.5fr_1fr] gap-3"><div>Balance Cutting</div><div><input type="text" id="balance_cutting" name="balance_cutting" value="{{ (cutting_sheet and cutting_sheet.balance_cutting) or '' }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" placeholder="" readonly></div></div>
+                <div class="text-s text-black-800 font-bold grid grid-cols-2 lg:grid-cols-[1.5fr_1fr] gap-3"><div>Balance Cutting</div><div><input type="text" id="balance_cutting" name="balance_cutting" value="{{ '%.0f'|format(current_balance_cutting) }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" placeholder="" readonly></div></div>
                 <!-- balance_cutting (computed below) -->
                 <div class="text-s text-black-800 font-bold grid grid-cols-2 lg:grid-cols-[1.5fr_1fr] gap-3">
                     <div>Total Cutting</div>
                     <div>
-                        <input type="text" id="total_cutting" name="total_cutting" value="{% if cutting_sheet and cutting_sheet.total_cutting %}{{ cutting_sheet.total_cutting }}{% else %}{{ (previous_total_cutting or 0) + ((cutting_sheet and cutting_sheet.total_pcs) or 0) }}{% endif %}" data-prev="{{ previous_total_cutting or 0 }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" placeholder="" readonly>
+                        <input type="text" id="total_cutting" name="total_cutting" value="{{ '%.0f'|format(current_total_cutting) }}" data-prev="{{ previous_total_cutting or 0 }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" placeholder="" readonly>
                     </div>
                 </div>
                 <div class="text-s text-black-800 font-bold grid grid-cols-2 lg:grid-cols-[1.5fr_1fr] gap-3">
@@ -585,22 +585,29 @@ function getFabricOpeningBalance() {
 
 function validateFabricIssue(event) {
     const fabricIssue = parseFloat(document.querySelector("[name='fabric_issue']")?.value);
+    const totalMeter = parseFloat(document.getElementById('total_meter')?.value);
     const openingBalance = getFabricOpeningBalance();
     const secondarySelected = Boolean(document.getElementById('secondary_fabric_ch_select')?.value.trim());
 
-    if (Number.isNaN(fabricIssue) || fabricIssue <= openingBalance + 0.000001) {
-        return true;
+    if (!Number.isNaN(fabricIssue) && fabricIssue > openingBalance + 0.000001) {
+        event.preventDefault();
+        const message = secondarySelected
+            ? 'Insufficient fabric. Fabric issue is more than fabric O/B.'
+            : 'Insufficient fabric. Please select a secondary inventory.';
+        alert(message);
+        if (!secondarySelected) {
+            document.getElementById('secondary_fabric_ch_select')?.focus();
+        }
+        return false;
     }
 
-    event.preventDefault();
-    const message = secondarySelected
-        ? 'Insufficient fabric. Fabric issue cannot be greater than fabric O/B.'
-        : 'Insufficient fabric. Please select secondary inventory.';
-    alert(message);
-    if (!secondarySelected) {
-        document.getElementById('secondary_fabric_ch_select')?.focus();
+    if (!Number.isNaN(totalMeter) && !Number.isNaN(fabricIssue) && totalMeter > fabricIssue + 0.000001) {
+        event.preventDefault();
+        alert('Insufficient fabric. Total meter is more than the fabric issue.');
+        return false;
     }
-    return false;
+
+    return true;
 }
 
 function updateAveragePcsColor() {
