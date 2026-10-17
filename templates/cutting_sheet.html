@@ -23,6 +23,13 @@
             <p class="mt-2 text-xs font-semibold">The transferred PCS are preserved separately; any new PCS entered in the table are added to the overall cut total.</p>
         </div>
         {% endif %}
+            {% if not cutting_sheet and (current_balance_cutting|float) < 0 %}
+            <div class="mb-5 rounded-lg border border-red-800 bg-red-600 p-4 text-white">
+                <p class="text-sm font-black uppercase">Order PCS Already Exceeded</p>
+                <p class="mt-1 text-lg font-bold">Existing total cutting is {{ '%.0f'|format(current_total_cutting|float) }} PCS for an order of {{ '%.0f'|format((order.new_qty_pcs or order.qty or 0)|float) }} PCS.</p>
+                <p class="text-sm">The previous cuts exceed the order quantity by {{ '%.0f'|format(-(current_balance_cutting|float)) }} PCS.</p>
+            </div>
+            {% endif %}
         <input type="hidden" id="prev_total_cutting" value="{{ previous_total_cutting or 0 }}">
         <input type="hidden" id="prev_total_meter" value="{{ previous_total_meter or 0 }}">
         <input type="hidden" id="prev_balance_fabric" value="{{ previous_balance_fabric or 0 }}">
@@ -1354,6 +1361,10 @@ window.addEventListener('DOMContentLoaded', function () {
             form.addEventListener('submit', function (event) {
                 if (!validateAverageChoice(event)) return;
                 updateTotals();
+                const balanceCutting = parseFloat(document.getElementById('balance_cutting')?.value);
+                if (!Number.isNaN(balanceCutting) && balanceCutting < 0) {
+                    alert('The total cutting PCS have exceeded the order PCS.');
+                }
                 if (!validateFabricIssue(event)) return;
                 const balance = parseFloat(document.querySelector("[name='balance_fabric']")?.value);
                 if (!Number.isNaN(balance) && balance < 0) {
@@ -1667,7 +1678,7 @@ function initAvgLabelColors() {
         line-height: 1.15 !important;
     }
     .cutting_serial-print .serial-box label {
-        font-size: 48px !important;
+        font-size: 40px !important;
         line-height: 1.1 !important;
     }
     #print-top-grid .leftinfo > .flex p {
