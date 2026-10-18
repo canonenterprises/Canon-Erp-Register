@@ -51,12 +51,14 @@
         <p class="mt-2 text-sm text-slate-600">Local PO, Order/Cut Wise Item Issuance, Usage Tracking & Return/Exchange</p>
       </a>
       {% endif %}
-      {% if 'warehouse' in page_access_keys %}
+      {% if 'warehouse_in_transit' in page_access_keys %}
       <a href="{{ url_for('warehouse_in_transit') }}" class="rounded-2xl border border-orange-200 bg-orange-50 p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:bg-orange-100">
         <p class="text-[11px] font-bold uppercase tracking-[0.2em] text-orange-700">In Transit to Warehouse</p>
         <h2 class="mt-3 text-xl font-black text-slate-900">Place ready PCS</h2>
         <p class="mt-2 text-sm text-slate-600">Assign produced packets to a department store room, rack, and shelf.</p>
       </a>
+      {% endif %}
+      {% if 'warehouse' in page_access_keys %}
       <a href="{{ url_for('warehouse_portal') }}" class="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:bg-amber-100">
         <p class="text-[11px] font-bold uppercase tracking-[0.2em] text-amber-700">Warehouse</p>
         <h2 class="mt-3 text-xl font-black text-slate-900">Ready for dispatch</h2>

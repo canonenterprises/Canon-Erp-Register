@@ -134,7 +134,7 @@
                             <tbody class="divide-y divide-slate-300 font-medium text-slate-800">
                                 {% if cut_group %}
                                 <tr>
-                                    <td rowspan="5" class="border border-slate-400 p-1 font-bold bg-slate-100 align-middle">CUTTING</td>
+                                    <td rowspan="6" class="border border-slate-400 p-1 font-bold bg-slate-100 align-middle">CUTTING</td>
                                     <td class="border border-slate-400 p-1 text-left bg-slate-100 font-bold">CUT DATE</td>
                                     {% for cut in cut_group %}
                                     <td class="border border-slate-400 p-1">{{ cut.cut_date|format_ddmmyyyy if cut.cut_date else '-' }}</td>
@@ -143,8 +143,8 @@
                                     <td class="border border-slate-400 p-1"></td>
                                     {% endfor %}
                                     <td class="border border-slate-400 p-1 bg-yellow-100 font-bold">-</td>
-                                    <td rowspan="5" class="border border-slate-400 p-1 bg-slate-300 font-bold align-middle">RATE/PCS</td>
-                                    <td rowspan="5" class="border border-slate-400 p-1 bg-slate-300 font-bold align-middle">AMOUNT</td>
+                                    <td rowspan="6" class="border border-slate-400 p-1 bg-slate-300 font-bold align-middle">RATE/PCS</td>
+                                    <td rowspan="6" class="border border-slate-400 p-1 bg-slate-300 font-bold align-middle">AMOUNT</td>
                                 </tr>
                                 <tr>
                                     <td class="border border-slate-400 p-1 text-left bg-slate-100 font-bold">CUTTING PCS</td>
@@ -175,6 +175,19 @@
                                     <td class="border border-slate-400 p-1"></td>
                                     {% endfor %}
                                     <td class="border border-slate-400 p-1 bg-slate-300 font-bold">{{ cut_group|map(attribute='bq_stitched')|sum }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="border border-slate-400 p-1 text-left bg-slate-100 font-bold">B/Q %</td>
+                                    {% for cut in cut_group %}
+                                    {% set cut_bq_total = cut.bq_unstitch + cut.bq_stitched %}
+                                    <td class="border border-slate-400 p-1">{{ '{:.2f}%'.format(cut_bq_total / cut.pcs * 100) if cut.pcs else '' }}</td>
+                                    {% endfor %}
+                                    {% for i in range(10 - cut_group|length) %}
+                                    <td class="border border-slate-400 p-1"></td>
+                                    {% endfor %}
+                                    {% set group_cutting_pcs = cut_group|map(attribute='pcs')|sum %}
+                                    {% set group_bq_total = (cut_group|map(attribute='bq_unstitch')|sum) + (cut_group|map(attribute='bq_stitched')|sum) %}
+                                    <td class="border border-slate-400 p-1 bg-slate-300 font-bold">{{ '{:.2f}%'.format(group_bq_total / group_cutting_pcs * 100) if group_cutting_pcs else '' }}</td>
                                 </tr>
                                 <tr>
                                     <td class="border border-slate-400 p-1 text-left bg-slate-300 font-bold">TOTAL A/Q</td>

@@ -160,7 +160,7 @@
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label class="text-xs font-bold uppercase text-slate-500">Invoice date<input type="date" name="invoice_date" value="{{ today }}" required class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
           <label class="text-xs font-bold uppercase text-slate-500">Due date<input type="date" name="due_date" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
-          <label class="text-xs font-bold uppercase text-slate-500">Tax (%)<input type="number" name="tax_rate" min="0" max="100" step="0.01" value="0" class="billing-tax mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Tax (%)<input type="number" name="tax_rate" min="0" max="100" step="0.01" value="18" class="billing-tax mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
           <label class="text-xs font-bold uppercase text-slate-500">Further Tax on Unregistered Person (%)<input type="number" name="further_tax_rate" min="0" max="100" step="0.01" value="0" class="billing-further-tax mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
         </div>
         <label class="block text-xs font-bold uppercase text-slate-500">Invoice note<textarea name="notes" rows="2" maxlength="1000" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="Optional payment terms or customer note"></textarea></label>

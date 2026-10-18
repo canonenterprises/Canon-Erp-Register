@@ -39,8 +39,14 @@
         <form method="post" class="warehouse-place-form mt-4 hidden grid gap-3 rounded-xl border border-amber-100 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
           <input type="hidden" name="order_id" value="{{ row.order.job_no }}">
           <input type="hidden" name="quality" value="{{ row.quality }}">
-          <label class="text-xs font-bold text-slate-600">PCS to place
-            <input type="number" name="quantity" min="0.01" max="{{ row.transit_pcs }}" step="0.01" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+          <label class="text-xs font-bold text-slate-600">Packets to place
+            {% if row.placeable_packets > 0 %}
+            <input type="number" name="packets" min="1" max="{{ row.placeable_packets }}" step="1" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <span class="mt-1 block font-normal text-slate-500">1 packet = {{ '{:,.2f}'.format(row.order.pcs_poly|float) }} PCS · max {{ row.placeable_packets }}</span>
+            {% else %}
+            <input type="number" name="packets" disabled class="mt-1 w-full rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm">
+            <span class="mt-1 block font-normal text-slate-500">PCS per poly is unset or fewer than one full packet is in transit.</span>
+            {% endif %}
           </label>
           <label class="text-xs font-bold text-slate-600">Warehouse location
             <select name="location_type" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
@@ -59,7 +65,7 @@
           <label class="text-xs font-bold text-slate-600">Gala (optional)
             <input type="text" name="gala" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
           </label>
-          <div class="flex items-end"><button type="submit" class="w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-black text-white hover:bg-amber-700">Place in Warehouse</button></div>
+          <div class="flex items-end"><button type="submit" {% if row.placeable_packets <= 0 %}disabled{% endif %} class="w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-black text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-slate-300">Place in Warehouse</button></div>
         </form>
       </article>
       {% else %}
@@ -83,7 +89,7 @@
           {% if location.order %}<p class="mt-1 text-xs text-slate-600">{{ location.order.name or 'Unnamed party' }} · {{ location.order.article_name or location.order.article or 'Unnamed article' }}</p>{% endif %}
           <p class="mt-2 text-sm font-semibold text-slate-800">{{ location.location.department }} · {{ location.location.room }}{% if location.location.gala %} · Gala {{ location.location.gala }}{% endif %}</p>
           <p class="mt-1 text-xs text-slate-500">{{ location.location.location_type|replace('_', '/')|title }}{% if location.location.location_type == 'RACK_SHELF' and location.location.rack_no and location.location.shelf_no %} · Rack {{ location.location.rack_no }} · Shelf {{ location.location.shelf_no }}{% endif %}</p>
-          {% if location.can_relocate %}
+          {% if location.can_relocate and 'warehouse' in page_access_keys %}
           <button type="button" class="warehouse-relocate-toggle mt-4 w-full rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-black text-amber-800 hover:bg-amber-100" aria-expanded="false">Relocate</button>
           <form method="post" action="{{ url_for('relocate_warehouse_finished_goods', location_id=location.location.id) }}" class="warehouse-relocate-form mt-3 hidden space-y-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
             <p class="text-xs font-black uppercase tracking-wide text-amber-800">Move all remaining PCS to</p>

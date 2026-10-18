@@ -1,12 +1,13 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="min-h-screen -m-2 p-4 mb-16 sm:-m-6 sm:mb-16 sm:p-6 md:-m-8 md:mb-16 md:p-8">
-    <div class="mx-auto max-w-5xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="mx-auto max-w-6xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
                 <p class="text-xs font-bold uppercase tracking-widest text-sky-600">Vendor Setup</p>
                 <h1 class="mt-1 text-3xl font-black text-slate-900">Item List</h1>
                 <p class="mt-1 text-sm text-slate-500">Shared item master for vendor materials, standard descriptions, sizes, and units.</p>
+                <p class="mt-1 text-xs text-slate-500">Returnable items must come back but are not restocked. Refundable items are unused and return to stock.</p>
             </div>
             <a href="{{ url_for('vendors') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Vendors</a>
         </div>
@@ -29,6 +30,7 @@
                         <th class="px-3 py-2 font-bold">Stock Unit</th>
                         <th class="px-3 py-2 font-bold">Issue Unit</th>
                         <th class="px-3 py-2 font-bold">Returnable</th>
+                        <th class="px-3 py-2 font-bold">Refundable</th>
                         <th class="px-3 py-2 font-bold">Action</th>
                     </tr>
                 </thead>
@@ -40,11 +42,12 @@
                         <td class="px-3 py-2"><input type="text" name="size" value="{{ item.size or '' }}" class="w-full min-w-32 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
                         <td class="px-3 py-2"><input type="text" name="unit" value="{{ item.unit or '' }}" list="unit-list" autocomplete="off" class="w-full min-w-28 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
                         <td class="px-3 py-2"><input type="text" name="issue_unit" value="{{ item.issue_unit or item.unit or '' }}" list="unit-list" autocomplete="off" class="w-full min-w-28 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
-                        <td class="px-3 py-2"><input type="hidden" name="returnable" value="{{ '1' if item.returnable else '0' }}"><label class="inline-flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" class="item-returnable-checkbox" {% if item.returnable %}checked{% endif %} {% if read_only_profile %}disabled{% endif %}> Yes</label></td>
+                        <td class="px-3 py-2"><input type="hidden" name="returnable" value="{{ '1' if item.returnable else '0' }}"><label class="inline-flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" class="item-flag-checkbox" data-field="returnable" {% if item.returnable %}checked{% endif %} {% if read_only_profile %}disabled{% endif %}> Yes</label></td>
+                        <td class="px-3 py-2"><input type="hidden" name="refundable" value="{{ '1' if item.refundable else '0' }}"><label class="inline-flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" class="item-flag-checkbox" data-field="refundable" {% if item.refundable %}checked{% endif %} {% if read_only_profile %}disabled{% endif %}> Yes</label></td>
                         <td class="px-3 py-2">{% if not read_only_profile %}<button type="button" class="remove-item-row rounded border border-red-300 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Remove</button>{% endif %}</td>
                     </tr>
                     {% endfor %}
-                    {% if items %}<tr id="item-master-no-results" hidden><td colspan="7" class="px-3 py-8 text-center text-slate-500">No items match this search.</td></tr>{% endif %}
+                    {% if items %}<tr id="item-master-no-results" hidden><td colspan="8" class="px-3 py-8 text-center text-slate-500">No items match this search.</td></tr>{% endif %}
                 </tbody>
             </table>
             </div>
@@ -61,7 +64,8 @@
         <td class="px-3 py-2"><input type="text" name="size" class="w-full min-w-32 rounded border p-2"></td>
         <td class="px-3 py-2"><input type="text" name="unit" list="unit-list" autocomplete="off" class="w-full min-w-28 rounded border p-2"></td>
         <td class="px-3 py-2"><input type="text" name="issue_unit" list="unit-list" autocomplete="off" class="w-full min-w-28 rounded border p-2"></td>
-        <td class="px-3 py-2"><input type="hidden" name="returnable" value="0"><label class="inline-flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" class="item-returnable-checkbox"> Yes</label></td>
+        <td class="px-3 py-2"><input type="hidden" name="returnable" value="0"><label class="inline-flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" class="item-flag-checkbox" data-field="returnable"> Yes</label></td>
+        <td class="px-3 py-2"><input type="hidden" name="refundable" value="0"><label class="inline-flex items-center gap-2 text-xs font-bold text-slate-600"><input type="checkbox" class="item-flag-checkbox" data-field="refundable"> Yes</label></td>
         <td class="px-3 py-2"><button type="button" class="remove-item-row rounded border border-red-300 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Remove</button></td>
     </tr>
 </template>
@@ -99,8 +103,8 @@
     });
 
     if (itemRows) itemRows.addEventListener('change', (event) => {
-        if (!event.target.classList.contains('item-returnable-checkbox')) return;
-        const field = event.target.closest('tr').querySelector('input[name="returnable"]');
+        if (!event.target.classList.contains('item-flag-checkbox')) return;
+        const field = event.target.closest('tr').querySelector(`input[name="${event.target.dataset.field}"]`);
         if (field) field.value = event.target.checked ? '1' : '0';
     });
 

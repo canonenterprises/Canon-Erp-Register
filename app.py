@@ -863,8 +863,64 @@ def accessory_receipt_unit_rate(item):
     return amount / quantity if quantity > 0 and amount > 0 else 0.0
 
 
+def latest_vendor_accessory_unit_rate(item_name, size, quality, target_unit):
+    target_key = (target_unit or '').strip().casefold()
+    candidates = VendorItem.query.filter(
+        func.lower(func.trim(VendorItem.item_name)) == (item_name or '').strip().casefold(),
+    ).order_by(VendorItem.id.desc()).all()
+    candidates = [
+        candidate for candidate in candidates
+        if (not (candidate.size or '').strip() or (candidate.size or '').strip().casefold() == (size or '').strip().casefold())
+        and (not (candidate.material or '').strip() or (candidate.material or '').strip().casefold() == (quality or '').strip().casefold())
+    ]
+    candidates.sort(
+        key=lambda candidate: (
+            bool((candidate.size or '').strip()) + bool((candidate.material or '').strip()),
+            candidate.id or 0,
+        ),
+        reverse=True,
+    )
+
+    for candidate in candidates:
+        vendor_unit = (candidate.unit or '').strip()
+        vendor_key = vendor_unit.casefold()
+        pack_qty = parse_numeric(candidate.pack_qty)
+        pack_price = parse_numeric(candidate.pack_price)
+        rate = parse_numeric(candidate.rate) or calculate_vendor_unit_rate(pack_qty, pack_price)
+
+        if vendor_key == target_key:
+            if is_roll_unit(vendor_unit):
+                rate = pack_price or rate
+            elif is_package_unit(vendor_unit):
+                rate = pack_price or (rate * pack_qty if pack_qty > 0 else rate)
+        elif is_roll_unit(vendor_unit) and unit_measure(target_unit) and unit_measure(target_unit)[0] == 'length':
+            roll_meters = length_to_meters(pack_qty, 'METER')
+            unit_meters = length_to_meters(1, target_unit)
+            rate = (pack_price or rate) * unit_meters / roll_meters if roll_meters > 0 else 0.0
+        else:
+            conversion_factor = unit_conversion_factor(vendor_unit, target_unit)
+            if conversion_factor is not None:
+                rate *= conversion_factor
+            elif is_package_unit(vendor_unit) and rate > 0:
+                pass
+            else:
+                rate = 0.0
+
+        if rate > 0:
+            return rate
+    return 0.0
+
+
 def accessory_issue_returned_qty(issue):
     return sum(parse_numeric(entry.returned_qty) for entry in issue.return_entries)
+
+
+def accessory_issue_refundable_qty(issue):
+    return sum(
+        parse_numeric(entry.returned_qty)
+        for entry in issue.return_entries
+        if (entry.return_type or 'REFUNDABLE').upper() == 'REFUNDABLE'
+    )
 
 
 def accessory_cut_pcs(cutting_sheet):
@@ -1059,6 +1115,7 @@ def build_cut_accessory_rows(order, cutting_sheet):
         )
         issued_qty = parse_numeric(issue.issued_qty)
         returned_qty = accessory_issue_returned_qty(issue)
+        refundable_qty = accessory_issue_refundable_qty(issue)
         issue_conversion_factor = (
             parse_numeric(requirement.issue_unit_factor)
             or parse_numeric(issue.issue_conversion_factor)
@@ -1078,7 +1135,7 @@ def build_cut_accessory_rows(order, cutting_sheet):
             group['issued_to'] = list(dict.fromkeys(group['issued_to'] + [worker_name]))
         group['issued'] += issued_in_display_unit
         group['returned'] += returned_in_display_unit
-        group['net_issued'] += max(0.0, issued_in_display_unit - returned_in_display_unit)
+        group['net_issued'] += max(0.0, issued_in_display_unit - refundable_qty / issue_conversion_factor)
 
     result = list(groups.values())
     for group in result:
@@ -1114,7 +1171,7 @@ def accessory_layer_issue_entries(item):
 
 
 def accessory_issue_net_qty(issue):
-    return max(0.0, parse_numeric(issue.issued_qty) - accessory_issue_returned_qty(issue))
+    return max(0.0, parse_numeric(issue.issued_qty) - accessory_issue_refundable_qty(issue))
 
 
 def accessory_layer_issued_qty(item):
@@ -1131,6 +1188,16 @@ def is_accessory_returnable(item_name):
         func.lower(func.trim(ItemMaster.item_name)) == item_name.casefold()
     ).first()
     return bool(item_master and item_master.returnable)
+
+
+def is_accessory_refundable(item_name):
+    item_name = (item_name or '').strip()
+    if not item_name:
+        return False
+    item_master = ItemMaster.query.filter(
+        func.lower(func.trim(ItemMaster.item_name)) == item_name.casefold()
+    ).first()
+    return bool(item_master and item_master.refundable)
 
 
 def get_accessory_stock_positions():
@@ -1345,6 +1412,7 @@ def get_accessory_received_history_groups(items):
         _, received_value = accessory_history_normalized_quantity(item, item.received_value)
         _, issued_value = accessory_history_normalized_quantity(item, item.issued_value)
         _, returned_value = accessory_history_normalized_quantity(item, item.returned_value)
+        _, refunded_value = accessory_history_normalized_quantity(item, item.refunded_value)
         issue_unit = (item.issue_unit or item.unit or 'PCS').strip().upper()
         issue_factor = parse_numeric(item.issue_unit_factor) or 1.0
         stock_unit = (item.unit or 'PCS').strip().casefold()
@@ -1373,6 +1441,7 @@ def get_accessory_received_history_groups(items):
             'received_value': 0.0,
             'issued_value': 0.0,
             'returned_value': 0.0,
+            'refunded_value': 0.0,
             'left_over_value': 0.0,
             'issue_unit_totals': {},
         })
@@ -1380,6 +1449,7 @@ def get_accessory_received_history_groups(items):
         totals['received_value'] += received_value
         totals['issued_value'] += issued_value
         totals['returned_value'] += returned_value
+        totals['refunded_value'] += refunded_value
         if has_separate_issue_unit:
             issue_totals = totals['issue_unit_totals'].setdefault(issue_unit, {
                 'unit': issue_unit,
@@ -1387,12 +1457,14 @@ def get_accessory_received_history_groups(items):
                 'received_value': 0.0,
                 'issued_value': 0.0,
                 'returned_value': 0.0,
+                'refunded_value': 0.0,
                 'left_over_value': 0.0,
             })
             issue_totals['qty_value'] += parse_numeric(item.qty_value) / issue_factor
             issue_totals['received_value'] += parse_numeric(item.received_value) / issue_factor
             issue_totals['issued_value'] += parse_numeric(item.issued_value) / issue_factor
             issue_totals['returned_value'] += parse_numeric(item.returned_value) / issue_factor
+            issue_totals['refunded_value'] += parse_numeric(item.refunded_value) / issue_factor
 
         order_label = 'LOCAL STOCK' if item.order_id == LOCAL_ACCESSORY_PO_ORDER_ID else (item.order_id or 'â€”')
         if order_label not in group['orders']:
@@ -1415,11 +1487,11 @@ def get_accessory_received_history_groups(items):
         group['amounts'] = sorted(group['unit_totals'].values(), key=lambda totals: totals['unit'].casefold())
         group['status_display'] = 'USED'
         for totals in group['amounts']:
-            net_issued = max(0.0, totals['issued_value'] - totals['returned_value'])
+            net_issued = max(0.0, totals['issued_value'] - totals['refunded_value'])
             totals['left_over_value'] = max(0.0, totals['received_value'] - net_issued)
             totals['issue_amounts'] = sorted(totals.pop('issue_unit_totals').values(), key=lambda value: value['unit'].casefold())
             for issue_totals in totals['issue_amounts']:
-                issue_net_issued = max(0.0, issue_totals['issued_value'] - issue_totals['returned_value'])
+                issue_net_issued = max(0.0, issue_totals['issued_value'] - issue_totals['refunded_value'])
                 issue_totals['left_over_value'] = max(0.0, issue_totals['received_value'] - issue_net_issued)
             if totals['left_over_value'] > 0.000001:
                 group['status_display'] = 'RECEIVED'
@@ -2565,6 +2637,7 @@ class ItemMaster(db.Model):
     issue_unit = db.Column(db.String(50), default='')
     issue_unit_factor = db.Column(db.Float, nullable=False, default=1.0)
     returnable = db.Column(db.Boolean, nullable=False, default=False)
+    refundable = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -3993,6 +4066,39 @@ class SavedRequirement(db.Model):
     issue_entries = db.relationship('AccessoryIssue', backref='requirement', cascade='all, delete-orphan', lazy=True)
 
 
+class AccessoryBillVoucher(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    supplier = db.Column(db.String(200), nullable=False, index=True)
+    voucher_no = db.Column(db.String(100), nullable=False, unique=True, index=True)
+    voucher_date = db.Column(db.String(10), nullable=False)
+    total_amount = db.Column(db.Float, nullable=False, default=0.0)
+    rows_json = db.Column(db.Text, nullable=False, default='[]')
+    created_by = db.Column(db.String(100), default='')
+    paid_on = db.Column(db.String(10), default='')
+    paid_by = db.Column(db.String(100), default='')
+    bank_name = db.Column(db.String(100), nullable=False, default='')
+    cheque_number = db.Column(db.String(100), nullable=False, default='')
+    cheque_image = db.Column(db.String(255), nullable=False, default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class AccessoryBillVoucherPO(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    voucher_id = db.Column(
+        db.Integer,
+        db.ForeignKey('accessory_bill_voucher.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+    )
+    supplier = db.Column(db.String(200), nullable=False, index=True)
+    po_no = db.Column(db.String(100), nullable=False, index=True)
+    total_amount = db.Column(db.Float, nullable=False, default=0.0)
+    voucher = db.relationship(
+        'AccessoryBillVoucher',
+        backref=db.backref('purchase_orders', cascade='all, delete-orphan', lazy=True),
+    )
+
+
 class AccessoryIssue(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     requirement_id = db.Column(db.Integer, db.ForeignKey('saved_requirement.id'), nullable=False, index=True)
@@ -4035,6 +4141,7 @@ class AccessoryReturn(db.Model):
     return_date = db.Column(db.String(50), nullable=False)
     returned_by = db.Column(db.String(150), nullable=False)
     returned_qty = db.Column(db.Float, nullable=False)
+    return_type = db.Column(db.String(20), nullable=False, default='REFUNDABLE')
     note = db.Column(db.String(255), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     issue = db.relationship('AccessoryIssue', back_populates='return_entries')
@@ -4496,13 +4603,22 @@ def ensure_vendor_schema(engine):
             'saved_requirement': {
                 'roll_length_m': 'FLOAT NOT NULL DEFAULT 0',
             },
+            'accessory_bill_voucher': {
+                'bank_name': "VARCHAR(100) NOT NULL DEFAULT ''",
+                'cheque_number': "VARCHAR(100) NOT NULL DEFAULT ''",
+                'cheque_image': "VARCHAR(255) NOT NULL DEFAULT ''",
+            },
             'item_master': {
                 'item_name': 'VARCHAR(150)',
                 'material': 'VARCHAR(150)',
                 'size': 'VARCHAR(50)',
                 'unit': 'VARCHAR(50)',
                 'returnable': 'BOOLEAN NOT NULL DEFAULT FALSE',
+                'refundable': 'BOOLEAN NOT NULL DEFAULT FALSE',
                 'created_at': 'DATETIME',
+            },
+            'accessory_return': {
+                'return_type': "VARCHAR(20) NOT NULL DEFAULT 'REFUNDABLE'",
             },
             'article_material_spec': {
                 'article_id': 'INTEGER',
@@ -5788,32 +5904,6 @@ def factory_in_out_ledger():
                     item.unit or 'PCS',
                     recorded_at=supplier_return.created_at,
                 )
-        if item.issue_entries:
-            for issue in item.issue_entries:
-                add_movement(
-                    issue.issue_date,
-                    'OUT',
-                    'Accessory issued',
-                    item.item,
-                    'Issued to ' + (issue.worker_name or 'worker'),
-                    f'PO {item.po_no}' if item.po_no else f'Requirement #{item.id}',
-                    issue.issued_qty,
-                    item.unit or 'PCS',
-                    recorded_at=issue.created_at,
-                )
-        elif parse_numeric(item.issued_qty) > 0:
-            add_movement(
-                item.received_at or item.date,
-                'OUT',
-                'Accessory issued',
-                item.item,
-                'Legacy issue record',
-                f'PO {item.po_no}' if item.po_no else f'Requirement #{item.id}',
-                item.issued_qty,
-                item.unit or 'PCS',
-                recorded_at=item.created_at,
-            )
-
     challans = ChallanRecord.query.order_by(ChallanRecord.id.asc()).all()
     standalone_return_ids = {
         challan.inventory_id
@@ -5930,31 +6020,346 @@ def accounts_accessories_billing():
 
     search = (request.args.get('q') or '').strip().casefold()
     requirements = SavedRequirement.query.filter(
-        SavedRequirement.bill_amount.isnot(None),
-        func.trim(SavedRequirement.bill_amount) != '',
-    ).order_by(SavedRequirement.id.desc()).all()
-    rows = []
-    total_billed = 0.0
+        SavedRequirement.supplier.isnot(None),
+        func.trim(SavedRequirement.supplier) != '',
+    ).order_by(SavedRequirement.supplier.asc(), SavedRequirement.id.desc()).all()
+    supplier_groups = {}
     for requirement in requirements:
-        if search and not any(
-            search in (value or '').casefold()
-            for value in (
-                requirement.supplier,
-                requirement.item,
-                requirement.order_id,
-                requirement.po_no,
-            )
-        ):
+        if is_party_supplied_stock_layer(requirement):
             continue
-        order = Order.query.filter_by(job_no=requirement.order_id).first() if requirement.order_id else None
-        bill_amount = parse_numeric(requirement.bill_amount)
-        total_billed += bill_amount
-        rows.append({'requirement': requirement, 'order': order, 'bill_amount': bill_amount})
+        supplier = (requirement.supplier or '').strip()
+        supplier_key = supplier.casefold()
+        if search and search not in supplier_key:
+            continue
+        group = supplier_groups.setdefault(supplier_key, {
+            'supplier': supplier,
+            'po_keys': set(),
+            'total_billed': 0.0,
+        })
+        po_no = (requirement.po_no or '').strip()
+        if po_no:
+            group['po_keys'].add(po_no.casefold())
+        group['total_billed'] += parse_numeric(requirement.bill_amount)
+
+    for vendor in Vendor.query.order_by(Vendor.name.asc()).all():
+        supplier = (vendor.name or '').strip()
+        supplier_key = supplier.casefold()
+        if supplier and (not search or search in supplier_key):
+            supplier_groups.setdefault(supplier_key, {
+                'supplier': supplier,
+                'po_keys': set(),
+                'total_billed': 0.0,
+            })
+
+    voucher_po_rows = AccessoryBillVoucherPO.query.all()
+    voucher_by_po = {
+        ((entry.supplier or '').strip().casefold(), (entry.po_no or '').strip().casefold()): entry.voucher
+        for entry in voucher_po_rows
+    }
+    suppliers = []
+    for supplier_key, group in supplier_groups.items():
+        suppliers.append({
+            'supplier': group['supplier'],
+            'po_count': len(group['po_keys']),
+            'total_billed': group['total_billed'],
+            'unpaid_count': sum(
+                1 for po_key in group['po_keys']
+                if (supplier_key, po_key) not in voucher_by_po
+                or not voucher_by_po[(supplier_key, po_key)].paid_on
+            ),
+            'paid_count': sum(
+                1 for po_key in group['po_keys']
+                if (supplier_key, po_key) in voucher_by_po
+                and voucher_by_po[(supplier_key, po_key)].paid_on
+            ),
+        })
+    suppliers.sort(key=lambda row: row['supplier'].casefold())
     return render_template(
         'accessory_billing.html',
-        rows=rows,
+        suppliers=suppliers,
         search=request.args.get('q', ''),
-        total_billed=total_billed,
+        total_billed=sum(group['total_billed'] for group in supplier_groups.values()),
+    )
+
+
+def next_billing_voucher_no():
+    voucher_numbers = []
+    utility_numbers = UtilityBillSummary.query.with_entities(UtilityBillSummary.invoice_no).filter(
+        UtilityBillSummary.invoice_no.isnot(None)
+    ).all()
+    accessory_vouchers = AccessoryBillVoucher.query.order_by(
+        AccessoryBillVoucher.created_at.asc(),
+        AccessoryBillVoucher.id.asc(),
+    ).all()
+    for (voucher_no,) in utility_numbers:
+        if not voucher_no:
+            continue
+        if voucher_no.isdigit():
+            voucher_numbers.append(int(voucher_no))
+            continue
+        legacy_match = re.fullmatch(r'UBS-\d{4}-(\d+)', voucher_no)
+        if legacy_match:
+            voucher_numbers.append(int(legacy_match.group(1)))
+    for voucher in accessory_vouchers:
+        if voucher.voucher_no.isdigit():
+            voucher_numbers.append(int(voucher.voucher_no))
+        else:
+            next_number = max(voucher_numbers, default=0) + 1
+            voucher.voucher_no = f'{next_number:04d}'
+            voucher_numbers.append(next_number)
+    return f'{max(voucher_numbers, default=0) + 1:04d}'
+
+
+@app.route('/accounts/accessories-billing/vendor', methods=['GET', 'POST'])
+def accounts_accessories_billing_vendor():
+    denied = accounts_management_access('accounts')
+    if denied:
+        return denied
+
+    supplier = (request.values.get('supplier') or '').strip()
+    if not supplier:
+        abort(404)
+
+    requirements = SavedRequirement.query.filter(
+        func.lower(func.trim(SavedRequirement.supplier)) == supplier.casefold(),
+    ).order_by(SavedRequirement.id.asc()).all()
+    requirements = [entry for entry in requirements if not is_party_supplied_stock_layer(entry)]
+    if not requirements:
+        abort(404)
+
+    if request.method == 'POST':
+        action = (request.form.get('action') or '').strip()
+        if action == 'mark_paid':
+            voucher = AccessoryBillVoucher.query.get_or_404(request.form.get('voucher_id', type=int))
+            if voucher.supplier.strip().casefold() != supplier.casefold():
+                abort(404)
+            paid_on = (request.form.get('paid_on') or '').strip()
+            bank_name = (request.form.get('bank_name') or '').strip()
+            cheque_number = (request.form.get('cheque_number') or '').strip()
+            cheque_upload = request.files.get('cheque_image')
+            cheque_filename = ''
+            if bank_name not in UTILITY_BILL_BANKS:
+                flash('Select a valid bank account.', 'danger')
+                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+            if not cheque_number or len(cheque_number) > 100:
+                flash('Enter a valid cheque number.', 'danger')
+                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+            try:
+                datetime.strptime(paid_on, '%Y-%m-%d')
+            except ValueError:
+                flash('Enter a valid payment date.', 'danger')
+                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+            if cheque_upload and cheque_upload.filename:
+                extension = cheque_upload.filename.rsplit('.', 1)[-1].lower() if '.' in cheque_upload.filename else ''
+                if extension not in {'png', 'jpg', 'jpeg', 'webp'}:
+                    flash('Upload the cheque as a PNG, JPG, or WEBP image.', 'danger')
+                    return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+                safe_name = secure_filename(cheque_upload.filename)
+                if not safe_name:
+                    flash('Choose a valid cheque image file.', 'danger')
+                    return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+                cheque_filename = f"accessory_voucher_cheque_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{safe_name}"
+            if cheque_filename:
+                cheque_upload.save(os.path.join(app.config['UPLOAD_FOLDER'], cheque_filename))
+            voucher.paid_on = paid_on
+            voucher.paid_by = (session.get('name') or session.get('user') or 'Accounts').strip()
+            voucher.bank_name = bank_name
+            voucher.cheque_number = cheque_number
+            if cheque_filename:
+                voucher.cheque_image = f'/static/uploads/{cheque_filename}'
+            db.session.commit()
+            flash(f'Voucher {voucher.voucher_no} marked paid.', 'success')
+            return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+
+        if action == 'create_voucher':
+            selected_po_numbers = list(dict.fromkeys(
+                (po_no or '').strip() for po_no in request.form.getlist('po_nos') if (po_no or '').strip()
+            ))
+            if not selected_po_numbers:
+                flash('Select at least one unpaid PO.', 'danger')
+                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+
+            selected_po_keys = {po_no.casefold() for po_no in selected_po_numbers}
+            existing_po_rows = AccessoryBillVoucherPO.query.filter(
+                func.lower(func.trim(AccessoryBillVoucherPO.supplier)) == supplier.casefold(),
+            ).all()
+            already_vouchered = {
+                (entry.po_no or '').strip().casefold()
+                for entry in existing_po_rows
+            }
+            if selected_po_keys & already_vouchered:
+                flash('One or more selected POs already have a voucher.', 'danger')
+                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+
+            selected_requirements = [
+                entry for entry in requirements
+                if (entry.po_no or '').strip().casefold() in selected_po_keys
+                and parse_numeric(entry.bill_amount) > 0
+            ]
+            grouped_requirements = {}
+            for entry in selected_requirements:
+                po_key = (entry.po_no or '').strip().casefold()
+                grouped_requirements.setdefault(po_key, []).append(entry)
+            if set(grouped_requirements) != selected_po_keys:
+                flash('One or more selected POs have no positive accessory bill amount.', 'danger')
+                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+
+            voucher_rows = []
+            po_totals = {}
+            for po_key, entries in grouped_requirements.items():
+                po_no = next(entry.po_no.strip() for entry in entries if (entry.po_no or '').strip())
+                po_total = sum(parse_numeric(entry.bill_amount) for entry in entries)
+                po_totals[po_key] = (po_no, po_total)
+                for entry in entries:
+                    voucher_rows.append({
+                        'item_name': entry.item or 'Accessory',
+                        'location': ' · '.join(value for value in (entry.size or '', entry.quality or '') if value),
+                        'bill_no': po_no,
+                        'quantity': entry.qty or '',
+                        'unit': entry.unit or '',
+                        'rate': parse_numeric(entry.rate),
+                        'total': parse_numeric(entry.bill_amount),
+                    })
+            bill_total = sum(total for _, total in po_totals.values())
+            voucher = AccessoryBillVoucher(
+                supplier=supplier,
+                voucher_no=next_billing_voucher_no(),
+                voucher_date=datetime.now(timezone(timedelta(hours=5), name='PKT')).strftime('%Y-%m-%d'),
+                total_amount=bill_total,
+                rows_json=json.dumps(voucher_rows),
+                created_by=(session.get('name') or session.get('user') or 'Accounts').strip(),
+            )
+            db.session.add(voucher)
+            db.session.flush()
+            for po_no, po_total in po_totals.values():
+                db.session.add(AccessoryBillVoucherPO(
+                    voucher_id=voucher.id,
+                    supplier=supplier,
+                    po_no=po_no,
+                    total_amount=po_total,
+                ))
+            db.session.commit()
+            flash(f'Voucher {voucher.voucher_no} created for {len(po_totals)} PO(s). It remains unpaid until payment is recorded.', 'success')
+            return redirect(url_for('print_accessory_bill_voucher', voucher_id=voucher.id))
+
+    po_groups_by_key = {}
+    for entry in requirements:
+        po_no = (entry.po_no or '').strip()
+        po_key = po_no.casefold()
+        group = po_groups_by_key.setdefault(po_key, {
+            'po_no': po_no,
+            'requirements': [],
+            'total_amount': 0.0,
+        })
+        group['requirements'].append(entry)
+        group['total_amount'] += parse_numeric(entry.bill_amount)
+
+    voucher_po_rows = AccessoryBillVoucherPO.query.filter(
+        func.lower(func.trim(AccessoryBillVoucherPO.supplier)) == supplier.casefold(),
+    ).all()
+    voucher_by_po = {
+        (entry.po_no or '').strip().casefold(): entry.voucher
+        for entry in voucher_po_rows
+    }
+    unpaid_pos = []
+    paid_pos = []
+    for po_key, group in po_groups_by_key.items():
+        group['voucher'] = voucher_by_po.get(po_key)
+        group['selectable'] = bool(group['po_no']) and not group['voucher'] and group['total_amount'] > 0
+        if group['voucher'] and group['voucher'].paid_on:
+            paid_pos.append(group)
+        else:
+            unpaid_pos.append(group)
+    unpaid_pos.sort(key=lambda row: row['po_no'].casefold())
+    paid_pos.sort(key=lambda row: row['po_no'].casefold())
+    pending_vouchers = list({
+        group['voucher'].id: group['voucher']
+        for group in unpaid_pos if group['voucher']
+    }.values())
+    pending_vouchers.sort(key=lambda voucher: voucher.created_at or datetime.min, reverse=True)
+    return render_template(
+        'accessory_billing_vendor.html',
+        supplier=supplier,
+        unpaid_pos=unpaid_pos,
+        paid_pos=paid_pos,
+        pending_vouchers=pending_vouchers,
+        bank_names=UTILITY_BILL_BANKS,
+        today=datetime.now(timezone(timedelta(hours=5), name='PKT')).strftime('%Y-%m-%d'),
+    )
+
+
+@app.route('/accounts/accessories-billing/voucher/<int:voucher_id>')
+def print_accessory_bill_voucher(voucher_id):
+    denied = accounts_management_access('accounts')
+    if denied:
+        return denied
+
+    voucher = AccessoryBillVoucher.query.get_or_404(voucher_id)
+    voucher_rows = json.loads(voucher.rows_json or '[]')
+    po_numbers = [entry.po_no for entry in voucher.purchase_orders]
+    po_rows = [
+        {'po_no': entry.po_no, 'total_amount': entry.total_amount}
+        for entry in voucher.purchase_orders
+    ]
+    po_label = ', '.join(po_numbers)
+    po_keys = {po_no.strip().casefold() for po_no in po_numbers if (po_no or '').strip()}
+    po_requirements = SavedRequirement.query.filter(
+        func.lower(func.trim(SavedRequirement.supplier)) == voucher.supplier.strip().casefold(),
+    ).order_by(SavedRequirement.id.asc()).all()
+    month_by_po = {}
+    for requirement in po_requirements:
+        po_key = (requirement.po_no or '').strip().casefold()
+        if po_key not in po_keys or po_key in month_by_po:
+            continue
+        for date_value in (requirement.date, requirement.po_sent_at):
+            date_value = (date_value or '').strip()[:10]
+            for date_format in ('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y'):
+                try:
+                    month_by_po[po_key] = datetime.strptime(date_value, date_format).strftime('%B').upper()
+                    break
+                except ValueError:
+                    continue
+            if po_key in month_by_po:
+                break
+    for po_row in po_rows:
+        po_row['month'] = month_by_po.get((po_row['po_no'] or '').strip().casefold(), '')
+    purchase_months = list(dict.fromkeys(
+        month_by_po[entry.po_no.strip().casefold()]
+        for entry in voucher.purchase_orders
+        if (entry.po_no or '').strip().casefold() in month_by_po
+    ))
+    purchase_month_label = ' / '.join(purchase_months)
+    company_name = 'CANON ENTERPRISES'
+    summary = SimpleNamespace(
+        invoice_no=voucher.voucher_no,
+        invoice_date=voucher.voucher_date,
+        bank_name=voucher.bank_name or '',
+        invoice_to=company_name,
+        total_amount=voucher.total_amount,
+        notes=f'ACCESSORY BILL PAYMENT M/O {purchase_month_label or "—"} FROM {voucher.supplier}.',
+    )
+    print_time = datetime.now(timezone(timedelta(hours=5), name='PKT'))
+    return render_template(
+        'utility_bill_voucher_print.html',
+        summary=summary,
+        bill=SimpleNamespace(billing_period=purchase_month_label, purchase_months=purchase_month_label),
+        summary_rows=voucher_rows,
+        vendor_name=voucher.supplier,
+        po_rows=po_rows,
+        po_numbers=po_numbers,
+        po_label=po_label,
+        document_type='accessory',
+        invoice_title='ACCESSORY BILL PAYMENT VOUCHER',
+        invoice_back_url=url_for('accounts_accessories_billing_vendor', supplier=voucher.supplier),
+        payment_reference_label='PURCHASE ORDER(S)',
+        cheque_no=voucher.cheque_number or '',
+        payment_date=voucher.paid_on,
+        cheque_image_url=voucher.cheque_image,
+        company_name=company_name,
+        company_logo_screen='canon logo black.webp',
+        company_logo_print='canon logo black.webp',
+        amount_words=amount_in_words(voucher.total_amount, indian=True),
+        print_timestamp=f"{print_time.strftime('%A, %B')} {print_time.day}, {print_time.strftime('%Y at %I:%M %p')}",
     )
 
 
@@ -6199,21 +6604,7 @@ UTILITY_BILL_BANKS = (
 
 
 def next_utility_bill_voucher_no():
-    stored_numbers = UtilityBillSummary.query.with_entities(UtilityBillSummary.invoice_no).filter(
-        UtilityBillSummary.invoice_no.isnot(None)
-    ).all()
-    voucher_numbers = []
-    for (invoice_no,) in stored_numbers:
-        if not invoice_no:
-            continue
-        if invoice_no.isdigit():
-            voucher_numbers.append(int(invoice_no))
-            continue
-        legacy_match = re.fullmatch(r'UBS-\d{4}-(\d+)', invoice_no)
-        if legacy_match:
-            voucher_numbers.append(int(legacy_match.group(1)))
-    highest_number = max(voucher_numbers, default=0)
-    return f'{highest_number + 1:04d}'
+    return next_billing_voucher_no()
 
 
 def normalize_utility_bill_voucher_no(summary):
@@ -6503,6 +6894,7 @@ def utility_bill_invoice(bill_id):
         }]
     cheque_payment = next((payment for payment in reversed(payments) if payment.cheque_image), None)
     cheque_image_url = cheque_payment.cheque_image if cheque_payment else (summary.cheque_image if summary else '')
+    print_time = datetime.now(timezone(timedelta(hours=5), name='PKT'))
     return render_template(
         'utility_bill_voucher_print.html',
         summary=invoice_summary,
@@ -6520,7 +6912,7 @@ def utility_bill_invoice(bill_id):
         bank_name=summary.bank_name if summary and summary.bank_name else latest_payment.method,
         invoice_title='UTILITY BILL PAYMENT INVOICE',
         invoice_back_url=url_for('accounts_utility_bills'),
-        print_timestamp=datetime.now().strftime('%m/%d/%Y / %I:%M %p'),
+        print_timestamp=f"{print_time.strftime('%A, %B')} {print_time.day}, {print_time.strftime('%Y at %I:%M %p')}",
     )
 
 
@@ -7409,10 +7801,7 @@ def accessory_cut_data():
                 current_gross = parse_numeric(issue.issued_qty)
                 current_returned = accessory_issue_returned_qty(issue)
                 continue
-            issued_net += max(
-                0.0,
-                parse_numeric(issue.issued_qty) - accessory_issue_returned_qty(issue),
-            )
+            issued_net += accessory_issue_net_qty(issue)
         remaining_qty = max(0.0, allowed_qty - issued_net)
         cut_rows.append({
             'id': sheet.id,
@@ -7444,6 +7833,7 @@ def order_accessories(job_no):
 
     accessory_groups = {}
     issue_rows = AccessoryIssue.query.filter_by(order_id=job_no).order_by(AccessoryIssue.id.asc()).all()
+    party_supplied_items = PartySuppliedAccessory.query.filter_by(order_id=job_no).all()
     material_specs = ArticleMaterialSpec.query.filter_by(article_id=order.article_id).order_by(
         ArticleMaterialSpec.sort_order.asc(), ArticleMaterialSpec.id.asc()
     ).all() if order.article_id else []
@@ -7514,8 +7904,31 @@ def order_accessories(job_no):
         elif stock_requirement:
             required_qty = round_accessory_qty_to_issue_unit(stock_requirement, required_qty)
         group['required'] += required_qty
-        unit_rate = accessory_receipt_unit_rate(stock_requirement) if stock_requirement else 0.0
-        if required_qty > 0:
+        party_supplied_for_order = any(
+            (party_item.item or '').strip().casefold() == (spec.item_name or '').strip().casefold()
+            and (not (party_item.size or '').strip() or (party_item.size or '').strip().casefold() == spec_size)
+            and (not (party_item.quality or '').strip() or (party_item.quality or '').strip().casefold() == spec_quality)
+            for party_item in party_supplied_items
+        )
+        if required_qty > 0 and not party_supplied_for_order:
+            pricing_unit = (display_unit or '').strip().casefold()
+            price_candidates = SavedRequirement.query.filter(
+                func.lower(func.trim(SavedRequirement.item)) == (spec.item_name or '').strip().casefold(),
+            ).order_by(SavedRequirement.id.desc()).all()
+            latest_priced_requirement = next((
+                candidate for candidate in price_candidates
+                if not is_party_supplied_stock_layer(candidate)
+                and (candidate.size or '').strip().casefold() == spec_size
+                and (candidate.quality or '').strip().casefold() == spec_quality
+                and (candidate.unit or '').strip().casefold() == pricing_unit
+                and accessory_receipt_unit_rate(candidate) > 0
+            ), None)
+            unit_rate = (
+                accessory_receipt_unit_rate(latest_priced_requirement)
+                if latest_priced_requirement else latest_vendor_accessory_unit_rate(
+                    spec.item_name, spec.size, spec.material, display_unit
+                )
+            )
             if unit_rate > 0:
                 group['estimated_cost'] += required_qty * unit_rate
             else:
@@ -7547,14 +7960,15 @@ def order_accessories(job_no):
         })
         issued_qty = parse_numeric(issue.issued_qty)
         returned_qty = accessory_issue_returned_qty(issue)
-        net_issued_qty = max(0.0, issued_qty - returned_qty)
+        refundable_qty = accessory_issue_refundable_qty(issue)
+        net_issued_qty = max(0.0, issued_qty - refundable_qty)
         unit_rate = accessory_receipt_unit_rate(receipt) or parse_numeric(issue.unit_rate)
         group['cost'] += net_issued_qty * unit_rate
         display_issued = issued_qty
         display_returned = returned_qty
         group['issued'] += display_issued
         group['returned'] += display_returned
-        group['net_issued'] += max(0.0, display_issued - display_returned)
+        group['net_issued'] += max(0.0, display_issued - refundable_qty)
         group['display_issued'] += display_issued
         group['display_returned'] += display_returned
 
@@ -7566,7 +7980,7 @@ def order_accessories(job_no):
         group['remaining'] = max(0.0, required - net_issued)
         group['rate'] = group['cost'] / net_issued if net_issued > 0 else 0.0
         group['display_required'] = required
-        group['display_net_issued'] = max(0.0, group['display_issued'] - group['display_returned'])
+        group['display_net_issued'] = group['net_issued']
         group['display_remaining'] = max(0.0, group['display_required'] - group['display_net_issued'])
         group['display_rate'] = group['cost'] / group['display_net_issued'] if group['display_net_issued'] > 0 else 0.0
         if required <= 0 and net_issued > 0:
@@ -8355,6 +8769,7 @@ PAGE_ACCESS_OPTIONS = [
     ('fabric', 'Fabric Ledger & Reports', ('stock',)),
     ('accessories', 'Accessories', ('manager', 'operations', 'assistant_manager', 'stock')),
     ('warehouse', 'Warehouse', ('stock',)),
+    ('warehouse_in_transit', 'In Transit to Warehouse', ('stock',)),
     ('shipments', 'Goods Delivery & Shipments', ('stock',)),
     ('stock_challan', 'Delivery Challan', ('challan',)),
     ('accounts_home', 'Accounts Home', ('accounts',)),
@@ -8492,6 +8907,8 @@ def required_page_for_request():
         return 'fabric'
     if path.startswith('/stock-portal/accessories'):
         return 'accessories'
+    if path.startswith('/stock-portal/warehouse/in-transit'):
+        return 'warehouse_in_transit'
     if path.startswith('/stock-portal/warehouse'):
         return 'warehouse'
     if path.startswith(('/stock-portal/goods-delivery', '/stock-portal/orders')):
@@ -11854,8 +12271,6 @@ def production_entry():
             job_no = request.form.get('job_no')
             selected_cut = request.form.get('cut_no')
             try:
-                if is_read_only_profile():
-                    return reject_read_only_edit('This profile cannot change cut operation selections.')
                 cut_sheet = CuttingSheet.query.filter_by(order_id=job_no, cut_no=selected_cut).first()
                 if not cut_sheet:
                     raise ValueError('Selected cut number is not linked to a cutting sheet.')
@@ -12639,6 +13054,7 @@ def item_list():
         units = request.form.getlist('unit')
         issue_units = request.form.getlist('issue_unit')
         returnables = request.form.getlist('returnable')
+        refundables = request.form.getlist('refundable')
         if is_read_only_profile():
             if any(item_id.strip() for item_id in item_ids) or any(
                 ItemMaster.query.filter(func.lower(func.trim(ItemMaster.item_name)) == name.strip().lower()).first()
@@ -12660,6 +13076,7 @@ def item_list():
             if not issue_unit:
                 issue_unit = unit
             is_returnable = index < len(returnables) and returnables[index] == '1'
+            is_refundable = index < len(refundables) and refundables[index] == '1'
             existing_item = ItemMaster.query.filter(
                 func.lower(func.trim(ItemMaster.item_name)) == item_name.lower()
             ).first()
@@ -12681,6 +13098,7 @@ def item_list():
                 existing_item.issue_unit = issue_unit
                 existing_item.issue_unit_factor = 1.0
                 existing_item.returnable = is_returnable
+                existing_item.refundable = is_refundable
                 saved_count += 1
                 continue
             else:
@@ -12694,6 +13112,7 @@ def item_list():
             item.issue_unit = issue_unit
             item.issue_unit_factor = 1.0
             item.returnable = is_returnable
+            item.refundable = is_refundable
             saved_count += 1
 
         if not saved_count:
@@ -16271,7 +16690,9 @@ def accessories_portal(portal_page='home'):
             except ValueError as exc:
                 flash(str(exc), 'danger')
                 return redirect_to_portal('unallocated-stock')
-            if not is_whole_stock_quantity(item, storage_values['quantity']):
+            piece_units = {'pc', 'pcs', 'piece', 'pieces'}
+            item_unit = (item.unit or '').strip().casefold()
+            if item_unit not in piece_units and not is_whole_stock_quantity(item, storage_values['quantity']):
                 flash(f'{item.unit or "Stock"} must be placed away in whole quantities.', 'danger')
                 return redirect_to_portal('unallocated-stock')
 
@@ -16422,12 +16843,15 @@ def accessories_portal(portal_page='home'):
             if issue not in accessory_layer_issue_entries(item):
                 flash('This issue entry predates the current receipt and cannot be returned from it.', 'danger')
                 return redirect_to_portal(order_id=issue.order_id or None)
-            if not is_accessory_returnable(item.item):
-                flash(f'{item.item or "This item"} is not marked as returnable in Item Master.', 'danger')
+            return_type = (request.form.get('return_type') or '').strip().upper()
+            is_returnable = return_type == 'RETURNABLE' and is_accessory_returnable(item.item)
+            is_refundable = return_type == 'REFUNDABLE' and is_accessory_refundable(item.item)
+            if not (is_returnable or is_refundable):
+                flash(f'{item.item or "This item"} is not marked for this return type in Item Master.', 'danger')
                 return redirect_to_portal(order_id=issue.order_id or None)
 
             return_date = (request.form.get('return_date') or '').strip()
-            returned_by = (session.get('name') or session.get('user') or '').strip()
+            returned_by = (issue.worker_name or '').strip()
             returned_qty = parse_numeric(request.form.get('returned_qty'))
             if not is_whole_stock_quantity(item, returned_qty):
                 flash(f'{item.unit or "Stock"} must be returned in whole quantities.', 'danger')
@@ -16447,9 +16871,10 @@ def accessories_portal(portal_page='home'):
                 return_date=return_date,
                 returned_by=returned_by or 'Stock Manager',
                 returned_qty=returned_qty,
+                return_type=return_type,
                 note=(request.form.get('return_note') or '').strip(),
             ))
-            if issue.storage_location:
+            if is_refundable and issue.storage_location:
                 issue.storage_location.quantity += returned_qty
             db.session.flush()
             db.session.expire(issue, ['return_entries'])
@@ -16459,7 +16884,12 @@ def accessories_portal(portal_page='home'):
             item.used_qty = str(round(max(0.0, received_qty - net_issued), 4))
             item.accessory_status = 'USED' if received_qty > 0 and net_issued >= received_qty else 'RECEIVED'
             db.session.commit()
-            flash(f'{returned_qty:g} {item.unit or "units"} returned to accessory stock.', 'success')
+            message = (
+                f'{returned_qty:g} {item.unit or "units"} refunded to accessory stock.'
+                if is_refundable else
+                f'{returned_qty:g} {item.unit or "units"} recorded as returned; it was not added to stock.'
+            )
+            flash(message, 'success')
             return redirect_to_portal('issued-returned-items', order_id=issue.order_id or None)
 
         if action == 'save_issue':
@@ -16485,6 +16915,23 @@ def accessories_portal(portal_page='home'):
             if order_id and not Order.query.filter_by(job_no=order_id).first():
                 flash('Selected order was not found.', 'danger')
                 return redirect_to_portal('issuance-store-finder')
+
+            if is_accessory_returnable(item.item):
+                worker_issues = AccessoryIssue.query.join(SavedRequirement).filter(
+                    func.lower(func.trim(SavedRequirement.item)) == item.item.strip().casefold(),
+                    func.lower(func.trim(AccessoryIssue.worker_name)) == worker_name.casefold(),
+                ).all()
+                outstanding_qty = sum(
+                    max(0.0, parse_numeric(entry.issued_qty) - accessory_issue_returned_qty(entry))
+                    for entry in worker_issues
+                )
+                if outstanding_qty > 0.000001:
+                    flash(
+                        f'{worker_name} must return the outstanding {outstanding_qty:g} {item.unit or "units"} '
+                        f'of {item.item} before another issue.',
+                        'danger',
+                    )
+                    return redirect_to_portal('issuance-store-finder', order_id=order_id or None)
 
             cut_sheet = None
             if order_id:
@@ -16514,7 +16961,7 @@ def accessories_portal(portal_page='home'):
                         return redirect_to_portal('issuance-store-finder', order_id=order_id)
                     cut_limit = accessory_required_qty_for_cut(item, order, accessory_cut_pcs(cut_sheet))
                     already_issued = sum(
-                        max(0.0, parse_numeric(entry.issued_qty) - accessory_issue_returned_qty(entry))
+                        accessory_issue_net_qty(entry)
                         for entry in AccessoryIssue.query.filter_by(
                             requirement_id=item.id,
                             order_id=order_id,
@@ -16637,7 +17084,7 @@ def accessories_portal(portal_page='home'):
                             return redirect_to_portal('issued-returned-items', order_id=issue.order_id or None)
                         cut_limit = accessory_required_qty_for_cut(item, order, accessory_cut_pcs(cut_sheet))
                         other_issued = sum(
-                            max(0.0, parse_numeric(entry.issued_qty) - accessory_issue_returned_qty(entry))
+                            accessory_issue_net_qty(entry)
                             for entry in AccessoryIssue.query.filter_by(
                                 requirement_id=item.id,
                                 order_id=order_id,
@@ -16647,7 +17094,7 @@ def accessories_portal(portal_page='home'):
                         )
                         requested_net = max(
                             0.0,
-                            issued_qty - accessory_issue_returned_qty(issue),
+                            issued_qty - accessory_issue_refundable_qty(issue),
                         )
                         if requested_net > max(0.0, cut_limit - other_issued) + 0.000001:
                             flash(
@@ -16689,7 +17136,7 @@ def accessories_portal(portal_page='home'):
                 for entry in issue_entries
             )
             total_returned = sum(
-                accessory_issue_returned_qty(entry)
+                accessory_issue_refundable_qty(entry)
                 for entry in issue_entries
             )
             if gross_issued > received_qty + 0.000001:
@@ -16921,13 +17368,15 @@ def accessories_portal(portal_page='home'):
         issue_history_total = sum(parse_numeric(entry.issued_qty) for entry in item.issue_history_entries)
         item.issued_value = issue_history_total if item.issue_entries else parse_numeric(item.issued_qty)
         item.returned_value = sum(accessory_issue_returned_qty(entry) for entry in item.issue_history_entries)
-        item.net_issued_value = max(0.0, item.issued_value - item.returned_value)
+        item.refunded_value = sum(accessory_issue_refundable_qty(entry) for entry in item.issue_history_entries)
+        item.net_issued_value = max(0.0, item.issued_value - item.refunded_value)
         item.left_over_value = max(0.0, item.received_value - item.net_issued_value)
         item.issue_form_date = datetime.utcnow().strftime('%Y-%m-%d')
         item.returnable = is_accessory_returnable(item.item)
         for issue_entry in item.issue_history_entries:
             issue_entry.returned_value = accessory_issue_returned_qty(issue_entry)
             issue_entry.returnable = item.returnable
+            issue_entry.refundable = is_accessory_refundable(item.item)
             issue_entry.returnable_remaining_qty = max(0.0, issue_entry.issued_qty - issue_entry.returned_value)
             issue_entry.location_label = (
                 accessory_storage_location_label(issue_entry.storage_location)
@@ -17126,19 +17575,25 @@ def warehouse_in_transit():
         return redirect(url_for('index'))
 
     if request.method == 'POST':
-        if is_read_only_profile():
-            return reject_read_only_edit('This profile has read-only access to warehouse stock locations.')
-
         order = Order.query.filter_by(job_no=(request.form.get('order_id') or '').strip()).first()
         quality = (request.form.get('quality') or '').strip().upper()
         department_name = (request.form.get('department') or '').strip()
         location_type = (request.form.get('location_type') or '').strip().upper()
         gala = (request.form.get('gala') or '').strip()
-        quantity = parse_numeric(request.form.get('quantity'))
+        packets = parse_numeric(request.form.get('packets'))
 
         if not order or quality not in {'AQ', 'BQ'}:
             flash('Choose a valid order and quality for warehouse placement.', 'danger')
             return redirect(url_for('warehouse_in_transit'))
+        pcs_per_packet = parse_numeric(order.pcs_poly)
+        if pcs_per_packet <= 0:
+            flash('Set PCS per poly on the order before placing packets in the warehouse.', 'danger')
+            return redirect(url_for('warehouse_in_transit'))
+        if packets <= 0 or abs(packets - round(packets)) > 0.000001:
+            flash('Enter a whole number of packets to place.', 'danger')
+            return redirect(url_for('warehouse_in_transit'))
+        packets = round(packets)
+        quantity = packets * pcs_per_packet
         if location_type not in {'RACK_SHELF', 'FLOOR', 'CABINET', 'CUPBOARD'}:
             flash('Choose a valid warehouse location type.', 'danger')
             return redirect(url_for('warehouse_in_transit'))
@@ -17148,10 +17603,6 @@ def warehouse_in_transit():
         if not department:
             flash('Choose a valid department for warehouse placement.', 'danger')
             return redirect(url_for('warehouse_in_transit'))
-        if quantity <= 0:
-            flash('Enter a quantity greater than zero.', 'danger')
-            return redirect(url_for('warehouse_in_transit'))
-
         shipping = get_order_shipping_snapshot(order)
         quality_balance = (
             shipping['balance_aq_pcs'] if quality == 'AQ'
@@ -17178,7 +17629,7 @@ def warehouse_in_transit():
             quantity=quantity,
         ))
         db.session.commit()
-        flash(f'{quantity:g} {quality} PCS from {order.job_no} placed in the warehouse.', 'success')
+        flash(f'{packets:g} packets ({quantity:g} {quality} PCS) from {order.job_no} placed in the warehouse.', 'success')
         return redirect(url_for('warehouse_in_transit'))
 
     departments = Department.query.order_by(func.lower(Department.name)).all()
@@ -17207,6 +17658,7 @@ def warehouse_in_transit():
                 'produced_pcs': shipping[produced_key],
                 'transit_pcs': transit_qty,
                 'transit_packets': transit_qty / pcs_per_packet if pcs_per_packet > 0 else 0.0,
+                'placeable_packets': math.floor(transit_qty / pcs_per_packet + 1e-10) if pcs_per_packet > 0 else 0,
             })
     placed_locations = WarehouseFinishedGoodsLocation.query.filter(
         WarehouseFinishedGoodsLocation.quantity > 0
