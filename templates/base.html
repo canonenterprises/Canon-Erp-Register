@@ -142,6 +142,23 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen overflow-x-hidden">
     {% set is_accounts_area = request.path.startswith('/accounts') or request.path.startswith('/stock-portal/billing') or request.endpoint in ('annual_reports', 'annual_report', 'annual_report_print') %}
+    {% set current_role = session.get('role') %}
+    {% set profile_role = session.get('profile_role', current_role) %}
+    {% if profile_role == 'worker' or current_role == 'worker' %}
+        {% set portal_home_endpoint = 'worker_dashboard' %}
+    {% elif profile_role == 'owner' or current_role == 'owner' %}
+        {% set portal_home_endpoint = 'owner_dashboard' %}
+    {% elif profile_role in ('manager', 'operations', 'operations_manager', 'assistant_manager') or current_role in ('manager', 'operations', 'assistant_manager') %}
+        {% set portal_home_endpoint = 'manager_dashboard' %}
+    {% elif profile_role == 'accounts' %}
+        {% set portal_home_endpoint = 'accounts_portal' %}
+    {% elif profile_role == 'stock' %}
+        {% set portal_home_endpoint = 'stock_portal' %}
+    {% elif profile_role == 'challan' %}
+        {% set portal_home_endpoint = 'challan_portal' %}
+    {% else %}
+        {% set portal_home_endpoint = 'index' %}
+    {% endif %}
     {% if session.get('user') %}
     <div class="fixed bottom-4 left-4 z-50 no-print">
         <div class="flex items-center gap-3 rounded-2xl border-[2px] border-yellow-400 bg-yellow-400 px-4 py-3 shadow-xl backdrop-blur">
@@ -151,6 +168,9 @@
             </div>
             <a href="{{ url_for('logout') }}" class="flex h-9 w-9 items-center justify-center rounded-lg bg-red-950 text-white transition hover:bg-black" title="Logout">
                 <i class="fa-solid fa-arrow-right-from-bracket text-sm"></i>
+            </a>
+            <a href="{{ url_for(portal_home_endpoint) }}" class="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-900 transition hover:bg-slate-100" title="Home" aria-label="Go to portal home">
+                <i class="fa-solid fa-house text-sm" aria-hidden="true"></i>
             </a>
         </div>
     </div>
