@@ -52,7 +52,7 @@
 
         <div class="meta-item">
           <span class="meta-label">VOUCHER DATE</span>
-          <span class="meta-value">{{ summary.invoice_date or '—' }}</span>
+          <span class="meta-value">{{ summary.invoice_date|format_ddmmyyyy or '—' }}</span>
         </div>
 
         <div class="meta-item">
@@ -64,7 +64,7 @@
 
         <div class="meta-item">
           <span class="meta-label">PAYMENT DATE</span>
-          <span class="meta-value">{{ payment_date if payment_date is defined and payment_date else '—' }}</span>
+          <span class="meta-value">{{ payment_date|format_ddmmyyyy if payment_date is defined and payment_date else '—' }}</span>
         </div>
 
         <div class="meta-item meta-bank">
