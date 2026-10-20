@@ -8,13 +8,16 @@
             <h1 class="mt-2 text-2xl font-black uppercase">{{ party_name or 'Party' }}</h1>
             <p class="mt-2 text-sm font-bold text-slate-700">{% if start_date and start_date|length == 10 %}{{ start_date[8:10] }}-{{ start_date[5:7] }}-{{ start_date[:4] }}{% else %}{{ start_date }}{% endif %} TO {% if end_date and end_date|length == 10 %}{{ end_date[8:10] }}-{{ end_date[5:7] }}-{{ end_date[:4] }}{% else %}{{ end_date }}{% endif %}</p>
         </div>
-        <a href="{{ url_for('fabric_ledger') }}" class="no-print mt-4 inline-block rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Fabric Ledger</a>
+        <div class="no-print mt-4 flex flex-wrap justify-center gap-2">
+            <a href="{{ url_for('fabric_ledger') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Fabric Ledger</a>
+            <button type="button" id="open-article-print-dialog" {% if not rows %}disabled{% endif %} class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Summary</button>
+        </div>
     </header>
 
     {% if rows %}
     <div class="space-y-5">
         {% for row in rows %}
-        <section class="article-block overflow-hidden border-2 border-slate-700">
+        <section class="article-block overflow-hidden border-2 border-slate-700" data-print-article="{{ loop.index0 }}">
             <h2 class="border-b-2 border-slate-700 bg-slate-100 px-4 py-2 text-center text-xl font-black uppercase"><span class="block">{{ row.article_name or row.article }}</span>{% if row.article_style or row.article_color %}<span class="mt-1 block text-sm font-bold">{{ row.article_style or '' }}{% if row.article_style and row.article_color %} · {% endif %}{{ row.article_color or '' }}</span>{% endif %}</h2>
             <table class="w-full text-sm">
                 <thead>
@@ -48,6 +51,46 @@
     </footer>
 </div>
 </div>
+{% if rows %}
+<dialog id="article-print-dialog" class="no-print m-auto w-[min(60rem,calc(100vw-2rem))] max-w-none rounded-lg border-0 bg-transparent p-0 shadow-2xl backdrop:bg-slate-950/60" aria-labelledby="article-print-title">
+    <div class="overflow-hidden rounded-lg border border-slate-300 bg-white text-slate-900">
+        <header class="border-b border-slate-200 px-5 py-4 sm:px-6">
+            <p class="text-xs font-bold uppercase text-slate-600">Fabric position summary</p>
+            <h2 id="article-print-title" class="mt-1 text-xl font-black">Select articles to print</h2>
+            <p class="mt-1 text-sm text-slate-500">Choose the article sections to include in this printout.</p>
+        </header>
+        <div class="px-5 py-3 sm:px-6">
+            <label class="flex cursor-pointer items-center gap-3 border-b border-slate-200 py-3 text-sm font-bold text-slate-800">
+                <input id="select-all-print-articles" type="checkbox" checked class="h-4 w-4 accent-slate-900">
+                Select all articles
+            </label>
+            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {% for row in rows %}
+                <label class="flex min-h-16 cursor-pointer items-start gap-3 rounded-md border border-slate-200 p-3 text-sm text-slate-700 hover:bg-slate-50">
+                    <input type="checkbox" class="article-print-checkbox mt-0.5 h-4 w-4 accent-slate-900" value="{{ loop.index0 }}" checked>
+                    <span class="min-w-0">
+                        <span class="block font-bold text-slate-900">{{ row.article_name or row.article }}</span>
+                        {% if row.article_style or row.article_color %}<span class="mt-0.5 block text-xs text-slate-500">{{ row.article_style or '' }}{% if row.article_style and row.article_color %} · {% endif %}{{ row.article_color or '' }}</span>{% endif %}
+                    </span>
+                </label>
+                {% endfor %}
+            </div>
+            <p id="article-print-error" class="mt-3 hidden text-sm font-semibold text-rose-700" role="alert">Select at least one article to print.</p>
+        </div>
+        <footer class="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
+            <button type="button" id="cancel-article-print" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100">Cancel</button>
+            <button type="button" id="confirm-article-print" class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-print" aria-hidden="true"></i> Print</button>
+        </footer>
+    </div>
+</dialog>
+<div id="article-print-loading" class="no-print fixed inset-0 z-[100] items-center justify-center bg-slate-950/60 p-4" role="status" aria-live="polite" style="display: none;">
+    <div class="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 text-center shadow-2xl">
+        <i class="fa-solid fa-spinner fa-spin text-3xl text-slate-800" aria-hidden="true"></i>
+        <p class="mt-3 text-base font-black text-slate-900">Preparing fabric position summary...</p>
+        <p class="mt-1 text-sm text-slate-500">Your selected articles are being prepared for printing.</p>
+    </div>
+</div>
+{% endif %}
 <style>
     .report-print-footer { display: none; }
 @media print {
@@ -55,6 +98,7 @@
     body { background: white !important; }
     .no-print { display: none !important; }
     .article-block { break-inside: avoid; margin-bottom: 8mm; }
+    .article-block.print-excluded { display: none !important; }
     .article-block h2 { font-size: 16pt; }
     .article-block table { font-size: 10pt; }
     .report-print-footer { position: fixed; right: 0; bottom: 4mm; left: 0; display: flex; flex-direction: column; gap: 1.5mm; margin-top: 0; font-size: 9pt; }
@@ -63,6 +107,63 @@
 }
 </style>
 <script>
+    const articlePrintDialog = document.getElementById('article-print-dialog');
+    if (articlePrintDialog) {
+        const openArticlePrintDialog = document.getElementById('open-article-print-dialog');
+        const cancelArticlePrint = document.getElementById('cancel-article-print');
+        const confirmArticlePrint = document.getElementById('confirm-article-print');
+        const selectAllPrintArticles = document.getElementById('select-all-print-articles');
+        const articlePrintCheckboxes = Array.from(document.querySelectorAll('.article-print-checkbox'));
+        const articlePrintError = document.getElementById('article-print-error');
+        const articlePrintLoading = document.getElementById('article-print-loading');
+
+        openArticlePrintDialog.addEventListener('click', () => articlePrintDialog.showModal());
+        cancelArticlePrint.addEventListener('click', () => articlePrintDialog.close());
+
+        selectAllPrintArticles.addEventListener('change', () => {
+            articlePrintCheckboxes.forEach(checkbox => { checkbox.checked = selectAllPrintArticles.checked; });
+            articlePrintError.classList.add('hidden');
+        });
+        articlePrintCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', () => {
+                const checkedCount = articlePrintCheckboxes.filter(item => item.checked).length;
+                selectAllPrintArticles.checked = checkedCount === articlePrintCheckboxes.length;
+                selectAllPrintArticles.indeterminate = checkedCount > 0 && checkedCount < articlePrintCheckboxes.length;
+                articlePrintError.classList.add('hidden');
+            });
+        });
+
+        confirmArticlePrint.addEventListener('click', async () => {
+            const selectedIndexes = new Set(articlePrintCheckboxes.filter(checkbox => checkbox.checked).map(checkbox => checkbox.value));
+            if (!selectedIndexes.size) {
+                articlePrintError.classList.remove('hidden');
+                return;
+            }
+
+            const articleSections = Array.from(document.querySelectorAll('[data-print-article]'));
+            articleSections.forEach(section => {
+                section.classList.toggle('print-excluded', !selectedIndexes.has(section.dataset.printArticle));
+            });
+            articlePrintDialog.close();
+            const loadingStartedAt = performance.now();
+            articlePrintLoading.style.display = 'flex';
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+            const remainingLoadingTime = 500 - (performance.now() - loadingStartedAt);
+            if (remainingLoadingTime > 0) {
+                await new Promise(resolve => window.setTimeout(resolve, remainingLoadingTime));
+            }
+            articlePrintLoading.style.display = 'none';
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            window.addEventListener('afterprint', function restoreArticleSelection() {
+                articleSections.forEach(section => section.classList.remove('print-excluded'));
+                window.removeEventListener('afterprint', restoreArticleSelection);
+            });
+            window.print();
+        });
+    }
+
     window.addEventListener('beforeprint', function () {
         const printedAt = new Date();
         const date = new Intl.DateTimeFormat('en-US', {
