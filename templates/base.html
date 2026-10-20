@@ -875,10 +875,69 @@
             });
         </script>
 
+        <script>
+            (function () {
+                const actionSelector = 'table tbody tr td button, table tbody tr td input[type="submit"], table tbody tr td input[type="button"]';
+                const deleteActionPattern = /\b(delete|remove)\b/i;
+
+                function markDeleteActions(scope) {
+                    const actions = [];
+                    if (scope instanceof Element && scope.matches(actionSelector)) actions.push(scope);
+                    actions.push(...scope.querySelectorAll(actionSelector));
+
+                    actions.forEach(function (action) {
+                        const form = action.closest('form');
+                        const formDetails = form ? [
+                            form.getAttribute('onsubmit'),
+                            form.getAttribute('action'),
+                            ...Array.from(form.querySelectorAll('input[type="hidden"]'), function (input) {
+                                return input.name + ' ' + input.value;
+                            })
+                        ] : [];
+                        const label = [
+                            action.textContent,
+                            action.value,
+                            action.getAttribute('aria-label'),
+                            action.getAttribute('title'),
+                            ...formDetails
+                        ].join(' ');
+
+                        if (deleteActionPattern.test(label)) action.classList.add('table-delete-reveal');
+                    });
+                }
+
+                markDeleteActions(document);
+                new MutationObserver(function (records) {
+                    records.forEach(function (record) {
+                        record.addedNodes.forEach(function (node) {
+                            if (node instanceof Element) markDeleteActions(node);
+                        });
+                    });
+                }).observe(document.body, { childList: true, subtree: true });
+            })();
+        </script>
+
     <style>
         #fab-menu.fab-menu-wide { width: min(36rem, calc(100vw - 2rem)); }
         #fab-menu-links.fab-menu-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; }
         #fab-menu-links.fab-menu-grid > a { min-width: 0; }
+        .table-delete-reveal { transition: opacity 150ms ease, transform 150ms ease; }
+        @media (hover: hover) and (pointer: fine) {
+            table tbody tr:not(:hover):not(:focus-within) .table-delete-reveal {
+                opacity: 0;
+                pointer-events: none;
+                transform: translateY(2px);
+            }
+            table tbody tr:hover .table-delete-reveal,
+            table tbody tr:focus-within .table-delete-reveal {
+                opacity: 1;
+                pointer-events: auto;
+                transform: translateY(0);
+            }
+        }
+        @media print {
+            .table-delete-reveal { opacity: 1 !important; pointer-events: auto !important; transform: none !important; }
+        }
         .fade-out {
             opacity: 0;
             transform: translateY(-10px);
