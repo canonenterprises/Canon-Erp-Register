@@ -66,11 +66,20 @@
       </a>
       {% endif %}
 
-      <a href="{{ url_for('accounts_yearly_closing') if session.get('role') == 'owner' else url_for('login', target_role='owner', next=url_for('accounts_yearly_closing')) }}" class="group border-l-4 border-slate-800 bg-slate-100 p-5 transition hover:bg-slate-200">
+      <a href="{{ url_for('accounts_yearly_closing') if session.get('role') == 'owner' else url_for('login', target_role='owner', next=url_for('accounts_yearly_closing')) }}" class="yearly-closing-card group border-l-4 border-slate-800 bg-slate-100 p-5 transition hover:bg-slate-200">
         <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-slate-600">Annual close</p><h2 class="mt-2 text-xl font-black text-slate-950">Yearly Closing</h2><p class="mt-2 text-sm text-slate-600">Generate, review, finalize, and print annual factory reports.</p></div><i class="fa-solid fa-calendar-check mt-1 text-2xl text-slate-700" aria-hidden="true"></i></div>
         <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-slate-900">Open yearly closing <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
       </a>
     </section>
   </div>
 </div>
+<style>
+  html[data-theme="dark"] .yearly-closing-card {
+    border-left-color: #64748b !important;
+    background-color: #26384c !important;
+  }
+  html[data-theme="dark"] .yearly-closing-card:hover {
+    background-color: #334155 !important;
+  }
+</style>
 {% endblock %}

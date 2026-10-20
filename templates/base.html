@@ -51,20 +51,20 @@
             html[data-theme="dark"] [class~="bg-stone-100"] {
                 background-color: #172033 !important;
             }
-            html[data-theme="dark"] [class*="bg-emerald-50"],
-            html[data-theme="dark"] [class*="bg-green-50"],
-            html[data-theme="dark"] [class*="bg-teal-50"] { background-color: #12352e !important; }
-            html[data-theme="dark"] [class*="bg-rose-50"],
-            html[data-theme="dark"] [class*="bg-red-50"] { background-color: #3a202b !important; }
-            html[data-theme="dark"] [class*="bg-amber-50"],
-            html[data-theme="dark"] [class*="bg-yellow-50"],
-            html[data-theme="dark"] [class*="bg-orange-50"] { background-color: #382d1b !important; }
-            html[data-theme="dark"] [class*="bg-blue-50"],
-            html[data-theme="dark"] [class*="bg-sky-50"],
-            html[data-theme="dark"] [class*="bg-cyan-50"] { background-color: #172e43 !important; }
-            html[data-theme="dark"] [class*="bg-indigo-50"],
-            html[data-theme="dark"] [class*="bg-violet-50"],
-            html[data-theme="dark"] [class*="bg-purple-50"] { background-color: #2b2542 !important; }
+            html[data-theme="dark"] [class~="bg-emerald-50"],
+            html[data-theme="dark"] [class~="bg-green-50"],
+            html[data-theme="dark"] [class~="bg-teal-50"] { background-color: #12352e !important; }
+            html[data-theme="dark"] [class~="bg-rose-50"],
+            html[data-theme="dark"] [class~="bg-red-50"] { background-color: #3a202b !important; }
+            html[data-theme="dark"] [class~="bg-amber-50"],
+            html[data-theme="dark"] [class~="bg-yellow-50"],
+            html[data-theme="dark"] [class~="bg-orange-50"] { background-color: #382d1b !important; }
+            html[data-theme="dark"] [class~="bg-blue-50"],
+            html[data-theme="dark"] [class~="bg-sky-50"],
+            html[data-theme="dark"] [class~="bg-cyan-50"] { background-color: #172e43 !important; }
+            html[data-theme="dark"] [class~="bg-indigo-50"],
+            html[data-theme="dark"] [class~="bg-violet-50"],
+            html[data-theme="dark"] [class~="bg-purple-50"] { background-color: #2b2542 !important; }
             html[data-theme="dark"] [class*="border-slate-"],
             html[data-theme="dark"] [class*="border-gray-"],
             html[data-theme="dark"] [class*="border-zinc-"],
@@ -115,6 +115,7 @@
             html[data-theme="dark"] [class*="text-orange-900"] { color: #fcd34d !important; }
             html[data-theme="dark"] [class*="text-blue-700"],
             html[data-theme="dark"] [class*="text-blue-800"],
+            html[data-theme="dark"] [class*="text-blue-900"],
             html[data-theme="dark"] [class*="text-sky-700"],
             html[data-theme="dark"] [class*="text-sky-800"],
             html[data-theme="dark"] [class*="text-sky-900"],
@@ -207,9 +208,16 @@
                 color: #e2e8f0 !important;
                 color-scheme: dark;
             }
+            html[data-theme="dark"] .print-light-paper textarea {
+                border-color: #000000 !important;
+                background-color: transparent !important;
+                color: #000000 !important;
+                color-scheme: light;
+            }
             html[data-theme="dark"] input::placeholder,
             html[data-theme="dark"] textarea::placeholder { color: #94a3b8 !important; }
             html[data-theme="dark"] table tr:hover { background-color: #202c40 !important; }
+            html[data-theme="dark"] .print-light-paper table tr:hover { background-color: transparent !important; }
             html[data-theme="dark"] #profile-controls {
                 border-color: #facc15 !important;
                 background-color: #facc15 !important;
@@ -254,6 +262,7 @@
             }
             html[data-theme="dark"] #fab-menu a {
                 color: #e2e8f0 !important;
+                background-color: transparent !important;
             }
             html[data-theme="dark"] #fab-menu a:hover {
                 background-color: rgba(148, 163, 184, 0.12) !important;
@@ -356,13 +365,13 @@
             html[data-theme="dark"] a[class*="border-slate-300"][class*="hover:bg-slate-"]:hover,
             html[data-theme="dark"] button[class*="border-slate-300"][class*="hover:bg-slate-"]:hover,
             html[data-theme="dark"] .print-back-button:hover {
-                background-color: #000000 !important;
-                border-color: #ffffff !important;
-                color: #ffffff !important;
+                background-color: #cbd5e1 !important;
+                border-color: #94a3b8 !important;
+                color: #0f172a !important;
             }
             html[data-theme="dark"] a[class*="border-slate-300"][class*="hover:bg-slate-"]:hover *,
             html[data-theme="dark"] button[class*="border-slate-300"][class*="hover:bg-slate-"]:hover *,
-            html[data-theme="dark"] .print-back-button:hover * { color: #ffffff !important; }
+            html[data-theme="dark"] .print-back-button:hover * { color: #0f172a !important; }
             html[data-theme="dark"] .print-gold-button { background-color: #b7955c !important; color: #ffffff !important; }
             html[data-theme="dark"] .print-gold-button:hover { background-color: #9b7e4e !important; }
         }

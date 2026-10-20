@@ -78,7 +78,23 @@
         {% endif %}
     </div>
 </div>
-<style>.label{display:block;margin-bottom:.35rem;font-size:.7rem;font-weight:800;text-transform:uppercase;color:#64748b}.input{width:100%;border:1px solid #e2e8f0;border-radius:.75rem;padding:.7rem;font-size:.875rem} .grid .rounded-xl span{display:block;font-size:.7rem;color:#64748b}.grid .rounded-xl strong{display:block;margin-top:.2rem;font-size:1.15rem;color:#0f172a}.attendance-sunday-row>td{background-color:#fef08a !important}.attendance-holiday-row>td{background-color:#fed7aa !important}</style>
+<style>
+.label { display: block; margin-bottom: .35rem; font-size: .7rem; font-weight: 800; text-transform: uppercase; color: #64748b; }
+.input { width: 100%; border: 1px solid #e2e8f0; border-radius: .75rem; padding: .7rem; font-size: .875rem; }
+.grid .rounded-xl span { display: block; font-size: .7rem; color: #64748b; }
+.grid .rounded-xl strong { display: block; margin-top: .2rem; font-size: 1.15rem; color: #0f172a; }
+.attendance-sunday-row > td { background-color: #fef08a !important; }
+.attendance-holiday-row > td { background-color: #fed7aa !important; }
+html[data-theme="dark"] .label,
+html[data-theme="dark"] .grid .rounded-xl span { color: #a8b5c9 !important; }
+html[data-theme="dark"] .grid .rounded-xl strong { color: #f1f5f9 !important; }
+html[data-theme="dark"] #selected-worker-card + .rounded-2xl .mt-5.grid.grid-cols-2.gap-3 > .rounded-xl:first-child {
+    background-color: #26384c !important;
+    box-shadow: inset 0 0 0 1px #456076;
+}
+html[data-theme="dark"] .attendance-sunday-row > td { background-color: #3b3214 !important; color: #fde68a !important; }
+html[data-theme="dark"] .attendance-holiday-row > td { background-color: #3a2b1c !important; color: #fed7aa !important; }
+</style>
 <script>document.addEventListener('DOMContentLoaded',function(){const factory=document.getElementById('factory-days');const absent=document.getElementById('absent-days');const present=document.getElementById('present-days');const nightInput=document.querySelector('input[name="night_hours"]');if(nightInput){const lateField=document.createElement('div');lateField.innerHTML='<label class="label">Late days</label><input id="late-days" name="late_days" type="number" min="0" step="1" required value="{{ existing.late_days if existing else 0 }}" class="input">';const onTimeField=document.createElement('div');onTimeField.innerHTML='<label class="label">On Time days (automatic)</label><input id="on-time-days" type="number" readonly value="{{ existing.on_time_days if existing else 0 }}" class="input bg-slate-100 font-bold">';nightInput.closest('div').after(lateField,onTimeField)}const late=document.getElementById('late-days');const onTime=document.getElementById('on-time-days');function update(){const days=Number(factory&&factory.value)||0;const missed=Number(absent&&absent.value)||0;present.value=Math.max(0,days-missed);if(onTime){const lateDays=Number(late&&late.value)||0;onTime.value=Math.max(0,days-lateDays)}}if(factory&&absent&&present){factory.addEventListener('input',update);absent.addEventListener('input',update);update()}if(factory&&late&&onTime){factory.addEventListener('input',update);late.addEventListener('input',update);update()}const historyTable=document.querySelector('table');if(historyTable){const headers=historyTable.querySelectorAll('thead th');const nightHeader=Array.from(headers).find(function(header){return header.textContent.trim()==='Night'});if(nightHeader){const lateHeader=document.createElement('th');lateHeader.className='px-3 py-3';lateHeader.textContent='Late';const onTimeHeader=document.createElement('th');onTimeHeader.className='px-3 py-3';onTimeHeader.textContent='On Time';nightHeader.after(lateHeader,onTimeHeader);const historyRows=historyTable.querySelectorAll('tbody tr');const values={{ history|map(attribute='late_days')|list|tojson }};const onTimeValues={{ history|map(attribute='on_time_days')|list|tojson }};historyRows.forEach(function(row,index){if(row.children.length===8){const lateCell=document.createElement('td');lateCell.className='px-3 py-3';lateCell.textContent=values[index]||0;const onTimeCell=document.createElement('td');onTimeCell.className='px-3 py-3';onTimeCell.textContent=onTimeValues[index]||0;row.children[5].after(lateCell,onTimeCell)}})}}});</script>
 <script>document.addEventListener('DOMContentLoaded',function(){const progress=Array.from(document.querySelectorAll('section')).find(function(section){return section.textContent.includes('Monthly progress')});const history=Array.from(document.querySelectorAll('section')).find(function(section){return section.textContent.includes('Attendance history')});if(progress&&history){history.parentNode.insertBefore(progress,history)}});</script>
 <script>
@@ -181,6 +197,9 @@ document.addEventListener('DOMContentLoaded', function () {
 .status-present { background-color: #dcfce7; border-color: #22c55e; color: #166534; }
 .status-absent { background-color: #fee2e2; border-color: #ef4444; color: #991b1b; }
 .status-holiday { background-color: #e5e7eb; border-color: #6b7280; color: #374151; }
+html[data-theme="dark"] input.attendance-status-cell.status-present:not([type="checkbox"]):not([type="radio"]):not([type="range"]) { background-color: #12352e !important; border-color: #34d399 !important; color: #a7f3d0 !important; }
+html[data-theme="dark"] input.attendance-status-cell.status-absent:not([type="checkbox"]):not([type="radio"]):not([type="range"]) { background-color: #3a202b !important; border-color: #fb7185 !important; color: #fda4af !important; }
+html[data-theme="dark"] input.attendance-status-cell.status-holiday:not([type="checkbox"]):not([type="radio"]):not([type="range"]) { background-color: #273449 !important; border-color: #94a3b8 !important; color: #e2e8f0 !important; }
 </style>
 <script>
 document.addEventListener('DOMContentLoaded', function () {
@@ -262,6 +281,12 @@ document.addEventListener('DOMContentLoaded', function () {
 .daily-attendance-table { min-width: 680px !important; font-size: .8rem; }
 .worker-attendance-table-scroll { max-height: 70vh; overflow: auto; -webkit-overflow-scrolling: touch; }
 .worker-attendance-table-scroll thead th { position: sticky; top: 0; z-index: 20; background-color: #f1f5f9; }
+html[data-theme="dark"] .worker-attendance-table-scroll thead th,
+html[data-theme="dark"] table thead th {
+    background-color: #172033 !important;
+    border-color: #3a475d !important;
+    color: #cbd5e1 !important;
+}
 .daily-attendance-table th,
 .daily-attendance-table td { padding: .35rem .5rem; }
 .daily-attendance-table .input { padding: .35rem .5rem; font-size: .75rem; }
@@ -272,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const chartCanvas = document.getElementById('attendance-hours-chart');
     if (!chartCanvas || typeof Chart === 'undefined') return;
 
-    new Chart(chartCanvas, {
+    const chart = new Chart(chartCanvas, {
         type: 'pie',
         data: {
             labels: ['Early Leave', 'Overtime', 'Night'],
@@ -294,7 +319,11 @@ document.addEventListener('DOMContentLoaded', function () {
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: { usePointStyle: true, boxWidth: 9, color: '#475569' }
+                    labels: {
+                        usePointStyle: true,
+                        boxWidth: 9,
+                        color: document.documentElement.dataset.theme === 'dark' ? '#cbd5e1' : '#475569'
+                    }
                 },
                 tooltip: {
                     callbacks: {
@@ -305,6 +334,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 }
             }
         }
+    });
+    const chartThemeObserver = new MutationObserver(function () {
+        chart.options.plugins.legend.labels.color =
+            document.documentElement.dataset.theme === 'dark' ? '#cbd5e1' : '#475569';
+        chart.update('none');
+    });
+    chartThemeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-theme'],
     });
 });
 </script>
