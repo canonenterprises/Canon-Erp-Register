@@ -354,7 +354,7 @@ document.addEventListener('DOMContentLoaded', function () {
 @media print {
     @page {
         size: A4;
-        margin: 12mm 2mm 16mm;
+        margin: 4mm 2mm 16mm;
         @bottom-center {
             content: "Page " counter(page) " of " counter(pages);
             font-size: 11px;
@@ -375,9 +375,6 @@ document.addEventListener('DOMContentLoaded', function () {
             color: #111827;
             margin-left: 2mm;
         }
-    }
-    @page :first {
-        margin-top: 4mm;
     }
     body * { visibility: hidden; }
     #print-area, #print-area * { visibility: visible; }
