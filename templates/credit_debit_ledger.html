@@ -51,9 +51,9 @@
     </header>
 
     {% if company_mode %}
-    <nav class="ledger-screen-only flex gap-2 border-b border-slate-200 pb-4" aria-label="Company ledger">
+    <nav class="ledger-screen-only flex w-full max-w-md rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Company ledger">
       {% for company_option in ('Canon', 'Haram') %}
-      <a href="{{ url_for('accounts_company_credit_debit', company=company_option, direction=direction, start_date=start_date, end_date=end_date, q=search) }}" class="rounded-lg border px-4 py-2 text-sm font-bold {% if company == company_option %}border-indigo-800 bg-indigo-800 text-white{% else %}border-slate-300 text-slate-700 hover:bg-slate-50{% endif %}">{{ company_option }}</a>
+      <a href="{{ url_for('accounts_company_credit_debit', company=company_option, direction=direction, start_date=start_date, end_date=end_date, q=search) }}" {% if company == company_option %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2.5 text-center text-sm font-black {% if company == company_option %}{% if company_option == 'Canon' %}bg-[#b7955c] text-white shadow-sm{% else %}bg-slate-900 text-white shadow-sm{% endif %}{% else %}text-slate-500 hover:text-slate-900{% endif %}">{{ company_option }}</a>
       {% endfor %}
     </nav>
     {% endif %}

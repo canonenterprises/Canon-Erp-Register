@@ -4050,6 +4050,7 @@ class SavedRequirement(db.Model):
     rate = db.Column(db.String(100))
     bill_amount = db.Column(db.String(100))
     supplier = db.Column(db.String(200))
+    company = db.Column(db.String(20), nullable=False, default='Canon')
     requested_by = db.Column(db.String(100))
     priority = db.Column(db.String(50))
     date = db.Column(db.String(50))
@@ -4073,6 +4074,7 @@ class AccessoryBillVoucher(db.Model):
     voucher_date = db.Column(db.String(10), nullable=False)
     total_amount = db.Column(db.Float, nullable=False, default=0.0)
     rows_json = db.Column(db.Text, nullable=False, default='[]')
+    company = db.Column(db.String(20), nullable=False, default='Canon')
     created_by = db.Column(db.String(100), default='')
     paid_on = db.Column(db.String(10), default='')
     paid_by = db.Column(db.String(100), default='')
@@ -4602,8 +4604,10 @@ def ensure_vendor_schema(engine):
             },
             'saved_requirement': {
                 'roll_length_m': 'FLOAT NOT NULL DEFAULT 0',
+                'company': "VARCHAR(20) NOT NULL DEFAULT 'Canon'",
             },
             'accessory_bill_voucher': {
+                'company': "VARCHAR(20) NOT NULL DEFAULT 'Canon'",
                 'bank_name': "VARCHAR(100) NOT NULL DEFAULT ''",
                 'cheque_number': "VARCHAR(100) NOT NULL DEFAULT ''",
                 'cheque_image': "VARCHAR(255) NOT NULL DEFAULT ''",
@@ -5061,6 +5065,78 @@ def accounts_portal():
     return render_template('accounts.html')
 
 
+@app.route('/accounts/all-vouchers')
+def accounts_all_vouchers():
+    denied = accounts_management_access('accounts')
+    if denied:
+        return denied
+
+    company = (request.args.get('company') or 'Canon').strip()
+    if company not in ('Canon', 'Haram'):
+        abort(400)
+
+    payment_totals = dict(
+        db.session.query(
+            UtilityBillPayment.bill_id,
+            func.sum(UtilityBillPayment.amount),
+        ).group_by(UtilityBillPayment.bill_id).all()
+    )
+    vouchers = []
+    for voucher in AccessoryBillVoucher.query.filter_by(company=company).all():
+        voucher_no = voucher.voucher_no or ''
+        serial_match = re.search(r'(\d+)$', voucher_no)
+        vouchers.append({
+            'voucher_no': voucher_no,
+            'sort_number': int(serial_match.group(1)) if serial_match else -1,
+            'voucher_date': voucher.voucher_date,
+            'voucher_type': 'Accessories',
+            'party': voucher.supplier,
+            'amount': voucher.total_amount,
+            'status': 'PAID' if voucher.paid_on else 'UNPAID',
+            'print_url': url_for(
+                'print_accessory_bill_voucher',
+                voucher_id=voucher.id,
+                company=company,
+                return_to='all_vouchers',
+            ),
+        })
+
+    for summary in UtilityBillSummary.query.filter(
+        UtilityBillSummary.invoice_no.isnot(None),
+    ).all():
+        voucher_no = summary.invoice_no or ''
+        serial_match = re.search(r'(\d+)$', voucher_no)
+        bill = summary.utility_bill
+        if (bill.company if bill else 'Canon') != company:
+            continue
+        bill_total = bill.amount if bill else summary.total_amount
+        paid_total = payment_totals.get(summary.utility_bill_id, 0.0) or 0.0
+        vouchers.append({
+            'voucher_no': voucher_no,
+            'sort_number': int(serial_match.group(1)) if serial_match else -1,
+            'voucher_date': summary.invoice_date,
+            'voucher_type': f'Utility · {bill.utility_type}' if bill else 'Utility',
+            'party': bill.provider if bill else summary.invoice_to,
+            'amount': summary.total_amount,
+            'status': 'PAID' if round(paid_total, 2) >= round(bill_total, 2) else 'UNPAID',
+            'print_url': url_for(
+                'print_utility_bill_summary',
+                summary_id=summary.id,
+                document_type='invoice',
+                company=company,
+                return_to='all_vouchers',
+            ),
+        })
+
+    vouchers.sort(key=lambda row: (row['sort_number'], row['voucher_no']), reverse=True)
+    return render_template(
+        'all_vouchers.html',
+        vouchers=vouchers,
+        company=company,
+        company_options=('Canon', 'Haram'),
+    )
+
+
 def session_has_portal_access(portal):
     if owner_only():
         return True
@@ -5267,14 +5343,14 @@ def render_credit_debit_ledger(company_mode=False):
             purchase_method = 'PO quantity × rate'
         add_entry(
             requirement.date,
-            'CREDIT',
+            'DEBIT',
             'Accessory purchase',
             ' · '.join(value for value in (requirement.supplier, requirement.item) if value),
             f'PO {requirement.po_no}' if requirement.po_no else f'Requirement #{requirement.id}',
             purchase_method,
             purchase_amount,
             recorded_at=requirement.created_at,
-            company=company_for_order(requirement.order_id),
+            company=requirement.company or company_for_order(requirement.order_id),
             party=requirement.supplier,
         )
 
@@ -6117,21 +6193,26 @@ def accounts_accessories_billing_vendor():
         return denied
 
     supplier = (request.values.get('supplier') or '').strip()
+    company_source = request.form if request.method == 'POST' else request.args
+    company = (company_source.get('company') or 'Canon').strip()
+    if company not in ('Canon', 'Haram'):
+        abort(400)
     if not supplier:
         abort(404)
 
-    requirements = SavedRequirement.query.filter(
+    supplier_requirements = SavedRequirement.query.filter(
         func.lower(func.trim(SavedRequirement.supplier)) == supplier.casefold(),
     ).order_by(SavedRequirement.id.asc()).all()
-    requirements = [entry for entry in requirements if not is_party_supplied_stock_layer(entry)]
-    if not requirements:
+    supplier_requirements = [entry for entry in supplier_requirements if not is_party_supplied_stock_layer(entry)]
+    if not supplier_requirements:
         abort(404)
+    requirements = [entry for entry in supplier_requirements if (entry.company or 'Canon') == company]
 
     if request.method == 'POST':
         action = (request.form.get('action') or '').strip()
         if action == 'mark_paid':
             voucher = AccessoryBillVoucher.query.get_or_404(request.form.get('voucher_id', type=int))
-            if voucher.supplier.strip().casefold() != supplier.casefold():
+            if voucher.supplier.strip().casefold() != supplier.casefold() or (voucher.company or 'Canon') != company:
                 abort(404)
             paid_on = (request.form.get('paid_on') or '').strip()
             bank_name = (request.form.get('bank_name') or '').strip()
@@ -6140,24 +6221,24 @@ def accounts_accessories_billing_vendor():
             cheque_filename = ''
             if bank_name not in UTILITY_BILL_BANKS:
                 flash('Select a valid bank account.', 'danger')
-                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier, company=company))
             if not cheque_number or len(cheque_number) > 100:
                 flash('Enter a valid cheque number.', 'danger')
-                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier, company=company))
             try:
                 datetime.strptime(paid_on, '%Y-%m-%d')
             except ValueError:
                 flash('Enter a valid payment date.', 'danger')
-                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier, company=company))
             if cheque_upload and cheque_upload.filename:
                 extension = cheque_upload.filename.rsplit('.', 1)[-1].lower() if '.' in cheque_upload.filename else ''
                 if extension not in {'png', 'jpg', 'jpeg', 'webp'}:
                     flash('Upload the cheque as a PNG, JPG, or WEBP image.', 'danger')
-                    return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+                    return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier, company=company))
                 safe_name = secure_filename(cheque_upload.filename)
                 if not safe_name:
                     flash('Choose a valid cheque image file.', 'danger')
-                    return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+                    return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier, company=company))
                 cheque_filename = f"accessory_voucher_cheque_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{safe_name}"
             if cheque_filename:
                 cheque_upload.save(os.path.join(app.config['UPLOAD_FOLDER'], cheque_filename))
@@ -6169,7 +6250,7 @@ def accounts_accessories_billing_vendor():
                 voucher.cheque_image = f'/static/uploads/{cheque_filename}'
             db.session.commit()
             flash(f'Voucher {voucher.voucher_no} marked paid.', 'success')
-            return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+            return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier, company=company))
 
         if action == 'create_voucher':
             selected_po_numbers = list(dict.fromkeys(
@@ -6177,7 +6258,7 @@ def accounts_accessories_billing_vendor():
             ))
             if not selected_po_numbers:
                 flash('Select at least one unpaid PO.', 'danger')
-                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier, company=company))
 
             selected_po_keys = {po_no.casefold() for po_no in selected_po_numbers}
             existing_po_rows = AccessoryBillVoucherPO.query.filter(
@@ -6186,10 +6267,11 @@ def accounts_accessories_billing_vendor():
             already_vouchered = {
                 (entry.po_no or '').strip().casefold()
                 for entry in existing_po_rows
+                if entry.voucher and (entry.voucher.company or 'Canon') == company
             }
             if selected_po_keys & already_vouchered:
                 flash('One or more selected POs already have a voucher.', 'danger')
-                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier, company=company))
 
             selected_requirements = [
                 entry for entry in requirements
@@ -6202,7 +6284,7 @@ def accounts_accessories_billing_vendor():
                 grouped_requirements.setdefault(po_key, []).append(entry)
             if set(grouped_requirements) != selected_po_keys:
                 flash('One or more selected POs have no positive accessory bill amount.', 'danger')
-                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier))
+                return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier, company=company))
 
             voucher_rows = []
             po_totals = {}
@@ -6223,6 +6305,7 @@ def accounts_accessories_billing_vendor():
             bill_total = sum(total for _, total in po_totals.values())
             voucher = AccessoryBillVoucher(
                 supplier=supplier,
+                company=company,
                 voucher_no=next_billing_voucher_no(),
                 voucher_date=datetime.now(timezone(timedelta(hours=5), name='PKT')).strftime('%Y-%m-%d'),
                 total_amount=bill_total,
@@ -6240,7 +6323,7 @@ def accounts_accessories_billing_vendor():
                 ))
             db.session.commit()
             flash(f'Voucher {voucher.voucher_no} created for {len(po_totals)} PO(s). It remains unpaid until payment is recorded.', 'success')
-            return redirect(url_for('print_accessory_bill_voucher', voucher_id=voucher.id))
+            return redirect(url_for('print_accessory_bill_voucher', voucher_id=voucher.id, company=company))
 
     po_groups_by_key = {}
     for entry in requirements:
@@ -6260,6 +6343,7 @@ def accounts_accessories_billing_vendor():
     voucher_by_po = {
         (entry.po_no or '').strip().casefold(): entry.voucher
         for entry in voucher_po_rows
+        if entry.voucher and (entry.voucher.company or 'Canon') == company
     }
     unpaid_pos = []
     paid_pos = []
@@ -6284,6 +6368,8 @@ def accounts_accessories_billing_vendor():
         paid_pos=paid_pos,
         pending_vouchers=pending_vouchers,
         bank_names=UTILITY_BILL_BANKS,
+        company=company,
+        company_options=('Canon', 'Haram'),
         today=datetime.now(timezone(timedelta(hours=5), name='PKT')).strftime('%Y-%m-%d'),
     )
 
@@ -6329,7 +6415,7 @@ def print_accessory_bill_voucher(voucher_id):
         if (entry.po_no or '').strip().casefold() in month_by_po
     ))
     purchase_month_label = ' / '.join(purchase_months)
-    company_name = 'CANON ENTERPRISES'
+    company_name = 'HARAM ENTERPRISES' if (voucher.company or 'Canon') == 'Haram' else 'CANON ENTERPRISES'
     summary = SimpleNamespace(
         invoice_no=voucher.voucher_no,
         invoice_date=voucher.voucher_date,
@@ -6350,14 +6436,27 @@ def print_accessory_bill_voucher(voucher_id):
         po_label=po_label,
         document_type='accessory',
         invoice_title='ACCESSORY BILL PAYMENT VOUCHER',
-        invoice_back_url=url_for('accounts_accessories_billing_vendor', supplier=voucher.supplier),
+        invoice_back_url=(
+            url_for('accounts_all_vouchers', company=voucher.company or 'Canon')
+            if request.args.get('return_to') == 'all_vouchers'
+            else url_for(
+                'accounts_accessories_billing_vendor',
+                supplier=voucher.supplier,
+                company=voucher.company or 'Canon',
+            )
+        ),
+        invoice_back_label=(
+            'Back to All Vouchers'
+            if request.args.get('return_to') == 'all_vouchers'
+            else 'Back to Accessories Billing'
+        ),
         payment_reference_label='PURCHASE ORDER(S)',
         cheque_no=voucher.cheque_number or '',
         payment_date=voucher.paid_on,
         cheque_image_url=voucher.cheque_image,
         company_name=company_name,
-        company_logo_screen='canon logo black.webp',
-        company_logo_print='canon logo black.webp',
+        company_logo_screen='haram-black.png' if (voucher.company or 'Canon') == 'Haram' else 'canon logo black.webp',
+        company_logo_print='haram-black.png' if (voucher.company or 'Canon') == 'Haram' else 'canon logo black.webp',
         amount_words=amount_in_words(voucher.total_amount, indian=True),
         print_timestamp=f"{print_time.strftime('%A, %B')} {print_time.day}, {print_time.strftime('%Y at %I:%M %p')}",
     )
@@ -6911,7 +7010,16 @@ def utility_bill_invoice(bill_id):
         payment_method_label='BANK' if summary and summary.bank_name else 'METHOD',
         bank_name=summary.bank_name if summary and summary.bank_name else latest_payment.method,
         invoice_title='UTILITY BILL PAYMENT INVOICE',
-        invoice_back_url=url_for('accounts_utility_bills'),
+        invoice_back_url=(
+            url_for('accounts_all_vouchers', company=bill.company or 'Canon')
+            if request.args.get('return_to') == 'all_vouchers'
+            else url_for('accounts_utility_bills')
+        ),
+        invoice_back_label=(
+            'Back to All Vouchers'
+            if request.args.get('return_to') == 'all_vouchers'
+            else 'Back to Utility Bills'
+        ),
         print_timestamp=f"{print_time.strftime('%A, %B')} {print_time.day}, {print_time.strftime('%Y at %I:%M %p')}",
     )
 
@@ -8773,6 +8881,7 @@ PAGE_ACCESS_OPTIONS = [
     ('shipments', 'Goods Delivery & Shipments', ('stock',)),
     ('stock_challan', 'Delivery Challan', ('challan',)),
     ('accounts_home', 'Accounts Home', ('accounts',)),
+    ('all_vouchers', 'All Vouchers', ('accounts',)),
     ('customer_billing', 'Customer Billing', ('accounts',)),
     ('credit_debit', 'Party Credit/Debit', ('accounts',)),
     ('company_credit_debit', 'Company Credit/Debit', ('accounts',)),
@@ -8885,6 +8994,8 @@ def required_page_for_request():
         return 'orders'
     if path.startswith('/accounts/company-credit-debit'):
         return 'company_credit_debit'
+    if path.startswith('/accounts/all-vouchers'):
+        return 'all_vouchers'
     if path.startswith('/accounts/credit-debit-ledger'):
         return 'credit_debit'
     if path.startswith('/accounts/petty-cash'):
@@ -9705,6 +9816,7 @@ def req_slip():
         'requested_by': '',
         'priority': '',
         'supplier': '',
+        'company': 'Canon',
         'date': '',
         'for_field': '',
         'po_no': generate_po_no(),
@@ -9734,6 +9846,7 @@ def req_slip():
             prefill['priority'] = first.priority or prefill['priority']
             prefill['supplier'] = first.supplier or prefill['supplier']
             prefill['date'] = first.date or prefill['date']
+            prefill['company'] = first.company or 'Canon'
             prefill['for_field'] = first.for_field or prefill['for_field']
             prefill['po_no'] = first.po_no or prefill['po_no']
             prefill['serial_no'] = first.serial_no or prefill['serial_no']
@@ -9814,6 +9927,7 @@ def req_slip():
             prefill['priority'] = edit_req.priority or ''
             prefill['supplier'] = edit_req.supplier or ''
             prefill['date'] = edit_req.date or ''
+            prefill['company'] = edit_req.company or 'Canon'
             prefill['for_field'] = edit_req.for_field or ''
             prefill['po_no'] = edit_req.po_no or prefill['po_no']
             prefill['serial_no'] = edit_req.serial_no or prefill['serial_no']
@@ -9822,11 +9936,15 @@ def req_slip():
         date = request.form.get('date')
         requested_by = request.form.get('requested_by')
         supplier = request.form.get('supplier')
+        company = (request.form.get('company') or 'Canon').strip()
         priority = request.form.get('priority')
         serial_no = request.form.get('serial_no') or generate_requirement_serial()
         for_field = request.form.get('for_field')
         po_no = request.form.get('po_no')  # will come from hidden field
         req_id = request.form.get('req_id')
+        if company not in ('Canon', 'Haram'):
+            flash('Choose Canon or Haram for this requirement.', 'danger')
+            return redirect(url_for('req_slip', job_no=job_no))
         existing_po = bool(
             po_no and SavedRequirement.query.filter_by(order_id=job_no, po_no=po_no).first()
         )
@@ -9906,6 +10024,7 @@ def req_slip():
                     edit_req.requested_by = requested_by
                     edit_req.priority = priority
                     edit_req.date = date
+                    edit_req.company = company
                     edit_req.for_field = for_field
                     edit_req.po_no = po_no
                     edit_req.supplier = supplier
@@ -9932,6 +10051,7 @@ def req_slip():
                     rate=rate,
                     bill_amount=bill_amount,
                     supplier=supplier,
+                    company=company,
                     serial_no=serial_no,
                     requested_by=requested_by,
                     priority=priority,
@@ -16581,6 +16701,10 @@ def accessories_portal(portal_page='home'):
                 return redirect_to_portal('purchase-orders')
 
             local_items = []
+            company = (request.form.get('local_company') or 'Canon').strip()
+            if company not in ('Canon', 'Haram'):
+                flash('Choose Canon or Haram for this Local PO.', 'danger')
+                return redirect_to_portal('purchase-orders')
             for row_number in range(1, 7):
                 item_name = (request.form.get(f'local_item_{row_number}') or '').strip()
                 qty_value = (request.form.get(f'local_qty_{row_number}') or '').strip()
@@ -16662,6 +16786,7 @@ def accessories_portal(portal_page='home'):
                     rate=rate_text,
                     bill_amount=bill_amount,
                     supplier=supplier,
+                    company=company,
                     requested_by=requested_by,
                     priority=priority,
                     date=po_date,
@@ -17416,12 +17541,12 @@ def accessories_portal(portal_page='home'):
             continue
         if not (po_item.issue_unit or '').strip():
             po_item.issue_unit = default_issue_unit_for_item(po_item.item, po_item.unit or 'PCS')
-        group_key = (po_item.order_id or '', po_item.po_no or '')
+        group_key = (po_item.order_id or '', po_item.po_no or '', po_item.company or 'Canon')
         po_groups.setdefault(group_key, []).append(po_item)
 
     auto_po_summaries = []
     local_po_summaries = []
-    for (order_id, po_no), group_items in sorted(po_groups.items(), key=lambda group: (group[0][0], group[0][1])):
+    for (order_id, po_no, company), group_items in sorted(po_groups.items(), key=lambda group: (group[0][0], group[0][1], group[0][2])):
         display_statuses = [
             'PO_SENT' if (po_item.accessory_status or 'PENDING') == 'PENDING'
             else (po_item.accessory_status or 'PENDING')
@@ -17433,6 +17558,7 @@ def accessories_portal(portal_page='home'):
         po_summary = {
             'order_id': 'LOCAL STOCK' if order_id == LOCAL_ACCESSORY_PO_ORDER_ID else (order_id or '-'),
             'is_local': order_id == LOCAL_ACCESSORY_PO_ORDER_ID,
+            'company': company,
             'po_no': po_no or '-',
             'status': po_status,
             'item_id': group_items[0].id if group_items else '',
@@ -17486,6 +17612,7 @@ def accessories_portal(portal_page='home'):
             'for_field': first_item.for_field or '' if first_item else '',
             'serial_no': first_item.serial_no or '' if first_item else '',
             'is_local': po['is_local'],
+            'company': po['company'],
             'items': po_lines,
             'total': po_total,
         }
@@ -18262,12 +18389,16 @@ def build_customer_bill_print_lines(bill_lines, shipment_breakdowns):
             ),
             'challan_id': challan_id,
             'description': item['article_line'],
+            'file_numbers': [],
             'quantity': 0.0,
             'unit': 'PCS',
             'amount': 0.0,
             'detail_lines': [],
             'unit_notes': [],
         })
+        file_number = (item.get('file_no') or '').strip()
+        if file_number and file_number not in print_line['file_numbers']:
+            print_line['file_numbers'].append(file_number)
         print_line['quantity'] += quality_pcs
         print_line['amount'] += round(quality_pcs * bill_line.unit_rate, 2)
         print_line['detail_lines'].extend(item.get('detail_lines') or [])
@@ -18968,17 +19099,19 @@ def print_billing_invoice(invoice_id):
     paid = round(sum(payment.amount for payment in invoice.payments), 2)
     bill = CustomerBill.query.filter_by(challan_id=invoice.challan_id).first()
     hydrate_customer_bill_details(bill)
+    packet_weight = (request.args.get('packet_weight') or '').strip()[:50]
     return render_template(
         'billing_print.html',
         invoice=invoice,
         bill=bill,
+        packet_weight=packet_weight,
         amount_in_words=amount_in_words(invoice.total),
         paid=paid,
         balance=max(round(invoice.total - paid, 2), 0.0),
         today=datetime.utcnow().strftime('%Y-%m-%d'),
         selected_shipper=selected_shipper,
         company_name='HARAM ENTERPRISES' if selected_shipper == 'Haram' else 'CANON ENTERPRISES',
-        company_location='Akhter & Iqbal Compound, Block-C, Ground Floor, L/3, Block-22, F.B. Industrial Area, Opp. Edhi Home, Karachi.',
+        company_location='Akhter & Iqbal Compound, Block-C, Ground Floor, L/3, Block-22, F.B. Industrial Area, Opp. Edhi Home, Karachi.' if selected_shipper == 'Canon' else '',
     )
 
 
@@ -19244,6 +19377,7 @@ def build_challan_shipment_data(challan):
             breakdown.append({
                 'shipment_id': shipment.id,
                 'job_no': shipment_order.job_no,
+                'file_no': shipment_order.file_no,
                 'article': shipment_order.article,
                 'article_line': f'{article_line} - ({quality})',
                 'quality_pcs': quality_pcs,

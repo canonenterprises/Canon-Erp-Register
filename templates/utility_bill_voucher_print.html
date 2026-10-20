@@ -8,7 +8,7 @@
   <div class="payment-actions mb-5 flex justify-between print:hidden">
     <a href="{{ invoice_back_url if invoice_back_url is defined else url_for('accounts_utility_bill_summary', summary_id=summary.id, view='invoice') }}"
        class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">
-      {{ 'Back to Accessories Billing' if document_type == 'accessory' else 'Back to Bill Summary' }}
+      {{ invoice_back_label if invoice_back_label is defined else ('Back to Accessories Billing' if document_type == 'accessory' else 'Back to Bill Summary') }}
     </a>
 
     <button type="button" onclick="window.print()"

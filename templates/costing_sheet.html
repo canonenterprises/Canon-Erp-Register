@@ -1070,7 +1070,7 @@ function calculateCosting() {
     */
 
     const revisedProfit =
-        (revisedTotal + revisedOverhead) * profitRate;
+        revisedOverhead * profitRate;
 
 
     /*
@@ -1119,7 +1119,7 @@ function calculateCosting() {
         baseTotal * overheadRate;
 
     const originalProfit =
-        (baseTotal + originalOverhead) * profitRate;
+        originalOverhead * profitRate;
 
     const originalNetReadyCost =
         baseTotal +

@@ -4,6 +4,8 @@
 
 <!-- Print Styles to Remove Paper Margins -->
 <style>
+  .customer-bill-copy-duplicate { display: none; }
+  .bill-file-number { display: none; }
   @page {
     margin: 8mm;
     margin-top: 0;
@@ -12,6 +14,9 @@
     size: A4;
   }
   @media print {
+    .customer-bill-copy { break-after: page; page-break-after: always; }
+    .customer-bill-copy-duplicate { display: flex !important; flex-direction: column; break-after: auto; page-break-after: auto; }
+    .canon-copy-article .bill-file-number { display: block !important; }
     .bill-total-label { font-size: 14pt !important; line-height: 1.2 !important; }
     .bill-total-value { font-size: 18pt !important; line-height: 1.2 !important; }
     .bill-article-note-print {
@@ -38,7 +43,7 @@
 </div>
 
 <!-- Main Bill Card (Full Bleed on Print) -->
-<article class="max-w-4xl mx-auto bg-white border-none shadow-lg overflow-hidden font-sans print:max-w-none print:w-full print:min-h-[297mm] print:flex print:flex-col print:overflow-visible print:border-none print:shadow-none print:m-0 print:rounded-none">
+<article id="customer-bill-copy" class="customer-bill-copy max-w-4xl mx-auto bg-white border-none shadow-lg overflow-hidden font-sans print:max-w-none print:w-full print:min-h-[297mm] print:flex print:flex-col print:overflow-visible print:border-none print:shadow-none print:m-0 print:rounded-none">
   
   <!-- Bill Header -->
   <header class="bg-white text-black px-6 pt-6 pb-2 sm:px-8 sm:pt-8 sm:pb-3 print:bg-white print:text-black print:px-8 print:pt-8 print:pb-3">
@@ -63,6 +68,7 @@
     </div>
 
     <!-- Meta Data Grid Bar -->
+    <p data-bill-copy-label class="hidden mb-2 text-center text-lg font-black uppercase print:block">CUSTOMER COPY</p>
     <div class="grid grid-cols-[repeat(3,minmax(0,1fr))] print:grid-cols-[repeat(3,minmax(0,1fr))] gap-2 sm:gap-4 mt-2 p-4 rounded-lg border-b border-black bg-[#b7955c] text-center print:border-black print:bg-[#b7955c]" style="-webkit-print-color-adjust: exact; print-color-adjust: exact;">
       <div>
         <span class="block text-[12px] font-semibold text-black uppercase leading-tight print:text-[11px]">Bill No.</span>
@@ -113,6 +119,7 @@
             <td class="p-2 align-top font-medium">{{ '%02d'|format(loop.index) }}</td>
             <td class="p-2 align-top">
               <strong class="text-black block font-bold">{{ line.description }}</strong>
+              {% if line.file_numbers %}<span class="bill-file-number mt-1 text-xs font-semibold">{{ line.file_numbers|join(', ') }}</span>{% endif %}
             </td>
             {% set line_challan = challans_by_id.get(line.challan_id, bill.challan) %}
             <td class="p-2 align-top font-bold text-center text-black">{{ format_challan_number(line_challan.challan_no) }}</td>
@@ -199,7 +206,7 @@
     </footer>
 
     <div class="mt-2 pt-2 text-right text-[11px] text-black">
-      Printed on: <span id="customer-bill-print-timestamp"></span>
+      Printed on: <span data-customer-bill-print-timestamp></span>
     </div>
 
   </div>
@@ -207,8 +214,14 @@
 
 <script>
 (function () {
-  const timestamp = document.getElementById('customer-bill-print-timestamp');
-  if (!timestamp) return;
+  const billArticle = document.getElementById('customer-bill-copy');
+  const canonCopy = billArticle.cloneNode(true);
+  canonCopy.removeAttribute('id');
+  canonCopy.classList.add('customer-bill-copy-duplicate', 'canon-copy-article');
+  canonCopy.setAttribute('aria-hidden', 'true');
+  canonCopy.querySelector('[data-bill-copy-label]').textContent = 'CANON COPY';
+  canonCopy.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'));
+  billArticle.parentNode.insertBefore(canonCopy, billArticle.nextSibling);
 
   function updatePrintTimestamp() {
     const now = new Date();
@@ -220,7 +233,9 @@
       minute: '2-digit',
       hour12: true
     });
-    timestamp.textContent = `${day}-${month}-${year}, ${time}`;
+    document.querySelectorAll('[data-customer-bill-print-timestamp]').forEach(timestamp => {
+      timestamp.textContent = `${day}-${month}-${year}, ${time}`;
+    });
   }
 
   updatePrintTimestamp();
