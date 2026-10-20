@@ -12,8 +12,8 @@
     </header>
 
     <section class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div><p class="text-xs font-bold uppercase text-slate-500">Visible accessory bills</p><p class="mt-1 text-2xl font-black text-amber-800">PKR {{ '{:,.2f}'.format(total_billed) }}</p></div>
-      <form method="get" class="flex w-full gap-2 sm:max-w-md"><input type="search" name="q" value="{{ search }}" placeholder="Search vendors and suppliers" class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"><button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">Search</button></form>
+      <div><p class="text-xs font-bold uppercase text-slate-500">Visible accessory bills</p><p id="accessory-billing-total" class="mt-1 text-2xl font-black text-amber-800">PKR {{ '{:,.2f}'.format(total_billed) }}</p></div>
+      <form id="accessory-billing-search-form" class="w-full sm:max-w-md"><label for="accessory-billing-search" class="sr-only">Search vendors and suppliers</label><input id="accessory-billing-search" type="search" value="{{ search }}" placeholder="Search vendors and suppliers" autocomplete="off" class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm"></form>
     </section>
 
     <section class="overflow-x-auto border-y border-slate-200">
@@ -21,11 +21,54 @@
         <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-3 py-3">Vendor / Supplier</th><th class="px-3 py-3 text-right">POs</th><th class="px-3 py-3 text-right">Unpaid</th><th class="px-3 py-3 text-right">Paid</th><th class="px-3 py-3 text-right">Accessory Bills (PKR)</th><th class="px-3 py-3"></th></tr></thead>
         <tbody class="divide-y divide-slate-100">
           {% for vendor in suppliers %}
-          <tr class="hover:bg-amber-50"><td class="px-3 py-3 font-bold"><a href="{{ url_for('accounts_accessories_billing_vendor', supplier=vendor.supplier) }}" class="text-slate-900 underline decoration-slate-300 underline-offset-4 hover:text-amber-800">{{ vendor.supplier }}</a></td><td class="px-3 py-3 text-right">{{ vendor.po_count }}</td><td class="px-3 py-3 text-right">{{ vendor.unpaid_count }}</td><td class="px-3 py-3 text-right">{{ vendor.paid_count }}</td><td class="px-3 py-3 text-right font-black">{{ '{:,.2f}'.format(vendor.total_billed) }}</td><td class="px-3 py-3 text-right"><a href="{{ url_for('accounts_accessories_billing_vendor', supplier=vendor.supplier) }}" aria-label="View POs for {{ vendor.supplier|e }}" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-white"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a></td></tr>
-          {% else %}<tr><td colspan="6" class="px-3 py-10 text-center text-slate-500">No accessory suppliers found.</td></tr>{% endfor %}
+          <tr class="hover:bg-amber-50" data-accessory-supplier-row data-supplier="{{ vendor.supplier|e }}" data-total-billed="{{ vendor.total_billed }}"><td class="px-3 py-3 font-bold"><a href="{{ url_for('accounts_accessories_billing_vendor', supplier=vendor.supplier) }}" class="text-slate-900 underline decoration-slate-300 underline-offset-4 hover:text-amber-800">{{ vendor.supplier }}</a></td><td class="px-3 py-3 text-right">{{ vendor.po_count }}</td><td class="px-3 py-3 text-right">{{ vendor.unpaid_count }}</td><td class="px-3 py-3 text-right">{{ vendor.paid_count }}</td><td class="px-3 py-3 text-right font-black">{{ '{:,.2f}'.format(vendor.total_billed) }}</td><td class="px-3 py-3 text-right"><a href="{{ url_for('accounts_accessories_billing_vendor', supplier=vendor.supplier) }}" aria-label="View POs for {{ vendor.supplier|e }}" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-white"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a></td></tr>
+          {% else %}<tr id="accessory-billing-empty"><td colspan="6" class="px-3 py-10 text-center text-slate-500">No accessory suppliers found.</td></tr>{% endfor %}
+          {% if suppliers %}<tr id="accessory-billing-no-results" hidden><td colspan="6" class="px-3 py-10 text-center text-slate-500">No matching accessory suppliers.</td></tr>{% endif %}
         </tbody>
       </table>
     </section>
   </div>
 </div>
+<script>
+  const accessoryBillingSearch = document.getElementById('accessory-billing-search');
+  const accessoryBillingForm = document.getElementById('accessory-billing-search-form');
+  const accessoryBillingRows = Array.from(document.querySelectorAll('[data-accessory-supplier-row]'));
+  const accessoryBillingTotal = document.getElementById('accessory-billing-total');
+  const accessoryBillingNoResults = document.getElementById('accessory-billing-no-results');
+
+  function filterAccessoryBilling() {
+    const query = (accessoryBillingSearch.value || '').trim().toLocaleLowerCase();
+    let visibleCount = 0;
+    let visibleTotal = 0;
+    accessoryBillingRows.forEach(function (row) {
+      const matches = (row.dataset.supplier || '').toLocaleLowerCase().includes(query);
+      row.hidden = !matches;
+      if (matches) {
+        visibleCount += 1;
+        visibleTotal += Number(row.dataset.totalBilled || 0);
+      }
+    });
+    if (accessoryBillingNoResults) accessoryBillingNoResults.hidden = visibleCount > 0;
+    if (accessoryBillingTotal) {
+      accessoryBillingTotal.textContent = 'PKR ' + new Intl.NumberFormat(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(visibleTotal);
+    }
+
+    const url = new URL(window.location.href);
+    if (query) url.searchParams.set('q', accessoryBillingSearch.value.trim());
+    else url.searchParams.delete('q');
+    window.history.replaceState({}, '', url);
+  }
+
+  if (accessoryBillingSearch && accessoryBillingForm) {
+    accessoryBillingSearch.addEventListener('input', filterAccessoryBilling);
+    accessoryBillingForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      filterAccessoryBilling();
+    });
+    filterAccessoryBilling();
+  }
+</script>
 {% endblock %}

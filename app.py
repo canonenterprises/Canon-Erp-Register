@@ -1895,6 +1895,33 @@ def format_date_ddmmyy(value):
             continue
     return text
 
+ 
+def format_month_year(value):
+    if not value:
+        return ''
+    text = str(value).strip()
+    if ',' in text:
+        return ', '.join(format_month_year(part) for part in text.split(','))
+    for fmt in ('%Y-%m', '%Y-%m-%d', '%Y/%m', '%Y/%m/%d', '%b-%y', '%B %Y'):
+        try:
+            return datetime.strptime(text, fmt).strftime('%b - %y').upper()
+        except ValueError:
+            continue
+    return text
+
+
+def normalize_utility_billing_periods(values):
+    periods = [str(value).strip() for value in values if str(value).strip()]
+    if not periods or any(not re.fullmatch(r'\d{4}-(0[1-9]|1[0-2])', period) for period in periods):
+        raise ValueError('Select at least one valid billing month.')
+    if len(periods) != len(set(periods)):
+        raise ValueError('Select each billing month only once.')
+    return ','.join(sorted(periods))
+
+
+def utility_billing_periods(value):
+    return [period.strip() for period in str(value or '').split(',') if period.strip()]
+
 
 def normalize_date(value):
     if not value:
@@ -1916,6 +1943,7 @@ def ledger_recorded_at(recorded_at, fallback_date):
 
 app.jinja_env.filters['format_ddmmyyyy'] = format_date_ddmmyyyy
 app.jinja_env.filters['format_ddmmyy'] = format_date_ddmmyy
+app.jinja_env.filters['format_month_year'] = format_month_year
 
 def sort_cut_numbers(cuts):
     return sorted(
@@ -3033,7 +3061,7 @@ class UtilityBill(db.Model):
     utility_type = db.Column(db.String(30), nullable=False, index=True)
     provider = db.Column(db.String(150), nullable=False)
     account_reference = db.Column(db.String(100), default='')
-    billing_period = db.Column(db.String(20), nullable=False, index=True)
+    billing_period = db.Column(db.Text, nullable=False, index=True)
     bill_date = db.Column(db.String(10), nullable=False)
     due_date = db.Column(db.String(10), default='')
     amount = db.Column(db.Float, nullable=False)
@@ -4431,6 +4459,16 @@ def ensure_table_columns(engine):
                 }.items():
                     if column_name not in invoice_columns:
                         conn.execute(text(column_def))
+        if 'utility_bill' in inspector.get_table_names():
+            utility_bill_columns = {column['name']: column for column in inspector.get_columns('utility_bill')}
+            billing_period_column = utility_bill_columns.get('billing_period')
+            if billing_period_column and getattr(billing_period_column['type'], 'length', None):
+                if engine.dialect.name == 'postgresql':
+                    with engine.begin() as conn:
+                        conn.execute(text('ALTER TABLE utility_bill ALTER COLUMN billing_period TYPE TEXT'))
+                elif engine.dialect.name == 'mysql':
+                    with engine.begin() as conn:
+                        conn.execute(text('ALTER TABLE utility_bill MODIFY billing_period TEXT NOT NULL'))
         if 'utility_bill_summary' in inspector.get_table_names():
             summary_columns = {column['name'] for column in inspector.get_columns('utility_bill_summary')}
             summary_column_migrations = {
@@ -5846,6 +5884,102 @@ def accounts_petty_cash():
     settle_petty_cash_months(current_month, now)
 
     if request.method == 'POST':
+        action = (request.form.get('action') or 'create').strip().lower()
+        if action in ('edit_entry', 'delete_entry'):
+            entry_id = request.form.get('entry_id', type=int)
+            entry = db.session.get(PettyCashEntry, entry_id) if entry_id else None
+            if not entry:
+                abort(404)
+            try:
+                if entry.transaction_type not in ('ALLOCATION', 'EXPENSE'):
+                    raise ValueError('Automatic month-end returns cannot be changed.')
+                if entry.month_key != current_month or PettyCashMonthClose.query.filter_by(
+                    month_key=entry.month_key, company=entry.company
+                ).first():
+                    raise ValueError('Only entries in the open month can be changed.')
+
+                ledger_entry = None
+                if entry.transaction_type == 'ALLOCATION':
+                    ledger_entry = ManualCreditDebitEntry.query.filter_by(
+                        reference=f'PETTY-CASH-{entry.id}'
+                    ).first()
+
+                if action == 'delete_entry':
+                    deleted_type = entry.transaction_type
+                    deleted_amount = entry.amount
+                    deleted_company = entry.company
+                    deleted_description = entry.description
+                    if ledger_entry:
+                        db.session.delete(ledger_entry)
+                    db.session.delete(entry)
+                    g.activity_action = (
+                        f'DELETED PETTY CASH {deleted_type} PKR {deleted_amount:,.2f} · '
+                        f'{deleted_company} · {deleted_description}'
+                    ).upper()
+                    db.session.commit()
+                    flash('Petty cash entry deleted.', 'success')
+                    return redirect(url_for('accounts_petty_cash'))
+
+                company = (request.form.get('company') or '').strip().title()
+                description = (request.form.get('description') or '').strip()
+                date_value = (request.form.get('date') or '').strip()
+                parsed_date = normalize_date(date_value)
+                amount = parse_billing_amount(request.form.get('amount'), 'Amount')
+                if company not in ('Canon', 'Haram'):
+                    raise ValueError('Choose Canon or Haram as the funding company.')
+                if not parsed_date or parsed_date.strftime('%Y-%m') != current_month:
+                    raise ValueError('Petty cash entries must be dated within the current month.')
+                if parsed_date.date() > now.date():
+                    raise ValueError('Petty cash entries cannot be dated in the future.')
+                if not description:
+                    raise ValueError('Description is required.')
+                if amount <= 0:
+                    raise ValueError('Amount must be greater than zero.')
+                if entry.transaction_type == 'EXPENSE':
+                    month_entries = PettyCashEntry.query.filter_by(
+                        month_key=current_month, company=company
+                    ).all()
+                    balance = round(sum(
+                        item.amount if item.transaction_type == 'ALLOCATION'
+                        else -item.amount if item.transaction_type == 'EXPENSE'
+                        else 0
+                        for item in month_entries if item.id != entry.id
+                    ), 2)
+                    if amount > balance:
+                        raise ValueError(
+                            f'Expense exceeds the {company} petty cash balance of PKR {balance:,.2f}.'
+                        )
+
+                entry.date = parsed_date.strftime('%Y-%m-%d')
+                entry.company = company
+                entry.description = description
+                entry.amount = amount
+                if entry.transaction_type == 'ALLOCATION':
+                    if not ledger_entry:
+                        ledger_entry = ManualCreditDebitEntry(
+                            direction='DEBIT',
+                            reference=f'PETTY-CASH-{entry.id}',
+                            method='Petty cash transfer',
+                            party_name='Petty Cash',
+                            created_by=entry.created_by or '',
+                        )
+                        db.session.add(ledger_entry)
+                    ledger_entry.date = entry.date
+                    ledger_entry.description = f'Petty cash allocation: {description}'
+                    ledger_entry.amount = amount
+                    ledger_entry.company = company
+
+                db.session.commit()
+                g.activity_action = (
+                    f'EDITED PETTY CASH {entry.transaction_type} PKR {amount:,.2f} · '
+                    f'{company} · {description}'
+                ).upper()
+                flash('Petty cash entry updated.', 'success')
+            except ValueError as exc:
+                db.session.rollback()
+                flash(str(exc), 'danger')
+            return redirect(url_for('accounts_petty_cash'))
+
         transaction_type = (request.form.get('transaction_type') or '').strip().upper()
         company = (request.form.get('company') or '').strip().title()
         description = (request.form.get('description') or '').strip()
@@ -6255,10 +6389,6 @@ def factory_in_out_ledger():
         if (direction == 'ALL' or movement['direction'] == direction)
         and (not start_date or movement['sort_date'] >= start_date)
         and (not end_date or movement['sort_date'] <= end_date.replace(hour=23, minute=59, second=59))
-        and (
-            not search
-            or search in ' '.join(str(movement[key]) for key in ('date', 'category', 'item', 'description', 'reference', 'quantity', 'direction')).casefold()
-        )
     ]
     visible_movements.sort(
         key=lambda movement: movement['sort_recorded_at'],
@@ -6293,8 +6423,6 @@ def accounts_accessories_billing():
             continue
         supplier = (requirement.supplier or '').strip()
         supplier_key = supplier.casefold()
-        if search and search not in supplier_key:
-            continue
         group = supplier_groups.setdefault(supplier_key, {
             'supplier': supplier,
             'po_keys': set(),
@@ -6308,7 +6436,7 @@ def accounts_accessories_billing():
     for vendor in Vendor.query.order_by(Vendor.name.asc()).all():
         supplier = (vendor.name or '').strip()
         supplier_key = supplier.casefold()
-        if supplier and (not search or search in supplier_key):
+        if supplier:
             supplier_groups.setdefault(supplier_key, {
                 'supplier': supplier,
                 'po_keys': set(),
@@ -6597,7 +6725,7 @@ def print_accessory_bill_voucher(voucher_id):
             date_value = (date_value or '').strip()[:10]
             for date_format in ('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y'):
                 try:
-                    month_by_po[po_key] = datetime.strptime(date_value, date_format).strftime('%B').upper()
+                    month_by_po[po_key] = datetime.strptime(date_value, date_format).strftime('%b-%y').upper()
                     break
                 except ValueError:
                     continue
@@ -6610,7 +6738,7 @@ def print_accessory_bill_voucher(voucher_id):
         for entry in voucher.purchase_orders
         if (entry.po_no or '').strip().casefold() in month_by_po
     ))
-    purchase_month_label = ' / '.join(purchase_months)
+    purchase_month_label = ', '.join(purchase_months)
     company_name = 'HARAM ENTERPRISES' if (voucher.company or 'Canon') == 'Haram' else 'CANON ENTERPRISES'
     summary = SimpleNamespace(
         invoice_no=voucher.voucher_no,
@@ -6673,7 +6801,7 @@ def accounts_utility_bills():
             company = (request.form.get('company') or 'Canon').strip().title()
             provider = (request.form.get('provider') or '').strip()
             account_reference = (request.form.get('account_reference') or '').strip()
-            billing_period = (request.form.get('billing_period') or '').strip()
+            billing_period_values = request.form.getlist('billing_period')
             bill_date = (request.form.get('bill_date') or '').strip()
             due_date = (request.form.get('due_date') or '').strip()
             try:
@@ -6683,8 +6811,7 @@ def accounts_utility_bills():
                     raise ValueError('Select Canon or Haram for this bill.')
                 if not provider:
                     raise ValueError('Provider is required.')
-                if not re.fullmatch(r'\d{4}-(0[1-9]|1[0-2])', billing_period):
-                    raise ValueError('Billing period must be a valid month.')
+                billing_period = normalize_utility_billing_periods(billing_period_values)
                 datetime.strptime(bill_date, '%Y-%m-%d')
                 if due_date:
                     datetime.strptime(due_date, '%Y-%m-%d')
@@ -6808,8 +6935,6 @@ def accounts_utility_bills():
     rows = []
     totals = {'amount': 0.0, 'paid': 0.0, 'balance': 0.0}
     for bill in bills:
-        if search and not any(search in (value or '').casefold() for value in (bill.utility_type, bill.provider, bill.account_reference, bill.billing_period)):
-            continue
         paid = round(sum(payment.amount for payment in bill.payments), 2)
         balance = round(max(bill.amount - paid, 0.0), 2)
         summary = latest_summaries.get(bill.id)
@@ -6932,13 +7057,13 @@ def accounts_utility_bill_summary():
 
     summary_id = request.values.get('summary_id', type=int)
     bill_id = request.values.get('bill_id', type=int)
-    summary = UtilityBillSummary.query.get(summary_id) if summary_id else None
+    summary = db.session.get(UtilityBillSummary, summary_id) if summary_id else None
     if summary_id and not summary:
         abort(404)
     if not summary and bill_id:
         summary = UtilityBillSummary.query.filter_by(utility_bill_id=bill_id).order_by(UtilityBillSummary.id.desc()).first()
     bill = summary.utility_bill if summary else None
-    today = datetime.utcnow().strftime('%Y-%m-%d')
+    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
     if request.method == 'POST':
         action = request.form.get('action', '')
@@ -6949,7 +7074,7 @@ def accounts_utility_bill_summary():
         provider = (request.form.get('provider') or '').strip()
         account_reference = (request.form.get('account_reference') or '').strip()
         bank_name = (request.form.get('bank_name') or '').strip()
-        billing_period = (request.form.get('billing_period') or '').strip()
+        billing_period_values = request.form.getlist('billing_period')
         bill_date = (request.form.get('bill_date') or '').strip()
         due_date = (request.form.get('due_date') or '').strip()
 
@@ -6968,8 +7093,7 @@ def accounts_utility_bill_summary():
                 raise ValueError('Select Canon or Haram for this bill.')
             if not provider:
                 raise ValueError('Provider is required.')
-            if not re.fullmatch(r'\d{4}-(0[1-9]|1[0-2])', billing_period):
-                raise ValueError('Billing period must be a valid month.')
+            billing_period = normalize_utility_billing_periods(billing_period_values)
             datetime.strptime(bill_date, '%Y-%m-%d')
             if due_date:
                 datetime.strptime(due_date, '%Y-%m-%d')
@@ -7090,7 +7214,16 @@ def accounts_utility_bill_summary():
     else:
         summary_rows = []
     normalized_current_number = normalize_utility_bill_voucher_no(summary) if summary else False
-    summaries = UtilityBillSummary.query.order_by(UtilityBillSummary.created_at.desc(), UtilityBillSummary.id.desc()).limit(100).all()
+    summaries = UtilityBillSummary.query.filter(
+        UtilityBillSummary.rows_json.like('%"electric_charges"%')
+    ).order_by(UtilityBillSummary.created_at.desc(), UtilityBillSummary.id.desc()).limit(100).all()
+    summaries = [
+        item for item in summaries
+        if any(
+            isinstance(row, dict) and 'electric_charges' in row and 'meter_no' in row
+            for row in json.loads(item.rows_json or '[]')
+        )
+    ]
     normalized_list_numbers = [normalize_utility_bill_voucher_no(item) for item in summaries]
     if normalized_current_number or any(normalized_list_numbers):
         db.session.commit()
@@ -7102,7 +7235,7 @@ def accounts_utility_bill_summary():
         summaries=summaries,
         bank_names=UTILITY_BILL_BANKS,
         today=today,
-        current_month=datetime.utcnow().strftime('%Y-%m'),
+        current_month=datetime.now(timezone.utc).strftime('%Y-%m'),
         view=request.args.get('view', 'edit'),
     )
 
@@ -7121,7 +7254,10 @@ def print_utility_bill_summary(summary_id, document_type):
         db.session.commit()
     bill = summary.utility_bill
     try:
-        rental_month = datetime.strptime(bill.billing_period or '', '%Y-%m').strftime('%b').upper()
+        rental_month = ', '.join(
+            datetime.strptime(period, '%Y-%m').strftime('%b').upper()
+            for period in utility_billing_periods(bill.billing_period)
+        )
     except ValueError:
         rental_month = ''
     latest_payment = max(
@@ -7131,7 +7267,7 @@ def print_utility_bill_summary(summary_id, document_type):
     )
     print_time = datetime.now(timezone(timedelta(hours=5), name='PKT'))
     try:
-        billing_month_display = datetime.strptime(bill.billing_period or '', '%Y-%m').strftime('%b-%y').upper()
+        billing_month_display = format_month_year(bill.billing_period)
     except ValueError:
         billing_month_display = bill.billing_period or ''
     try:
@@ -7149,7 +7285,28 @@ def print_utility_bill_summary(summary_id, document_type):
         ) or summary.bank_name,
         'billing_month_display': billing_month_display,
         'prd_date_display': prd_date_display,
-        'summary_rows': json.loads(summary.rows_json or '[]'),
+        'summary_rows': [
+            {
+                'meter_no': '',
+                'bill_no': '',
+                'location': '',
+                'previous_reading': 0,
+                'present_reading': 0,
+                'units': 0,
+                'electric_charges': 0,
+                'adjustment': 0,
+                'fuel_charges': 0,
+                'additional_surcharge': 0,
+                'tariff_difference': 0,
+                'rate': 0,
+                'maintenance_charges': 0,
+                'water_charges': 0,
+                'total': 0,
+                **row,
+            }
+            for row in json.loads(summary.rows_json or '[]')
+            if isinstance(row, dict)
+        ],
         'document_type': document_type,
         'prepared_by': session.get('name') or session.get('user') or 'System',
         'print_timestamp': f"{print_time.strftime('%A, %B')} {print_time.day}, {print_time.strftime('%Y at %I:%M %p')}",
@@ -7224,7 +7381,10 @@ def utility_bill_invoice(bill_id):
     cheque_payment = next((payment for payment in reversed(payments) if payment.cheque_image), None)
     cheque_image_url = cheque_payment.cheque_image if cheque_payment else (summary.cheque_image if summary else '')
     try:
-        rental_month = datetime.strptime(bill.billing_period or '', '%Y-%m').strftime('%b').upper()
+        rental_month = ', '.join(
+            datetime.strptime(period, '%Y-%m').strftime('%b').upper()
+            for period in utility_billing_periods(bill.billing_period)
+        )
     except ValueError:
         rental_month = ''
     print_time = datetime.now(timezone(timedelta(hours=5), name='PKT'))
@@ -9684,7 +9844,7 @@ def owner_dashboard():
     monthly_utility_bills = sum(
         numeric(bill.amount)
         for bill in utility_bills
-        if bill.billing_period == month_key
+        if month_key in utility_billing_periods(bill.billing_period)
     )
     utility_outstanding = sum(
         max(0.0, numeric(bill.amount) - sum(numeric(payment.amount) for payment in bill.payments))
@@ -13452,6 +13612,67 @@ def new_article():
     return render_template('new_article.html', form=form, generated_article_no=edit_article.article_no if edit_article else generate_article_no(), item_master_data=item_master_data, edit_article=edit_article)
 
 
+VENDOR_PHONE_COUNTRY_CODES = (
+    ('+92', 'Pakistan'),
+    ('+1', 'United States / Canada'),
+    ('+44', 'United Kingdom'),
+    ('+91', 'India'),
+    ('+971', 'United Arab Emirates'),
+    ('+966', 'Saudi Arabia'),
+    ('+61', 'Australia'),
+    ('+880', 'Bangladesh'),
+    ('+94', 'Sri Lanka'),
+    ('+93', 'Afghanistan'),
+    ('+86', 'China'),
+    ('+49', 'Germany'),
+    ('+33', 'France'),
+    ('+39', 'Italy'),
+    ('+90', 'Turkiye'),
+)
+
+
+def normalize_vendor_phone(country_code, local_number):
+    allowed_codes = {code for code, _ in VENDOR_PHONE_COUNTRY_CODES}
+    country_code = (country_code or '+92').strip()
+    if country_code not in allowed_codes:
+        return None, 'Choose a valid phone country code.'
+
+    digits = re.sub(r'\D', '', local_number or '')
+    if not digits:
+        return '', None
+    if country_code == '+92':
+        if not re.fullmatch(r'3\d{9}', digits):
+            return None, 'Pakistan phone numbers must be 10 digits and start with 3.'
+    elif not 4 <= len(digits) <= 15:
+        return None, 'Enter a phone number with 4 to 15 digits.'
+
+    return f'{country_code} {digits}', None
+
+
+def split_vendor_phone(value):
+    phone = (value or '').strip()
+    for country_code, _ in sorted(VENDOR_PHONE_COUNTRY_CODES, key=lambda option: len(option[0]), reverse=True):
+        if phone.startswith(country_code):
+            digits = re.sub(r'\D', '', phone[len(country_code):])
+            if country_code == '+92' and len(digits) == 11 and digits.startswith('03'):
+                digits = digits[1:]
+            return country_code, digits
+    digits = re.sub(r'\D', '', phone)
+    if len(digits) == 11 and digits.startswith('03'):
+        digits = digits[1:]
+    return '+92', digits
+
+
+def next_vendor_code():
+    vendor_codes = db.session.query(Vendor.code).filter(Vendor.code.isnot(None)).all()
+    sequence_numbers = []
+    for (code,) in vendor_codes:
+        match = re.fullmatch(r'VEN-(\d+)', (code or '').strip(), re.IGNORECASE)
+        if match:
+            sequence_numbers.append(int(match.group(1)))
+    return f'VEN-{max(sequence_numbers, default=0) + 1:04d}'
+
+
 @app.route('/manager/vendors', methods=['GET', 'POST'])
 def vendors():
     if not session.get('role'):
@@ -13465,15 +13686,19 @@ def vendors():
 
         vendor = Vendor.query.filter(func.lower(func.trim(Vendor.name)) == vendor_name.lower()).first()
         if not vendor:
-            vendor_code = (request.form.get('vendor_code') or '').strip() or None
-            if vendor_code and Vendor.query.filter(func.lower(func.trim(Vendor.code)) == vendor_code.lower()).first():
-                flash('A vendor with this code already exists.', 'danger')
+            phone, phone_error = normalize_vendor_phone(
+                request.form.get('phone_country_code'),
+                request.form.get('phone_number'),
+            )
+            if phone_error:
+                flash(phone_error, 'danger')
                 return redirect(url_for('vendors'))
+            vendor_code = next_vendor_code()
             vendor = Vendor(
                 name=vendor_name,
                 code=vendor_code,
                 contact_person=(request.form.get('contact_person') or '').strip(),
-                phone=(request.form.get('phone') or '').strip(),
+                phone=phone,
                 email=(request.form.get('email') or '').strip(),
                 address=(request.form.get('address') or '').strip(),
                 notes=(request.form.get('notes') or '').strip(),
@@ -13492,9 +13717,11 @@ def vendors():
     return render_template(
         'vendors.html',
         vendors=vendors_list,
+        phone_country_codes=VENDOR_PHONE_COUNTRY_CODES,
         total_vendor_items=len(vendor_items),
         priced_vendor_items=sum(1 for item in vendor_items if parse_numeric(item.rate) > 0),
         vendors_missing_contact=sum(1 for vendor in vendors_list if not (vendor.contact_person or vendor.phone or vendor.email)),
+        next_vendor_code=next_vendor_code(),
     )
 
 
@@ -13599,8 +13826,15 @@ def vendor_detail(vendor_id):
         if action == 'update_vendor':
             vendor_name = (request.form.get('vendor_name') or '').strip()
             vendor_code = (request.form.get('vendor_code') or '').strip() or None
+            phone, phone_error = normalize_vendor_phone(
+                request.form.get('phone_country_code'),
+                request.form.get('phone_number'),
+            )
             if not vendor_name:
                 flash('Vendor name is required.', 'danger')
+                return redirect(url_for('vendor_detail', vendor_id=vendor.id))
+            if phone_error:
+                flash(phone_error, 'danger')
                 return redirect(url_for('vendor_detail', vendor_id=vendor.id))
             duplicate_name = Vendor.query.filter(
                 Vendor.id != vendor.id,
@@ -13616,7 +13850,7 @@ def vendor_detail(vendor_id):
             vendor.name = vendor_name
             vendor.code = vendor_code
             vendor.contact_person = (request.form.get('contact_person') or '').strip()
-            vendor.phone = (request.form.get('phone') or '').strip()
+            vendor.phone = phone
             vendor.email = (request.form.get('email') or '').strip()
             vendor.address = (request.form.get('address') or '').strip()
             vendor.notes = (request.form.get('notes') or '').strip()
@@ -13699,6 +13933,9 @@ def vendor_detail(vendor_id):
     return render_template(
         'vendor_detail.html',
         vendor=vendor,
+        phone_country_codes=VENDOR_PHONE_COUNTRY_CODES,
+        vendor_phone_country_code=split_vendor_phone(vendor.phone)[0],
+        vendor_phone_number=split_vendor_phone(vendor.phone)[1],
         items=items,
         item_master=item_master,
         item_master_data=item_master_data,
@@ -17890,7 +18127,7 @@ def accessories_portal(portal_page='home'):
             query = query.filter(or_(SavedRequirement.accessory_status.is_(None), SavedRequirement.accessory_status == 'PENDING'))
         else:
             query = query.filter_by(accessory_status=status_filter)
-    if search:
+    if search and portal_page != 'issued-returned-items':
         like = f"%{search.lower()}%"
         query = query.filter(or_(
             func.lower(SavedRequirement.item).like(like),

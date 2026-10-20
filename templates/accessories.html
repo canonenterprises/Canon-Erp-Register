@@ -337,11 +337,11 @@
 
     {% if portal_page == 'issued-returned-items' %}
     <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <form method="get" class="grid gap-3 md:grid-cols-[1.5fr_1fr_auto] md:items-end">
-        <div><label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Search issue history</label><input type="text" name="search" value="{{ search }}" placeholder="Item, supplier, PO, order" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></div>
-        <div><label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</label><select name="status" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">All statuses</option><option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>PENDING</option><option value="PO_SENT" {% if status_filter == 'PO_SENT' %}selected{% endif %}>PO SENT</option><option value="RECEIVED" {% if status_filter == 'RECEIVED' %}selected{% endif %}>RECEIVED</option><option value="ISSUED" {% if status_filter == 'ISSUED' %}selected{% endif %}>ISSUED</option><option value="USED" {% if status_filter == 'USED' %}selected{% endif %}>USED</option><option value="RETURNED" {% if status_filter == 'RETURNED' %}selected{% endif %}>RETURNED</option></select></div>
-        <div class="flex gap-2"><button type="submit" class="rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">Apply</button>{% if search or status_filter %}<a href="{{ url_for('accessories_portal', portal_page='issued-returned-items', order_id=selected_order_id or None) }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Clear</a>{% endif %}</div>
+      <form id="issue-history-filters" method="get" class="grid gap-3 md:grid-cols-[1.5fr_1fr_auto] md:items-end">
+        <div><label for="issue-history-search" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Search issue history</label><input id="issue-history-search" type="search" name="search" value="{{ search }}" placeholder="Item, supplier, PO, order" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></div>
+        <div><label for="issue-history-status" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</label><select id="issue-history-status" name="status" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">All statuses</option><option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>PENDING</option><option value="PO_SENT" {% if status_filter == 'PO_SENT' %}selected{% endif %}>PO SENT</option><option value="RECEIVED" {% if status_filter == 'RECEIVED' %}selected{% endif %}>RECEIVED</option><option value="ISSUED" {% if status_filter == 'ISSUED' %}selected{% endif %}>ISSUED</option><option value="USED" {% if status_filter == 'USED' %}selected{% endif %}>USED</option><option value="RETURNED" {% if status_filter == 'RETURNED' %}selected{% endif %}>RETURNED</option></select></div>
         {% if selected_order_id %}<input type="hidden" name="order_id" value="{{ selected_order_id }}">{% endif %}
+        {% if search or status_filter %}<div><a href="{{ url_for('accessories_portal', portal_page='issued-returned-items', order_id=selected_order_id or None) }}" class="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Clear</a></div>{% endif %}
       </form>
     </section>
     {% endif %}
@@ -363,7 +363,7 @@
         </thead>
         <tbody>
           {% for item in received_item_groups %}
-          <tr class="border-y border-slate-200">
+          <tr class="border-y border-slate-200" data-issue-history-group="{{ loop.index }}" data-issue-history-search="{{ item.item }}{% for size, quality in item.variants %} {{ size }} {{ quality }}{% endfor %}{% for supplier in item.suppliers %} {{ supplier }}{% endfor %}{% for order_id in item.orders %} {{ order_id }}{% endfor %}{% for slip in item.purchase_slips %} {{ slip.po_no }}{% endfor %}">
             <td class="px-3 py-3 font-bold text-slate-800">{{ item.item }}{% for size, quality in item.variants %}<div class="text-xs font-normal text-slate-500">{{ size }}{% if size and quality %} · {% endif %}{{ quality }}</div>{% endfor %}</td>
             <td class="px-3 py-3">{{ qty_by_unit(item, 'qty_value') }}</td>
             <td class="px-3 py-3">{{ qty_by_unit(item, 'received_value') }}</td>
@@ -381,7 +381,7 @@
               </span>
             </td>
           </tr>
-          <tr id="issue-details-{{ loop.index }}" class="{% if not item.issue_history_entries %}hidden {% endif %}border-y border-cyan-200 bg-cyan-50/40">
+          <tr id="issue-details-{{ loop.index }}" data-issue-history-group="{{ loop.index }}" class="{% if not item.issue_history_entries %}hidden {% endif %}border-y border-cyan-200 bg-cyan-50/40">
             <td class="p-0"></td>
             <td colspan="6" class="p-0">
               <table class="w-full border-y border-cyan-200 text-center text-xs">
@@ -421,14 +421,56 @@
               </table>
             </td>
           </tr>
-          {% else %}
-          <tr>
-            <td colspan="7" class="px-3 py-8 text-center text-slate-500">No received accessory items match these filters.</td>
-          </tr>
           {% endfor %}
+          <tr id="issue-history-no-results" {% if received_item_groups %}hidden{% endif %}><td colspan="7" class="px-3 py-8 text-center text-slate-500">No received accessory items match these filters.</td></tr>
         </tbody>
       </table>
     </section>
+    <script>
+      const issueHistoryForm = document.getElementById('issue-history-filters');
+      const issueHistorySearch = document.getElementById('issue-history-search');
+      const issueHistoryStatus = document.getElementById('issue-history-status');
+      const issueHistoryEmptyRow = document.getElementById('issue-history-no-results');
+
+      if (issueHistoryForm && issueHistorySearch && issueHistoryStatus) {
+        const issueHistoryRows = Array.from(document.querySelectorAll('[data-issue-history-group]'));
+        const issueHistoryGroups = new Map();
+        issueHistoryRows.forEach(function (row) {
+          row.dataset.issueHistoryInitiallyHidden = row.classList.contains('hidden') ? 'true' : 'false';
+          const group = issueHistoryGroups.get(row.dataset.issueHistoryGroup) || [];
+          group.push(row);
+          issueHistoryGroups.set(row.dataset.issueHistoryGroup, group);
+        });
+
+        function filterIssueHistory() {
+          const query = issueHistorySearch.value.trim().toLocaleLowerCase();
+          let visibleGroups = 0;
+          issueHistoryGroups.forEach(function (rows) {
+            const searchableText = (rows[0].dataset.issueHistorySearch || '').toLocaleLowerCase();
+            const matches = !query || searchableText.includes(query);
+            rows.forEach(function (row) {
+              row.classList.toggle(
+                'hidden',
+                !matches || row.dataset.issueHistoryInitiallyHidden === 'true'
+              );
+            });
+            if (matches) visibleGroups += 1;
+          });
+          if (issueHistoryEmptyRow) issueHistoryEmptyRow.hidden = visibleGroups > 0;
+
+          const url = new URL(window.location.href);
+          if (query) url.searchParams.set('search', issueHistorySearch.value.trim());
+          else url.searchParams.delete('search');
+          window.history.replaceState({}, '', url);
+        }
+
+        issueHistorySearch.addEventListener('input', filterIssueHistory);
+        issueHistoryStatus.addEventListener('change', function () {
+          issueHistoryForm.requestSubmit();
+        });
+        filterIssueHistory();
+      }
+    </script>
     {% endif %}
 
     {% if portal_page == 'issued-returned-items' %}

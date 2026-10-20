@@ -596,7 +596,7 @@
         <!-- Floating action menu -->
         {% set current_role = session.get('role') %}
         {% set is_costing_page = request.endpoint == 'costing_sheet' %}
-        {% if (current_role in ('owner', 'manager') and is_costing_page) or (current_role in ('owner', 'manager', 'assistant_manager', 'stock') and not is_costing_page) %}
+        {% if (current_role in ('owner', 'manager') and is_costing_page) or (current_role in ('owner', 'manager', 'assistant_manager', 'stock', 'accounts', 'challan') and not is_costing_page) %}
         <div class="fixed bottom-5 right-5 z-50 no-print sm:bottom-7 sm:right-7">
             <div id="fab-menu" class="hidden absolute bottom-[4.5rem] right-0 w-64 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-2xl shadow-slate-900/15 backdrop-blur-xl">
                 <div class="px-3 pb-2 pt-1">
@@ -644,7 +644,7 @@
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><i class="fa-solid fa-table-cells-large text-sm"></i></span>
                         <span>Dashboard</span>
                     </a>{% endif %}
-                    {% elif current_role == 'stock' %}
+                    {% elif current_role in ('stock', 'accounts', 'challan') and not is_accounts_area %}
                     {% if 'stock_home' in page_access_keys %}<a href="{{ url_for('stock_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-warehouse text-sm"></i></span>
                         <span>Stock Portal</span>
@@ -665,10 +665,26 @@
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><i class="fa-solid fa-truck-fast text-sm"></i></span>
                         <span>Goods Delivery &amp; Shipments</span>
                     </a>{% endif %}
+                    {% if 'stock_challan' in page_access_keys %}<a href="{{ url_for('challan_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-cyan-50 hover:text-cyan-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><i class="fa-solid fa-file-invoice text-sm"></i></span>
+                        <span>Delivery Challan</span>
+                    </a>{% endif %}
+                    {% if 'accounts_home' in page_access_keys %}<a href="{{ url_for('accounts_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-file-invoice-dollar text-sm"></i></span>
+                        <span>Accounts</span>
+                    </a>{% endif %}
                     {% elif is_accounts_area %}
                     {% if 'accounts_home' in page_access_keys %}<a href="{{ url_for('accounts_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-house text-sm"></i></span>
                         <span>Accounts Home</span>
+                    </a>{% endif %}
+                    {% if 'stock_home' in page_access_keys %}<a href="{{ url_for('stock_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-warehouse text-sm"></i></span>
+                        <span>Stock Portal</span>
+                    </a>{% endif %}
+                    {% if 'stock_challan' in page_access_keys %}<a href="{{ url_for('challan_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-cyan-50 hover:text-cyan-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><i class="fa-solid fa-file-invoice text-sm"></i></span>
+                        <span>Delivery Challan</span>
                     </a>{% endif %}
                     {% if 'customer_billing' in page_access_keys %}<a href="{{ url_for('billing_portal', shipper=request.args.get('shipper') or 'Canon') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-file-invoice-dollar text-sm"></i></span>
@@ -731,6 +747,11 @@
                         <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
                     </a>{% endif %}
                     {% endif %}
+                    {% if current_role in ('owner', 'manager') and 'stock_challan' in page_access_keys %}<a href="{{ url_for('challan_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600 transition group-hover:bg-cyan-100"><i class="fa-solid fa-file-invoice text-sm"></i></span>
+                        <span>Delivery Challan</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
+                    </a>{% endif %}
                     {% if current_role in ('owner', 'manager', 'assistant_manager') %}
                     {% if 'vendors' in page_access_keys %}<a href="{{ url_for('vendors') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 transition group-hover:bg-sky-100"><i class="fa-solid fa-truck-field text-sm"></i></span>

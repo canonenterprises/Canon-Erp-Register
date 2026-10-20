@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8 md:pb-20">
+<div class="portal-controls-page min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8 md:pb-20">
     <div class="mx-auto max-w-4xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-6 sm:p-8">
         <header class="rounded-2xl bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -16,9 +16,9 @@
             </div>
         </header>
 
-        <section class="rounded-2xl border border-cyan-100 bg-cyan-50/40 p-5 shadow-sm sm:p-6">
+        <section class="portal-controls-create rounded-2xl border border-cyan-100 bg-cyan-50/40 p-5 shadow-sm sm:p-6">
             <div class="mb-5">
-                <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600">New profile</p>
+            <p class="portal-controls-eyebrow text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600">New profile</p>
                 <h2 class="mt-1 text-xl font-black text-slate-900">Create portal profile</h2>
             </div>
             <form method="post" class="grid gap-4 sm:grid-cols-2">
@@ -95,7 +95,7 @@
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full min-w-[1080px] text-left text-sm">
-                    <thead class="bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    <thead class="portal-controls-table-header bg-slate-50 text-[10px] font-bold uppercase tracking-wider text-slate-500">
                         <tr>
                             <th class="px-4 py-3">Profile name</th>
                             <th class="px-4 py-3">User ID</th>
@@ -112,7 +112,7 @@
                             <input type="hidden" name="action" value="update">
                             <input type="hidden" name="account_id" value="{{ account.id }}">
                         </form>
-                        <tr class="bg-cyan-50/50">
+                        <tr class="portal-controls-edit-row bg-cyan-50/50">
                             <td class="px-4 py-3"><input form="edit-account-{{ account.id }}" name="name" required value="{{ account.name }}" class="w-full rounded-lg border border-slate-300 px-2 py-2"></td>
                             <td class="px-4 py-3"><input form="edit-account-{{ account.id }}" name="username" required value="{{ account.username }}" class="w-full rounded-lg border border-slate-300 px-2 py-2"></td>
                             <td class="px-4 py-3"><input form="edit-account-{{ account.id }}" name="password" required value="{{ account.password }}" class="w-full rounded-lg border border-slate-300 px-2 py-2"></td>
@@ -277,4 +277,22 @@
         checkbox.addEventListener('change', () => syncPageAccess(checkbox.dataset.pageAccess));
     });
 </script>
+<style>
+@media screen {
+    html[data-theme="dark"] .portal-controls-page .portal-controls-create {
+        border-color: #334155 !important;
+        background-color: #132238 !important;
+    }
+    html[data-theme="dark"] .portal-controls-page .portal-controls-eyebrow {
+        color: #67e8f9 !important;
+    }
+    html[data-theme="dark"] .portal-controls-page .portal-controls-table-header {
+        background-color: #0f172a !important;
+        color: #a8b5c9 !important;
+    }
+    html[data-theme="dark"] .portal-controls-page .portal-controls-edit-row {
+        background-color: #1a2c43 !important;
+    }
+}
+</style>
 {% endblock %}

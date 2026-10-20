@@ -123,7 +123,7 @@
                 </thead>
                 <tbody class="divide-y divide-slate-200 bg-white">
                   <!-- Opening Balance -->
-                  <tr class="bg-amber-50/90 font-black text-amber-900 ring-1 ring-amber-200 print:bg-amber-50 print:text-slate-900">
+                  <tr class="opening-balance-row bg-amber-50/90 font-black text-amber-900 ring-1 ring-amber-200 print:bg-amber-50 print:text-slate-900">
                     <td class="px-3 py-2.5 text-center uppercase tracking-wide text-amber-900 print:px-1 print:py-1">O/B</td>
                     <td class="border-l border-amber-200 px-3 py-2.5 text-center text-amber-900 print:px-1 print:py-1">—</td>
                     <td class="border-l border-amber-200 px-3 py-2.5 text-center text-amber-900 print:px-1 print:py-1">—</td>
@@ -195,7 +195,7 @@
                 </thead>
                 <tbody class="divide-y divide-slate-200 bg-white">
                   {% for item in row.shipment_rows %}
-                  <tr class="hover:bg-slate-50 print:hover:bg-transparent {% if item.date == 'O/B' %}bg-amber-50/90 font-black text-amber-900 ring-1 ring-amber-200 print:bg-amber-50{% endif %}">
+                  <tr class="hover:bg-slate-50 print:hover:bg-transparent {% if item.date == 'O/B' %}opening-balance-row bg-amber-50/90 font-black text-amber-900 ring-1 ring-amber-200 print:bg-amber-50{% endif %}">
                     <td class="whitespace-nowrap px-3 py-2.5 text-center print:px-1 print:py-1">{{ item.date | format_ddmmyy }}</td>
                     <td class="whitespace-nowrap border-l border-slate-200 px-3 py-2.5 text-center text-slate-500 print:px-1 print:py-1">
                       {% if item.date == 'O/B' %}—{% else %}{{ item.challan_no }}{% endif %}
@@ -254,6 +254,21 @@
 
 <style>
 .article-print-footer { display: none; }
+@media screen {
+  html[data-theme="dark"] .opening-balance-row {
+    background-color: #382d1b !important;
+    color: #fcd34d !important;
+    box-shadow: inset 0 0 0 1px #854d0e !important;
+  }
+  html[data-theme="dark"] .opening-balance-row td {
+    background-color: #382d1b !important;
+    border-color: #854d0e !important;
+    color: #fcd34d !important;
+  }
+  html[data-theme="dark"] .article-section [class*="bg-slate-200/50"] {
+    background-color: #172033 !important;
+  }
+}
 @media print {
   @page { 
     size: A4 landscape; 

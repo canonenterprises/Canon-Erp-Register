@@ -146,9 +146,9 @@
               {% if document_type == 'accessory' %}
                 M/O — {{ bill.purchase_months or '—' }}
               {% elif bill is defined and bill.utility_type == 'Rental Payment' %}
-                BILLING PERIOD — {{ bill.billing_period or '—' }}
+                BILLING PERIOD — {{ bill.billing_period|format_month_year or '—' }}
               {% else %}
-                BILLING PERIOD — {{ bill.billing_period or '—' }}
+                BILLING PERIOD — {{ bill.billing_period|format_month_year or '—' }}
               {% endif %}
             </td>
             <td class="ref-number">{% if document_type == 'accessory' and po_rows|length > 2 %}{{ po_rows[2].po_no }}{% if po_rows[2].month %}<span class="po-month">{{ po_rows[2].month }}</span>{% endif %}{% endif %}</td>
@@ -249,9 +249,9 @@
           {% if document_type == 'accessory' %}
             ISSUE CHEQUE TO {{ vendor_name or company_name or 'VENDOR' }} — M/O - {{ bill.purchase_months or '—' }}
           {% elif bill is defined and bill.utility_type == 'Rental Payment' %}
-            ISSUED CHEQUE FOR RENTAL BILL — M/O {{ bill.billing_period or '' }}
+            ISSUED CHEQUE FOR RENTAL BILL — M/O {{ bill.billing_period|format_month_year }}
           {% else %}
-            {{ summary.notes or 'ISSUED CHEQUE FOR ELECTRICITY BILL — M/O ' ~ (bill.billing_period or '') }}
+            {{ summary.notes or 'ISSUED CHEQUE FOR ELECTRICITY BILL — M/O ' ~ (bill.billing_period|format_month_year) }}
           {% endif %}
         </div>
       </div>
