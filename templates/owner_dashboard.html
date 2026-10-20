@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8 md:pb-20">
+<div class="owner-dashboard min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8 md:pb-20">
     <div class="mx-auto max-w-6xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-8">
 
         <!-- =========================================================
@@ -840,6 +840,16 @@
 <style>
     .owner-progress {
         accent-color: #0891b2;
+    }
+
+    @media screen {
+        html[data-theme="dark"] .owner-dashboard [class~="text-emerald-950"] { color: #6ee7b7 !important; }
+        html[data-theme="dark"] .owner-dashboard [class~="text-sky-950"] { color: #7dd3fc !important; }
+        html[data-theme="dark"] .owner-dashboard [class~="text-amber-950"] { color: #fcd34d !important; }
+        html[data-theme="dark"] .owner-dashboard [class~="text-rose-950"] { color: #fda4af !important; }
+        html[data-theme="dark"] .owner-dashboard [class~="text-cyan-950"] { color: #67e8f9 !important; }
+        html[data-theme="dark"] .owner-dashboard [class~="text-violet-950"] { color: #c4b5fd !important; }
+        html[data-theme="dark"] .owner-dashboard [class~="text-indigo-950"] { color: #a5b4fc !important; }
     }
 
     @media print {

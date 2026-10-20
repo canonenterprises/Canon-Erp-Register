@@ -33,17 +33,17 @@
 <!-- Action Buttons -->
 <div class="max-w-4xl mx-auto mb-4 flex justify-between items-center px-4 pt-4 print:hidden">
   <a href="{{ url_for('billing_portal', invoice_id=sales_invoice.id, shipper=selected_shipper) if sales_invoice else url_for('billing_portal', shipper=selected_shipper) }}" 
-     class="inline-flex items-center gap-2 rounded-md border border-black bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors">
+    class="print-back-button inline-flex items-center gap-2 rounded-md border border-slate-300 bg-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-300 transition-colors">
     <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Billing
   </a>
   <button type="button" onclick="window.print()" 
-          class="inline-flex items-center gap-2 rounded-md bg-[#b7955c] px-4 py-2 text-xs font-bold text-white hover:bg-[#9b7e4e] transition-colors">
+          class="print-gold-button inline-flex items-center gap-2 rounded-md bg-[#b7955c] px-4 py-2 text-xs font-bold text-white hover:bg-[#9b7e4e] transition-colors">
     <i class="fa-solid fa-print" aria-hidden="true"></i> Print Bill
   </button>
 </div>
 
 <!-- Main Bill Card (Full Bleed on Print) -->
-<article id="customer-bill-copy" class="customer-bill-copy max-w-4xl mx-auto bg-white border-none shadow-lg overflow-hidden font-sans print:max-w-none print:w-full print:min-h-[297mm] print:flex print:flex-col print:overflow-visible print:border-none print:shadow-none print:m-0 print:rounded-none">
+<article id="customer-bill-copy" class="customer-bill-copy print-light-paper max-w-4xl mx-auto bg-white border-none shadow-lg overflow-hidden font-sans print:max-w-none print:w-full print:min-h-[297mm] print:flex print:flex-col print:overflow-visible print:border-none print:shadow-none print:m-0 print:rounded-none">
   
   <!-- Bill Header -->
   <header class="bg-white text-black px-6 pt-6 pb-2 sm:px-8 sm:pt-8 sm:pb-3 print:bg-white print:text-black print:px-8 print:pt-8 print:pb-3">

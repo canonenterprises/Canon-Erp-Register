@@ -42,15 +42,14 @@
       <h2 class="text-xl font-black text-slate-900">{{ selected_shipper }} invoice register</h2>
       <p class="mt-1 text-sm text-slate-500">Only {{ selected_shipper }} delivery challans, invoices, and receipts appear in this portal.</p>
     </div>
-    <form method="get" class="grid w-full gap-2 sm:grid-cols-[minmax(12rem,1fr)_10rem_auto] md:max-w-2xl">
+    <form id="billing-filters" method="get" class="grid w-full gap-2 sm:grid-cols-[minmax(12rem,1fr)_10rem_auto] md:max-w-2xl">
       <input type="hidden" name="shipper" value="{{ selected_shipper }}">
-      <input type="search" name="q" value="{{ search }}" placeholder="Search billing records" class="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
-      <select name="status" class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
+      <input id="billing-filter-search" type="search" name="q" value="{{ search }}" placeholder="Search billing records" class="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
+      <select id="billing-filter-status" name="status" class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
         {% for value, label in [('ALL', 'All statuses'), ('OPEN', 'Open'), ('PARTIAL', 'Partially paid'), ('PAID', 'Paid'), ('OVERDUE', 'Overdue')] %}
         <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
-      <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Apply</button>
     </form>
   </section>
 
@@ -111,14 +110,15 @@
   {% endif %}
 
   <section id="invoice-register" class="space-y-3">
-    <div class="flex items-end justify-between gap-3"><div><h2 class="text-xl font-black text-slate-900">Invoices</h2><p class="mt-1 text-sm text-slate-500">Invoice snapshots and balances from posted receipts.</p></div><span class="text-sm font-bold text-slate-500">{{ invoice_rows|length }} shown</span></div>
+    <div class="flex items-end justify-between gap-3"><div><h2 class="text-xl font-black text-slate-900">Invoices</h2><p class="mt-1 text-sm text-slate-500">Invoice snapshots and balances from posted receipts.</p></div><span class="text-sm font-bold text-slate-500"><span id="billing-invoice-count">{{ invoice_rows|length }}</span> shown</span></div>
     <div class="overflow-x-auto border-y border-slate-200">
       <table class="w-full min-w-[920px] text-left text-sm">
         <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-3 py-3">Invoice</th><th class="px-3 py-3">Date / Due</th><th class="px-3 py-3">Customer</th><th class="px-3 py-3">Challan</th><th class="px-3 py-3">Job</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Received</th><th class="px-3 py-3 text-right">Balance</th><th class="px-3 py-3">Status</th><th class="px-3 py-3"></th></tr></thead>
         <tbody class="divide-y divide-slate-100">
           {% for row in invoice_rows %}
-          <tr class="hover:bg-slate-50"><td class="px-3 py-3 font-black text-slate-900">{{ row.invoice.invoice_no }}</td><td class="px-3 py-3 text-slate-600">{{ row.invoice.invoice_date }}{% if row.invoice.due_date %}<span class="block text-xs">Due {{ row.invoice.due_date }}</span>{% endif %}</td><td class="px-3 py-3 font-semibold">{{ row.invoice.party_name }}</td><td class="px-3 py-3">{% for challan in row.invoice.billing_challans %}{{ format_challan_number(challan.challan_no) }}{% if not loop.last %}, {% endif %}{% endfor %}</td><td class="px-3 py-3">{% for line in row.invoice.lines %}{{ line.job_no }}{% if not loop.last %}, {% endif %}{% endfor %}</td><td class="px-3 py-3 text-right font-bold">{{ '{:,.2f}'.format(row.invoice.total) }}</td><td class="px-3 py-3 text-right text-emerald-700">{{ '{:,.2f}'.format(row.paid) }}</td><td class="px-3 py-3 text-right font-bold {% if row.balance > 0 %}text-rose-700{% else %}text-slate-500{% endif %}">{{ '{:,.2f}'.format(row.balance) }}</td><td class="px-3 py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-[10px] font-black {% if row.status == 'PAID' %}bg-emerald-100 text-emerald-800{% elif row.status == 'OVERDUE' %}bg-rose-100 text-rose-800{% elif row.status == 'PARTIAL' %}bg-amber-100 text-amber-800{% else %}bg-slate-100 text-slate-700{% endif %}">{{ row.status }}</span></td><td class="px-3 py-3"><a href="{{ url_for('billing_portal', invoice_id=row.invoice.id, q=search, status=status_filter, shipper=selected_shipper) }}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold hover:bg-slate-100"><i class="fa-solid fa-eye" aria-hidden="true"></i> View</a></td></tr>
+          <tr data-billing-invoice-row data-status="{{ row.status }}" data-search-text="{{ row.invoice.invoice_no }} {{ row.invoice.party_name }} {% for challan in row.invoice.billing_challans %}{{ challan.challan_no }} {% endfor %}{% for line in row.invoice.lines %}{{ line.job_no }} {{ line.article }} {% endfor %}" class="hover:bg-slate-50"><td class="px-3 py-3 font-black text-slate-900">{{ row.invoice.invoice_no }}</td><td class="px-3 py-3 text-slate-600">{{ row.invoice.invoice_date }}{% if row.invoice.due_date %}<span class="block text-xs">Due {{ row.invoice.due_date }}</span>{% endif %}</td><td class="px-3 py-3 font-semibold">{{ row.invoice.party_name }}</td><td class="px-3 py-3">{% for challan in row.invoice.billing_challans %}{{ format_challan_number(challan.challan_no) }}{% if not loop.last %}, {% endif %}{% endfor %}</td><td class="px-3 py-3">{% for line in row.invoice.lines %}{{ line.job_no }}{% if not loop.last %}, {% endif %}{% endfor %}</td><td class="px-3 py-3 text-right font-bold">{{ '{:,.2f}'.format(row.invoice.total) }}</td><td class="px-3 py-3 text-right text-emerald-700">{{ '{:,.2f}'.format(row.paid) }}</td><td class="px-3 py-3 text-right font-bold {% if row.balance > 0 %}text-rose-700{% else %}text-slate-500{% endif %}">{{ '{:,.2f}'.format(row.balance) }}</td><td class="px-3 py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-[10px] font-black {% if row.status == 'PAID' %}bg-emerald-100 text-emerald-800{% elif row.status == 'OVERDUE' %}bg-rose-100 text-rose-800{% elif row.status == 'PARTIAL' %}bg-amber-100 text-amber-800{% else %}bg-slate-100 text-slate-700{% endif %}">{{ row.status }}</span></td><td class="px-3 py-3"><a href="{{ url_for('billing_portal', invoice_id=row.invoice.id, q=search, status=status_filter, shipper=selected_shipper) }}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold hover:bg-slate-100"><i class="fa-solid fa-eye" aria-hidden="true"></i> View</a></td></tr>
           {% else %}<tr><td colspan="10" class="px-3 py-10 text-center text-slate-500">No invoices match this view.</td></tr>{% endfor %}
+          <tr id="billing-no-matches" class="hidden"><td colspan="10" class="px-3 py-10 text-center text-slate-500">No invoices match these filters.</td></tr>
         </tbody>
       </table>
     </div>
@@ -170,6 +170,44 @@
     {% endfor %}
   </section>
 </div>
+<script>
+  const billingFilters = document.getElementById('billing-filters');
+  const billingFilterSearch = document.getElementById('billing-filter-search');
+  const billingFilterStatus = document.getElementById('billing-filter-status');
+  const billingInvoiceRows = Array.from(document.querySelectorAll('[data-billing-invoice-row]'));
+  const billingInvoiceCount = document.getElementById('billing-invoice-count');
+  const billingNoMatches = document.getElementById('billing-no-matches');
+
+  function normalizeBillingSearchValue(value) {
+    return String(value || '').trim().toLocaleLowerCase().replace(/(^|\D)0+(\d+)/g, '$1$2');
+  }
+
+  function filterBillingInvoices() {
+    const query = normalizeBillingSearchValue(billingFilterSearch?.value);
+    const selectedStatus = billingFilterStatus?.value || 'ALL';
+    let visibleCount = 0;
+
+    billingInvoiceRows.forEach(function (row) {
+      const searchText = normalizeBillingSearchValue(row.dataset.searchText);
+      const matchesQuery = searchText.includes(query);
+      const matchesStatus = selectedStatus === 'ALL' || row.dataset.status === selectedStatus;
+      const isVisible = matchesQuery && matchesStatus;
+      row.classList.toggle('hidden', !isVisible);
+      if (isVisible) visibleCount += 1;
+    });
+
+    if (billingInvoiceCount) billingInvoiceCount.textContent = String(visibleCount);
+    billingNoMatches?.classList.toggle('hidden', visibleCount > 0 || billingInvoiceRows.length === 0);
+  }
+
+  billingFilters?.addEventListener('submit', function (event) {
+    event.preventDefault();
+    filterBillingInvoices();
+  });
+  billingFilterSearch?.addEventListener('input', filterBillingInvoices);
+  billingFilterStatus?.addEventListener('change', filterBillingInvoices);
+  filterBillingInvoices();
+</script>
 {% if show_billing_notification_cards and (notification_unbilled_count or pending_payment_count) %}
 <aside class="fixed right-4 top-24 z-[70] flex max-h-[calc(100vh-7rem)] w-[min(32rem,calc(100vw-2rem))] flex-col gap-3 overflow-y-auto" aria-label="Billing notifications">
   {% if notification_unbilled_count %}

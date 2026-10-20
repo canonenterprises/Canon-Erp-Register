@@ -141,7 +141,7 @@
             </div>
             
             <div class="pt-10">
-                <button type="submit" class="w-full bg-slate-900 text-white font-bold py-3 rounded-lg hover:bg-black transition {% if not cutting_sheets %}opacity-50 cursor-not-allowed{% endif %}" {% if not cutting_sheets %}disabled title="Create a cutting sheet first for this order"{% endif %}>
+                <button type="submit" class="w-full bg-[#b7955c] text-white font-bold py-3 rounded-lg hover:bg-[#a17f49] transition {% if not cutting_sheets %}opacity-50 cursor-not-allowed{% endif %}" {% if not cutting_sheets %}disabled title="Create a cutting sheet first for this order"{% endif %}>
                     SAVE LOG ENTRY
                 </button>
             </div>
@@ -150,6 +150,8 @@
 </div>
 
 <script>
+window.FLASH_DISMISS_MS = 10000;
+
 // Map orders to their details for client-side prefill
 const ordersMap = {
     {% for p in parties %}

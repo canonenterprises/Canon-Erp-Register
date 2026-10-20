@@ -6,6 +6,7 @@ from flask import Flask, abort, g, render_template, request, redirect, url_for, 
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from sqlalchemy import inspect, text, func, Integer, String, or_, and_
+from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta, timezone
 import calendar
@@ -2299,6 +2300,7 @@ def update_payment_schema():
                 "company": "VARCHAR(30) DEFAULT 'Canon'",
             },
             "utility_bill_payment": {
+                "bank_name": "VARCHAR(100) DEFAULT ''",
                 "tid": "VARCHAR(100) DEFAULT ''",
                 "proof_of_payment": "VARCHAR(255) DEFAULT ''",
                 "cheque_number": "VARCHAR(100) DEFAULT ''",
@@ -2386,6 +2388,19 @@ class PortalAccount(db.Model):
     name = db.Column(db.String(150), nullable=False)
     portal_access = db.Column(db.Text, nullable=False, default='[]')
     page_access = db.Column(db.Text, nullable=True)
+
+
+class ActivityLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    actor_username = db.Column(db.String(100), nullable=True, index=True)
+    actor_name = db.Column(db.String(150), nullable=True)
+    actor_profile_role = db.Column(db.String(50), nullable=True, index=True)
+    action = db.Column(db.String(200), nullable=False)
+    method = db.Column(db.String(12), nullable=True)
+    endpoint = db.Column(db.String(120), nullable=True)
+    path = db.Column(db.String(500), nullable=True)
+    status_code = db.Column(db.Integer, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
 
 
 class SavedPartyArticleConsumption(db.Model):
@@ -3035,6 +3050,7 @@ class UtilityBillPayment(db.Model):
     amount = db.Column(db.Float, nullable=False)
     paid_on = db.Column(db.String(10), nullable=False)
     method = db.Column(db.String(30), nullable=False, default='Bank Transfer')
+    bank_name = db.Column(db.String(100), nullable=False, default='')
     reference = db.Column(db.String(100), default='')
     tid = db.Column(db.String(100), nullable=False, default='')
     proof_of_payment = db.Column(db.String(255), nullable=False, default='')
@@ -4169,6 +4185,7 @@ class AccessorySupplierReturn(db.Model):
     unit_rate = db.Column(db.Float, nullable=False, default=0.0)
     exchange_item = db.Column(db.String(150), default='')
     exchange_item_unit = db.Column(db.String(50), default='')
+    exchange_received_qty = db.Column(db.Float, nullable=False, default=0.0)
     note = db.Column(db.String(255), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     requirement = db.relationship(
@@ -4700,6 +4717,10 @@ with app.app_context():
             conn.execute(text(
                 'ALTER TABLE accessory_supplier_return ADD COLUMN exchange_item_unit VARCHAR(50) DEFAULT \'\''
             ))
+        if 'exchange_received_qty' not in supplier_return_columns:
+            conn.execute(text(
+                'ALTER TABLE accessory_supplier_return ADD COLUMN exchange_received_qty FLOAT NOT NULL DEFAULT 0'
+            ))
     for table_name in ('inventory', 'saved_requirement'):
         table_columns = {
             column['name'] for column in inspect(db.engine).get_columns(table_name)
@@ -5001,6 +5022,160 @@ def normalize_profile_name(name):
     return normalized_name
 
 
+def record_activity(action, username=None, profile_role=None, status_code=None):
+    actor_username = username or session.get('user')
+    try:
+        with Session(db.engine) as audit_session:
+            audit_session.add(ActivityLog(
+                actor_username=actor_username,
+                actor_name=session.get('name') if actor_username == session.get('user') else None,
+                actor_profile_role=profile_role or session.get('profile_role', session.get('role')),
+                action=action,
+                method=request.method,
+                endpoint=request.endpoint,
+                path=request.path,
+                status_code=status_code,
+            ))
+            audit_session.commit()
+    except Exception:
+        app.logger.exception('Could not write activity log entry')
+
+
+def humanize_activity(method, endpoint, portal_action=None, fallback_path=None):
+    endpoint = endpoint or (fallback_path or '').strip('/').replace('/', ' ')
+    endpoint_label = endpoint.replace('_', ' ').replace('-', ' ').strip().title()
+
+    if endpoint == 'portal_controls' and method == 'POST':
+        action = (portal_action or 'update').strip().lower()
+        verb = {'create': 'Created', 'delete': 'Deleted'}.get(action, 'Updated')
+        return f'{verb} Portal Profile'.upper()
+
+    if method == 'GET' or method == 'HEAD':
+        verb = 'Opened'
+    elif endpoint.startswith('save_'):
+        verb = 'Saved'
+        endpoint_label = endpoint_label[5:]
+    elif endpoint.startswith('create_'):
+        verb = 'Created'
+        endpoint_label = endpoint_label[7:]
+    elif endpoint.startswith(('update_', 'edit_')):
+        verb = 'Updated'
+        endpoint_label = endpoint_label.split(' ', 1)[1]
+    elif endpoint.startswith(('delete_', 'remove_')):
+        verb = 'Deleted'
+        endpoint_label = endpoint_label.split(' ', 1)[1]
+    elif endpoint.startswith(('mark_', 'record_')):
+        verb = 'Recorded'
+        endpoint_label = endpoint_label.split(' ', 1)[1]
+    else:
+        verb = 'Submitted' if method in ('POST', 'PUT', 'PATCH') else 'Viewed'
+
+    return f'{verb} {endpoint_label}'.upper()
+
+
+def describe_activity_request():
+    activity = humanize_activity(
+        request.method,
+        request.endpoint,
+        portal_action=request.form.get('action'),
+        fallback_path=request.path,
+    )
+    form_action = (request.form.get('action') or '').strip().lower()
+    endpoint = request.endpoint or request.path.strip('/').replace('/', ' ')
+    endpoint_label = endpoint.replace('_', ' ').replace('-', ' ').strip().title()
+    if form_action and endpoint != 'portal_controls':
+        action_verbs = (
+            (('create', 'add'), 'Created'),
+            (('save',), 'Saved'),
+            (('update', 'edit'), 'Updated'),
+            (('delete', 'remove'), 'Deleted'),
+            (('record', 'submit'), 'Recorded'),
+            (('mark_paid',), 'Marked Paid'),
+            (('mark_received',), 'Received'),
+            (('issue',), 'Issued'),
+            (('return',), 'Returned'),
+            (('refund',), 'Refunded'),
+            (('put_away', 'place'), 'Placed'),
+            (('move', 'relocate'), 'Moved'),
+        )
+        verb = next(
+            (label for prefixes, label in action_verbs if form_action.startswith(prefixes)),
+            None,
+        )
+        if verb:
+            activity = f'{verb} {endpoint_label}'
+    details = []
+    for label, field_names in (
+        ('ORDER', ('job_no', 'order_id')),
+        ('ARTICLE', ('article_no', 'article')),
+        ('FILE', ('file_no',)),
+        ('PO', ('po_no',)),
+        ('CHALLAN', ('challan_no',)),
+        ('INVOICE', ('invoice_no',)),
+        ('VENDOR', ('vendor_name',)),
+        ('SUPPLIER', ('supplier',)),
+        ('PROVIDER', ('provider',)),
+        ('PARTY', ('party_name', 'party')),
+        ('ITEM', ('item_name', 'item', 'movement_item')),
+        ('WORKER', ('worker_name',)),
+        ('SERIAL', ('serial_no',)),
+        ('CUT', ('cut_no',)),
+    ):
+        value = ''
+        for field_name in field_names:
+            value = (request.form.get(field_name) or '').strip()
+            if value:
+                break
+        if not value and label == 'ORDER':
+            value = str((request.view_args or {}).get('job_no') or '').strip()
+        if value:
+            details.append(f'{label} {value}')
+    company = (request.form.get('company') or '').strip()
+    if company:
+        details.append(f'COMPANY {company}')
+    billing_period = (request.form.get('billing_period') or '').strip()
+    if billing_period:
+        details.append(f'PERIOD {billing_period}')
+    for label, field_name in (
+        ('QUANTITY', 'quantity'),
+        ('QUANTITY', 'returned_qty'),
+        ('QUANTITY', 'movement_quantity'),
+        ('AMOUNT', 'amount'),
+        ('AMOUNT', 'manual_amount'),
+    ):
+        value = (request.form.get(field_name) or '').strip()
+        if value:
+            details.append(f'{label} {value}')
+    if details:
+        activity = f'{activity} · {" · ".join(details)}'
+    return activity.upper()[:200]
+
+
+def format_activity_rate(value):
+    return f'RS {value:.2f}' if value is not None else 'INHERITED'
+
+
+@app.after_request
+def log_profile_request(response):
+    is_write_request = request.method in ('POST', 'PUT', 'PATCH', 'DELETE')
+    if (
+        session.get('user')
+        and is_write_request
+        and response.status_code < 400
+        and request.endpoint not in ('static', 'login', 'logout', 'activity_log')
+    ):
+        activity_actions = getattr(g, 'activity_actions', None)
+        if activity_actions is not None:
+            for action in activity_actions:
+                record_activity(action, status_code=response.status_code)
+        else:
+            record_activity(
+                getattr(g, 'activity_action', None) or describe_activity_request(),
+                status_code=response.status_code,
+            )
+    return response
+
+
 @app.route('/login/<target_role>', methods=['GET', 'POST'])
 def login(target_role):
     if request.method == 'POST':
@@ -5015,6 +5190,7 @@ def login(target_role):
                 if account_role == 'owner' or target_role in account_portals(portal_account):
                     session_role = 'manager' if account_role == 'operations_manager' else account_role
                     session.update({'user': username, 'role': session_role, 'profile_role': account_role, 'name': normalize_profile_name(portal_account.name)})
+                    record_activity('Logged in', status_code=302)
                     default_endpoint = {
                         'manager': 'manager_dashboard',
                         'operations': 'manager_dashboard',
@@ -5034,6 +5210,7 @@ def login(target_role):
                 'role': account_role, 
                 'name': normalize_profile_name(portal_account.name)
             })
+            record_activity('Logged in', profile_role=account_role, status_code=302)
             if account_role == 'owner':
                 return redirect_after_portal_login('owner_dashboard')
             return redirect_after_portal_login('manager_dashboard')
@@ -5051,6 +5228,7 @@ def login(target_role):
                 'worker_name': worker.name,
                 'worker_id': worker.id,
             })
+            record_activity('Logged in', profile_role='worker', status_code=302)
             return redirect(url_for('worker_dashboard'))
             
         flash("Invalid Credentials!", "danger")
@@ -5223,6 +5401,10 @@ def render_credit_debit_ledger(company_mode=False):
                 created_by=session.get('name') or session.get('user') or '',
             ))
             db.session.commit()
+            g.activity_action = (
+                f'{direction_value} ENTRY PKR {amount_value:,.2f} · {manual_company} · '
+                f'{request.form.get("manual_party", "").strip() or "NO PARTY"} · {description_value}'
+            ).upper()
             flash('Manual credit/debit entry recorded.', 'success')
         return redirect(url_for(
             'accounts_company_credit_debit' if company_mode else 'accounts_credit_debit_ledger',
@@ -5725,6 +5907,9 @@ def accounts_petty_cash():
                 ))
 
             db.session.commit()
+            g.activity_action = (
+                f'PETTY CASH {transaction_type} PKR {amount:,.2f} · {company} · {description}'
+            ).upper()
             flash(
                 'Petty cash allocation recorded.' if transaction_type == 'ALLOCATION'
                 else 'Petty cash expense recorded.',
@@ -5803,6 +5988,9 @@ def factory_in_out_ledger():
                 created_by=session.get('name') or session.get('user') or '',
             ))
             db.session.commit()
+            g.activity_action = (
+                f'FACTORY {direction_value} {quantity_value:g} {unit_value} {item_value}'
+            ).upper()
             flash('Manual factory movement recorded.', 'success')
         return redirect(url_for(
             'factory_in_out_ledger',
@@ -6249,6 +6437,10 @@ def accounts_accessories_billing_vendor():
             if cheque_filename:
                 voucher.cheque_image = f'/static/uploads/{cheque_filename}'
             db.session.commit()
+            g.activity_action = (
+                f'MARKED ACCESSORY VOUCHER {voucher.voucher_no} PAID · {supplier} · '
+                f'{company} · PKR {voucher.total_amount:,.2f}'
+            ).upper()
             flash(f'Voucher {voucher.voucher_no} marked paid.', 'success')
             return redirect(url_for('accounts_accessories_billing_vendor', supplier=supplier, company=company))
 
@@ -6322,6 +6514,10 @@ def accounts_accessories_billing_vendor():
                     total_amount=po_total,
                 ))
             db.session.commit()
+            g.activity_action = (
+                f'CREATED ACCESSORY VOUCHER {voucher.voucher_no} · {supplier} · {company} · '
+                f'PO {", ".join(po_no for po_no, _ in po_totals.values())} · PKR {bill_total:,.2f}'
+            ).upper()
             flash(f'Voucher {voucher.voucher_no} created for {len(po_totals)} PO(s). It remains unpaid until payment is recorded.', 'success')
             return redirect(url_for('print_accessory_bill_voucher', voucher_id=voucher.id, company=company))
 
@@ -6468,7 +6664,7 @@ def accounts_utility_bills():
     if denied:
         return denied
 
-    utility_types = ('Electricity', 'Gas', 'Water', 'R.O WATER', 'Internet', 'Telephone', 'Other')
+    utility_types = ('Rental Payment', 'Gas', 'Water', 'R.O WATER', 'Internet', 'Telephone', 'Other')
     payment_methods = ('Cash', 'Bank Transfer', 'Cheque', 'Other')
     if request.method == 'POST':
         action = request.form.get('action', '')
@@ -6498,7 +6694,7 @@ def accounts_utility_bills():
             except ValueError as exc:
                 flash(str(exc), 'danger')
                 return redirect(url_for('accounts_utility_bills'))
-            db.session.add(UtilityBill(
+            bill = UtilityBill(
                 utility_type=utility_type,
                 provider=provider,
                 account_reference=account_reference,
@@ -6509,8 +6705,13 @@ def accounts_utility_bills():
                 company=company,
                 notes=(request.form.get('notes') or '').strip(),
                 created_by=session.get('name') or session.get('user') or '',
-            ))
+            )
+            db.session.add(bill)
             db.session.commit()
+            g.activity_action = (
+                f'RECORDED {utility_type} BILL FOR {provider} · {company} · '
+                f'{billing_period} · PKR {amount:,.2f}'
+            ).upper()
             flash('Utility bill recorded.', 'success')
             return redirect(url_for('accounts_utility_bills'))
 
@@ -6538,6 +6739,7 @@ def accounts_utility_bills():
                 method = (request.form.get('method') or '').strip()
                 if method not in payment_methods:
                     raise ValueError('Select a valid payment method.')
+                bank_name = (request.form.get('bank_name') or '').strip()
                 if method == 'Bank Transfer':
                     if not tid:
                         raise ValueError('Enter the TID for the bank transfer.')
@@ -6551,6 +6753,8 @@ def accounts_utility_bills():
                         raise ValueError('Choose a valid proof-of-payment file.')
                     proof_filename = f"utility_payment_proof_{datetime.utcnow().strftime('%Y%m%d%H%M%S%f')}_{safe_name}"
                 elif method == 'Cheque':
+                    if bank_name not in UTILITY_BILL_BANKS:
+                        raise ValueError('Select a valid bank for the cheque payment.')
                     if not cheque_number:
                         raise ValueError('Enter the cheque number.')
                     if not cheque_upload or not cheque_upload.filename:
@@ -6574,6 +6778,7 @@ def accounts_utility_bills():
                 amount=amount,
                 paid_on=paid_on,
                 method=method,
+                bank_name=bank_name if method == 'Cheque' else '',
                 reference=(request.form.get('reference') or '').strip(),
                 tid=tid,
                 proof_of_payment=f'/static/uploads/{proof_filename}' if proof_filename else '',
@@ -6583,6 +6788,10 @@ def accounts_utility_bills():
                 paid_by=session.get('name') or session.get('user') or '',
             ))
             db.session.commit()
+            g.activity_action = (
+                f'RECORDED UTILITY PAYMENT PKR {amount:,.2f} · {bill.utility_type} · '
+                f'{bill.provider} · BILL {bill.id} · {method}'
+            ).upper()
             flash('Utility bill payment recorded.', 'success')
             return redirect(url_for('accounts_utility_bills'))
 
@@ -6654,6 +6863,7 @@ def accounts_utility_bills():
         current_month=current_month,
         utility_types=utility_types,
         payment_methods=payment_methods,
+        bank_names=UTILITY_BILL_BANKS,
     )
 
 
@@ -6729,13 +6939,12 @@ def accounts_utility_bill_summary():
         summary = UtilityBillSummary.query.filter_by(utility_bill_id=bill_id).order_by(UtilityBillSummary.id.desc()).first()
     bill = summary.utility_bill if summary else None
     today = datetime.utcnow().strftime('%Y-%m-%d')
-    utility_types = ('Electricity', 'Gas', 'Water', 'R.O WATER', 'Internet', 'Telephone', 'Other')
 
     if request.method == 'POST':
         action = request.form.get('action', '')
         if action not in ('save_summary', 'create_invoice'):
             abort(400)
-        utility_type = (request.form.get('utility_type') or '').strip()
+        utility_type = 'Electricity'
         company = (request.form.get('company') or 'Canon').strip().title()
         provider = (request.form.get('provider') or '').strip()
         account_reference = (request.form.get('account_reference') or '').strip()
@@ -6755,8 +6964,6 @@ def accounts_utility_bill_summary():
         cheque_upload = request.files.get('cheque_image')
         cheque_filename = ''
         try:
-            if utility_type not in utility_types:
-                raise ValueError('Select a valid utility type.')
             if company not in ('Canon', 'Haram'):
                 raise ValueError('Select Canon or Haram for this bill.')
             if not provider:
@@ -6864,6 +7071,16 @@ def accounts_utility_bill_summary():
         if action == 'create_invoice' and not summary.invoice_no:
             summary.invoice_no = next_utility_bill_voucher_no()
         db.session.commit()
+        if action == 'create_invoice':
+            g.activity_action = (
+                f'CREATED UTILITY INVOICE {summary.invoice_no} · {utility_type} · {provider} · '
+                f'{billing_period} · PKR {summary.total_amount:,.2f}'
+            ).upper()
+        else:
+            g.activity_action = (
+                f'SAVED UTILITY BILL SUMMARY · {utility_type} · {provider} · '
+                f'{billing_period} · PKR {summary.total_amount:,.2f}'
+            ).upper()
         flash('Bill summary saved.' if action == 'save_summary' else 'Invoice created from the bill summary.', 'success')
         return redirect(url_for('accounts_utility_bill_summary', summary_id=summary.id, view='invoice' if action == 'create_invoice' else None))
 
@@ -6883,7 +7100,6 @@ def accounts_utility_bill_summary():
         bill=bill,
         summary_rows=summary_rows or [{}],
         summaries=summaries,
-        utility_types=utility_types,
         bank_names=UTILITY_BILL_BANKS,
         today=today,
         current_month=datetime.utcnow().strftime('%Y-%m'),
@@ -6904,6 +7120,15 @@ def print_utility_bill_summary(summary_id, document_type):
     if normalize_utility_bill_voucher_no(summary):
         db.session.commit()
     bill = summary.utility_bill
+    try:
+        rental_month = datetime.strptime(bill.billing_period or '', '%Y-%m').strftime('%b').upper()
+    except ValueError:
+        rental_month = ''
+    latest_payment = max(
+        bill.payments,
+        key=lambda payment: (payment.paid_on or '', payment.created_at or datetime.min),
+        default=None,
+    )
     print_time = datetime.now(timezone(timedelta(hours=5), name='PKT'))
     try:
         billing_month_display = datetime.strptime(bill.billing_period or '', '%Y-%m').strftime('%b-%y').upper()
@@ -6917,6 +7142,11 @@ def print_utility_bill_summary(summary_id, document_type):
     template_context = {
         'summary': summary,
         'bill': bill,
+        'rental_month': rental_month,
+        'voucher_bank_name': (
+            latest_payment.bank_name if bill.utility_type == 'Rental Payment' and latest_payment
+            else ''
+        ) or summary.bank_name,
         'billing_month_display': billing_month_display,
         'prd_date_display': prd_date_display,
         'summary_rows': json.loads(summary.rows_json or '[]'),
@@ -6993,11 +7223,16 @@ def utility_bill_invoice(bill_id):
         }]
     cheque_payment = next((payment for payment in reversed(payments) if payment.cheque_image), None)
     cheque_image_url = cheque_payment.cheque_image if cheque_payment else (summary.cheque_image if summary else '')
+    try:
+        rental_month = datetime.strptime(bill.billing_period or '', '%Y-%m').strftime('%b').upper()
+    except ValueError:
+        rental_month = ''
     print_time = datetime.now(timezone(timedelta(hours=5), name='PKT'))
     return render_template(
         'utility_bill_voucher_print.html',
         summary=invoice_summary,
         bill=bill,
+        rental_month=rental_month,
         summary_rows=summary_rows,
         company_name='HARAM ENTERPRISES' if bill.company == 'Haram' else 'CANON ENTERPRISES',
         company_logo_screen='haram-black.png' if bill.company == 'Haram' else 'canon logo black.webp',
@@ -7007,8 +7242,8 @@ def utility_bill_invoice(bill_id):
         cheque_no=latest_payment.cheque_number or latest_payment.tid or '',
         payment_date=latest_payment.paid_on,
         payment_reference_label='PAYMENT REF',
-        payment_method_label='BANK' if summary and summary.bank_name else 'METHOD',
-        bank_name=summary.bank_name if summary and summary.bank_name else latest_payment.method,
+        payment_method_label='BANK' if latest_payment.bank_name or (summary and summary.bank_name) else 'METHOD',
+        voucher_bank_name=latest_payment.bank_name or (summary.bank_name if summary else '') or latest_payment.method,
         invoice_title='UTILITY BILL PAYMENT INVOICE',
         invoice_back_url=(
             url_for('accounts_all_vouchers', company=bill.company or 'Canon')
@@ -8328,6 +8563,8 @@ def operation_order_rates(job_no):
                 item.rate_id: item
                 for item in OrderOperationRate.query.filter_by(order_id=order.id).all()
             }
+            activity_actions = []
+            saved_rate_ids = set()
             submitted_rate_ids = request.form.getlist('operation_order')
             if not submitted_rate_ids:
                 submitted_rate_ids = [str(rate.id) for rate in rates if request.form.get(f'operation_{rate.id}')]
@@ -8339,6 +8576,14 @@ def operation_order_rates(job_no):
                     override = float(override_raw) if override_raw else None
                     db.session.add(OrderOperationRate(order_id=order.id, rate_id=rate.id, override_rate=override, sort_order=sort_order))
                     previous = previous_operations.get(rate.id)
+                    saved_rate_ids.add(rate.id)
+                    if previous is None or previous.override_rate != override:
+                        article_no = order.article_ref.article_no if order.article_ref else order.article
+                        previous_rate = format_activity_rate(previous.override_rate) if previous else 'NOT SET'
+                        activity_actions.append(
+                            f'ORDER RATE {job_no} / ARTICLE {article_no} / {rate.operation}: '
+                            f'{previous_rate} -> {format_activity_rate(override)}'
+                        )
                     if override is not None and (not previous or previous.override_rate != override):
                         db.session.add(OperationRateHistory(
                             operation=rate.operation.upper(),
@@ -8346,7 +8591,17 @@ def operation_order_rates(job_no):
                             effective_date=datetime.utcnow(),
                             order_id=order.id,
                         ))
+            for rate_id, previous in previous_operations.items():
+                if rate_id not in saved_rate_ids:
+                    rate = OperationRate.query.get(rate_id)
+                    if rate:
+                        article_no = order.article_ref.article_no if order.article_ref else order.article
+                        activity_actions.append(
+                            f'ORDER RATE {job_no} / ARTICLE {article_no} / {rate.operation}: '
+                            f'{format_activity_rate(previous.override_rate)} -> REMOVED'
+                        )
             db.session.commit()
+            g.activity_actions = activity_actions
             flash('Order operation rates saved.', 'success')
             return redirect(url_for('operation_order_rates', job_no=job_no))
         except Exception as exc:
@@ -8448,6 +8703,14 @@ def save_order_rate_override(job_no, rate_id):
             order_id=order.id,
         ))
     db.session.commit()
+    if override != previous_override:
+        article_no = order.article_ref.article_no if order.article_ref else order.article
+        g.activity_actions = [
+            f'ORDER RATE {job_no} / ARTICLE {article_no} / {rate.operation}: '
+            f'{format_activity_rate(previous_override)} -> {format_activity_rate(override)}'
+        ]
+    else:
+        g.activity_actions = []
     flash(f'{rate.operation} rate updated successfully.', 'success')
     return redirect(url_for('operation_order_rates', job_no=job_no))
 
@@ -8550,9 +8813,58 @@ def article_head_detail():
     )
 
 @app.route('/logout')
-def logout(): 
+def logout():
+    if session.get('user'):
+        record_activity('Logged out', status_code=302)
     session.clear()
     return redirect(url_for('index'))
+
+
+@app.route('/activity-log')
+def activity_log():
+    if not owner_only():
+        return redirect(url_for('index'))
+
+    search = (request.args.get('q') or '').strip()
+    page_size = 100
+    query = ActivityLog.query.filter(~or_(
+        ActivityLog.endpoint == 'activity_log',
+        ActivityLog.path == '/activity-log',
+        ActivityLog.action.ilike('OPENED ACTIVITY LOG'),
+        ActivityLog.action.ilike('OPENED %'),
+        ActivityLog.action.ilike('GET activity_log'),
+    ))
+    if search:
+        search_like = f'%{search}%'
+        query = query.filter(or_(
+            ActivityLog.actor_username.ilike(search_like),
+            ActivityLog.actor_name.ilike(search_like),
+            ActivityLog.actor_profile_role.ilike(search_like),
+            ActivityLog.action.ilike(search_like),
+            ActivityLog.path.ilike(search_like),
+            ActivityLog.path.ilike(search_like),
+        ))
+
+    total_count = query.count()
+    page_count = max(1, (total_count + page_size - 1) // page_size)
+    page = min(max(request.args.get('page', 1, type=int) or 1, 1), page_count)
+    entries = query.order_by(ActivityLog.created_at.desc(), ActivityLog.id.desc()).offset(
+        (page - 1) * page_size
+    ).limit(page_size).all()
+    for entry in entries:
+        raw_request_action = f'{entry.method} {entry.endpoint}'
+        if entry.method and entry.endpoint and entry.action == raw_request_action:
+            entry.display_action = humanize_activity(entry.method, entry.endpoint)
+        else:
+            entry.display_action = entry.action.upper()
+    return render_template(
+        'activity_log.html',
+        entries=entries,
+        search=search,
+        page=page,
+        page_count=page_count,
+        total_count=total_count,
+    )
 
 def calculate_annual_report(report_year, include_comparison=True):
     """Build one JSON-safe annual report from the existing operational records."""
@@ -10355,6 +10667,7 @@ def receiving_challan():
                 if image_path:
                     editing_challan.image_file = image_path
                 db.session.commit()
+                g.activity_action = f'Updated Receiving Challan {serial_no}'.upper()
                 flash('Receiving challan updated successfully.', 'success')
                 return redirect(url_for('inventory', job_no=job_no, serial_no=serial_no))
 
@@ -10389,6 +10702,7 @@ def receiving_challan():
         )
         db.session.add(new_challan)
         db.session.commit()
+        g.activity_action = f'Submitted Receiving Challan {serial_no}'.upper()
         flash('Receiving challan saved successfully.', 'success')
         return redirect(url_for('inventory', job_no=job_no, serial_no=serial_no))
 
@@ -11046,6 +11360,11 @@ def cutting_sheet():
                     balance=f'{(opening_balance - fabric_use):.2f}',
                 ))
         db.session.commit()
+        g.activity_action = (
+            f'Saved Cutting Sheet :{order.file_no} / '
+            f'Cut No {cutting_sheet.cut_no} / '
+            f'Cutting Serial {cutting_sheet.serial_no}'
+        ).upper()
         flash('Cutting sheet saved successfully.', 'success')
         if 'bundle_stickers' in getattr(g, 'page_access_keys', PAGE_ACCESS_KEYS):
             return redirect(url_for('bundle_stickers', cutting_sheet_id=cutting_sheet.id))
@@ -12212,6 +12531,7 @@ def save_inventory():
                 db.session.add(srow)
 
         db.session.commit()
+        g.activity_action = f'Saved Inventory {serial_no}'.upper()
         next_serial, has_pending_inventory = get_next_pending_inventory_serial(job_no)
         if has_pending_inventory:
             flash(f'Inventory saved successfully. Next pending inventory is for serial {next_serial}.', 'success')
@@ -12312,6 +12632,8 @@ def saved_requirements():
 def production_entry():
     if not session.get('role'): 
         return redirect(url_for('index'))
+    if request.method == 'POST':
+        g.activity_actions = []
 
     prefill_job = (
         request.args.get('auto_job')
@@ -12414,9 +12736,14 @@ def production_entry():
                         rate_id=rate.id,
                     ))
                 db.session.commit()
+                g.activity_actions = None
+                g.activity_action = (
+                    f'SAVED SPECIAL OPERATIONS FOR ORDER {job_no} · CUT {selected_cut}'
+                ).upper()
                 flash('Special operations saved for this cut.', 'success')
             except Exception as exc:
                 db.session.rollback()
+                g.activity_actions = []
                 flash(f'Could not save cut operations: {exc}', 'danger')
             redirect_args = {'job_no': job_no}
             if selected_cut:
@@ -12606,6 +12933,13 @@ def production_entry():
             )
             db.session.add(new_log)
             db.session.commit()
+            g.activity_actions = None
+            g.activity_action = (
+                f'SAVED PRODUCTION ENTRY {pcs_value} PCS'
+                f'{f" + B/Q {bq_value} PCS" if bq_value else ""} · '
+                f'{job_no} · CUT {selected_cut} · OPERATION {selected_op}'
+                f'{f" · WORKER {new_log.worker}" if new_log.worker else ""}'
+            ).upper()[:200]
             flash(f"Production Entry saved for {job_no}!", "success")
 
             production_logs = ProductionLog.query.filter_by(
@@ -12694,6 +13028,7 @@ def production_entry():
             
         except Exception as e:
             db.session.rollback()
+            g.activity_actions = []
             flash(f"Error: {e}", "danger")
 
         redirect_args = {'job_no': job_no}
@@ -13145,8 +13480,10 @@ def vendors():
             )
             db.session.add(vendor)
             db.session.commit()
+            g.activity_action = f'REGISTERED VENDOR {vendor.name}'.upper()
             flash('Vendor created successfully.', 'success')
         else:
+            g.activity_actions = []
             flash('Vendor already exists.', 'warning')
         return redirect(url_for('vendors'))
 
@@ -13182,6 +13519,7 @@ def item_list():
             ):
                 return reject_read_only_edit('Saved items cannot be changed.')
         saved_count = 0
+        activity_actions = []
 
         for index, raw_name in enumerate(item_names):
             item_name = (raw_name or '').strip()
@@ -13220,6 +13558,7 @@ def item_list():
                 existing_item.returnable = is_returnable
                 existing_item.refundable = is_refundable
                 saved_count += 1
+                activity_actions.append(f'UPDATED ITEM MASTER {item_name}'.upper())
                 continue
             else:
                 item = ItemMaster(item_name=item_name)
@@ -13234,11 +13573,14 @@ def item_list():
             item.returnable = is_returnable
             item.refundable = is_refundable
             saved_count += 1
+            action_verb = 'UPDATED' if item_id else 'CREATED'
+            activity_actions.append(f'{action_verb} ITEM MASTER {item_name}'.upper())
 
         if not saved_count:
             flash('Add at least one item before saving.', 'danger')
             return redirect(url_for('item_list'))
         db.session.commit()
+        g.activity_actions = activity_actions
         flash(f'{saved_count} item(s) saved successfully.', 'success')
         return redirect(url_for('item_list'))
 
@@ -13279,6 +13621,7 @@ def vendor_detail(vendor_id):
             vendor.address = (request.form.get('address') or '').strip()
             vendor.notes = (request.form.get('notes') or '').strip()
             db.session.commit()
+            g.activity_action = f'UPDATED VENDOR PROFILE {vendor.name}'.upper()
             flash('Vendor profile updated.', 'success')
             return redirect(url_for('vendor_detail', vendor_id=vendor.id))
 
@@ -13288,10 +13631,13 @@ def vendor_detail(vendor_id):
                 vendor_id=vendor.id,
             ).first()
             if item:
+                item_name = item.item_name
                 db.session.delete(item)
                 db.session.commit()
+                g.activity_action = f'DELETED VENDOR ITEM {item_name} FROM {vendor.name}'.upper()
                 flash('Vendor material removed.', 'success')
             else:
+                g.activity_actions = []
                 flash('Vendor material was not found.', 'danger')
             return redirect(url_for('vendor_detail', vendor_id=vendor.id))
 
@@ -13328,6 +13674,8 @@ def vendor_detail(vendor_id):
         vendor_item.rate = unit_rate
         vendor_item.notes = (request.form.get('notes') or '').strip()
         db.session.commit()
+        action_verb = 'UPDATED' if action == 'update_item' else 'ADDED'
+        g.activity_action = f'{action_verb} {vendor.name} ITEM {vendor_item.item_name}'.upper()
         flash(f'Vendor material {"updated" if action == "update_item" else "added"}.', 'success')
         return redirect(url_for('vendor_detail', vendor_id=vendor.id))
 
@@ -13533,6 +13881,7 @@ def article_operation_rates(article_id):
         if is_read_only_profile() and existing_assignments:
             return reject_read_only_edit('This profile cannot edit article operation rates.')
         try:
+            activity_actions = []
             submitted_rate_ids = request.form.getlist('operation_order')
             if not submitted_rate_ids:
                 submitted_rate_ids = [str(rate.id) for rate in rates]
@@ -13554,6 +13903,8 @@ def article_operation_rates(article_id):
                 assignment = existing_by_rate_id.get(rate.id)
                 is_new_assignment = assignment is None
                 previous_override = assignment.override_rate if assignment else None
+                previous_enabled = assignment.is_enabled if assignment else False
+                previous_special = assignment.is_special_operation if assignment else False
                 if assignment is None:
                     assignment = ArticleOperationRate(
                         article_id=article.id,
@@ -13564,6 +13915,19 @@ def article_operation_rates(article_id):
                 assignment.is_enabled = is_enabled
                 assignment.is_special_operation = is_special
                 assignment.sort_order = sort_order
+                changed_details = []
+                if is_new_assignment or previous_override != override:
+                    before_rate = format_activity_rate(previous_override) if assignment and not is_new_assignment else 'NOT SET'
+                    changed_details.append(f'RATE {before_rate} -> {format_activity_rate(override)}')
+                if previous_enabled != is_enabled:
+                    changed_details.append(f'ENABLED {"ON" if previous_enabled else "OFF"} -> {"ON" if is_enabled else "OFF"}')
+                if previous_special != is_special:
+                    changed_details.append(f'SPECIAL {"ON" if previous_special else "OFF"} -> {"ON" if is_special else "OFF"}')
+                if changed_details:
+                    activity_actions.append(
+                        f'ARTICLE DEFAULT {article.article_no} / {rate.operation}: '
+                        + '; '.join(changed_details)
+                    )
                 if is_new_assignment or previous_override != override:
                     db.session.add(ArticleOperationRateHistory(
                         article_id=article.id,
@@ -13576,8 +13940,15 @@ def article_operation_rates(article_id):
                 sort_order += 1
             for assignment in existing_assignments:
                 if assignment.rate_id not in saved_rate_ids:
+                    removed_rate = OperationRate.query.get(assignment.rate_id)
+                    if removed_rate:
+                        activity_actions.append(
+                            f'ARTICLE DEFAULT {article.article_no} / {removed_rate.operation}: '
+                            f'{format_activity_rate(assignment.override_rate)} -> REMOVED'
+                        )
                     db.session.delete(assignment)
             db.session.commit()
+            g.activity_actions = activity_actions
             flash('Article operation rates saved.', 'success')
             return redirect(url_for('article_operation_rates', article_id=article.id))
         except Exception as exc:
@@ -14979,6 +15350,7 @@ def workers(job_no=None):
                     ))
 
             db.session.commit()
+            g.activity_action = f'UPDATED THE WORKER FORM OF {w.name or "UNKNOWN WORKER"}'.upper()
             flash('Worker updated successfully.', 'success')
             return redirect(url_for('workers', new_entry='1'))
 
@@ -15028,6 +15400,7 @@ def workers(job_no=None):
                 ))
         db.session.commit()
 
+        g.activity_action = f'{new_worker.name or "UNKNOWN WORKER"} REGISTERED'.upper()
         flash('Worker added successfully.', 'success')
         return redirect(url_for('workers'))
 
@@ -15434,6 +15807,7 @@ def delete_worker():
                 pass
         db.session.delete(worker)
         db.session.commit()
+        g.activity_action = f'DELETED {worker.name or "UNKNOWN WORKER"} REGISTRY'.upper()
         flash('Worker deleted successfully.', 'success')
     else:
         flash('Worker not found.', 'danger')
@@ -16838,6 +17212,10 @@ def accessories_portal(portal_page='home'):
             )
             db.session.add(location)
             db.session.commit()
+            g.activity_action = (
+                f'{storage_values["quantity"]:g} {item.unit or "PCS"} {item.item} '
+                f'PLACED {accessory_storage_location_label(location)}'
+            ).upper()
             flash(
                 f'{storage_values["quantity"]:g} {item.unit or "PCS"} of {item.item} placed '
                 f'in {accessory_storage_location_label(location)}.',
@@ -16862,6 +17240,7 @@ def accessories_portal(portal_page='home'):
                 flash('Choose Return or Exchange as the supplier return type.', 'danger')
                 return redirect_to_portal('unallocated-stock')
             exchange_item = None
+            exchange_received_qty = 0.0
             if return_type == 'EXCHANGE':
                 exchange_item_id = (request.form.get('exchange_item_id') or '').strip()
                 exchange_item = (
@@ -16870,6 +17249,16 @@ def accessories_portal(portal_page='home'):
                 )
                 if not exchange_item:
                     flash('Choose the replacement item from the item list for this exchange.', 'danger')
+                    return redirect_to_portal('unallocated-stock')
+                exchange_received_qty = parse_numeric(request.form.get('exchange_received_qty'))
+                if exchange_received_qty <= 0:
+                    flash('Enter the quantity received for the replacement item.', 'danger')
+                    return redirect_to_portal('unallocated-stock')
+                if (
+                    is_discrete_issue_unit(exchange_item.unit or '')
+                    and abs(exchange_received_qty - round(exchange_received_qty)) > 0.000001
+                ):
+                    flash(f'{exchange_item.unit} replacement quantities must be whole numbers.', 'danger')
                     return redirect_to_portal('unallocated-stock')
             if returned_qty <= 0:
                 flash('Enter a supplier return quantity greater than zero.', 'danger')
@@ -16902,6 +17291,7 @@ def accessories_portal(portal_page='home'):
                 unit_rate=accessory_receipt_unit_rate(item),
                 exchange_item=exchange_item.item_name if exchange_item else '',
                 exchange_item_unit=exchange_item.unit if exchange_item else '',
+                exchange_received_qty=exchange_received_qty,
                 note=(request.form.get('return_note') or '').strip(),
             ))
             remaining_received = max(0.0, received_qty - returned_qty)
@@ -16915,11 +17305,28 @@ def accessories_portal(portal_page='home'):
                 else 'RECEIVED'
             )
             db.session.commit()
-            flash(
-                f'{returned_qty:g} {item.unit or "PCS"} recorded as {return_type.lower()} to supplier '
-                f'for {item.item}. Any replacement must be received separately.',
-                'success',
-            )
+            supplier_name = item.supplier or 'UNKNOWN SUPPLIER'
+            if return_type == 'EXCHANGE':
+                g.activity_action = (
+                    f'{returned_qty:g} {item.unit or "PCS"} {item.item} EXCHANGED FROM {supplier_name} '
+                    f'AND IN REPLACEMENT GOT {exchange_received_qty:g} '
+                    f'{exchange_item.unit or "PCS"} {exchange_item.item_name}'
+                ).upper()
+                flash(
+                    f'{returned_qty:g} {item.unit or "PCS"} {item.item} exchanged with {supplier_name}; '
+                    f'received {exchange_received_qty:g} {exchange_item.unit or "PCS"} '
+                    f'{exchange_item.item_name} as replacement.',
+                    'success',
+                )
+            else:
+                g.activity_action = (
+                    f'{returned_qty:g} {item.unit or "PCS"} {item.item} RETURNED TO {supplier_name}'
+                ).upper()
+                flash(
+                    f'{returned_qty:g} {item.unit or "PCS"} recorded as returned to supplier '
+                    f'for {item.item}.',
+                    'success',
+                )
             return redirect_to_portal('unallocated-stock')
 
         if action == 'move_stock':
@@ -17009,6 +17416,11 @@ def accessories_portal(portal_page='home'):
             item.used_qty = str(round(max(0.0, received_qty - net_issued), 4))
             item.accessory_status = 'USED' if received_qty > 0 and net_issued >= received_qty else 'RECEIVED'
             db.session.commit()
+            receiving_profile = session.get('name') or session.get('user') or 'STOCK MANAGER'
+            g.activity_action = (
+                f'{returned_by or "UNKNOWN WORKER"} RETURNED {returned_qty:g} '
+                f'{item.unit or "PCS"} {item.item} TO {receiving_profile}'
+            ).upper()
             message = (
                 f'{returned_qty:g} {item.unit or "units"} refunded to accessory stock.'
                 if is_refundable else
@@ -17138,6 +17550,7 @@ def accessories_portal(portal_page='home'):
             )
 
             db.session.commit()
+            g.activity_action = f'{issued_as_qty:g} {issued_as_unit} {item.item} ISSUED TO {worker_name}'.upper()
             flash(
                 f'{issued_as_qty:g} {issued_as_unit} issued from {accessory_storage_location_label(location)}.',
                 'success',
@@ -17353,6 +17766,8 @@ def accessories_portal(portal_page='home'):
                 po_item.purchase_slip_image = image_path
             flash(f'All items in PO {item.po_no or ""} marked as received.', 'success')
         db.session.commit()
+        if action == 'mark_received':
+            g.activity_action = f'RECEIVED PO {item.po_no or item.id}'.upper()
         target_page = (
             'unallocated-stock' if action == 'mark_received'
             else 'purchase-orders' if action == 'mark_po_sent'
@@ -17744,7 +18159,7 @@ def warehouse_in_transit():
             )
             return redirect(url_for('warehouse_in_transit'))
 
-        db.session.add(WarehouseFinishedGoodsLocation(
+        location = WarehouseFinishedGoodsLocation(
             order_id=order.job_no,
             quality=quality,
             location_type=location_type,
@@ -17754,8 +18169,17 @@ def warehouse_in_transit():
             rack_no='',
             shelf_no='',
             quantity=quantity,
-        ))
+        )
+        db.session.add(location)
         db.session.commit()
+        destination = f'{department.name} · {location_type.replace("_", " ").title()}'
+        if gala:
+            destination += f' · Gala {gala}'
+        g.activity_action = (
+            f'PLACED {packets:g} PACKETS ({quantity:g} {quality} PCS) FROM IN TRANSIT '
+            f'FOR {order.job_no} · {order.article_name or order.article or "ARTICLE NOT SET"} '
+            f'IN WAREHOUSE {destination}'
+        ).upper()
         flash(f'{packets:g} packets ({quantity:g} {quality} PCS) from {order.job_no} placed in the warehouse.', 'success')
         return redirect(url_for('warehouse_in_transit'))
 
@@ -17931,8 +18355,12 @@ def mark_return_shipped(inventory_id):
         flash('This returned fabric is no longer waiting for shipment.', 'warning')
         return redirect(url_for('warehouse_portal'))
 
-    if not ChallanRecord.query.filter_by(inventory_id=inventory.id, source_type=source_type).first():
-        db.session.add(ChallanRecord(
+    returned_challan = ChallanRecord.query.filter_by(
+        inventory_id=inventory.id,
+        source_type=source_type,
+    ).first()
+    if not returned_challan:
+        returned_challan = ChallanRecord(
             challan_no=next_challan_number(shipped_by_party),
             source_type=source_type,
             inventory_id=inventory.id,
@@ -17943,8 +18371,14 @@ def mark_return_shipped(inventory_id):
             shipped_meter=quantity,
             shipped_by_party=shipped_by_party,
             created_by=session.get('name') or session.get('user') or '',
-        ))
+        )
+        db.session.add(returned_challan)
     db.session.commit()
+    g.activity_action = (
+        f'MARKED RETURNED FABRIC {quantity:g} METER · {article_name or "ARTICLE NOT SET"} '
+        f'· {inventory.order_id or "N/A"} · SERIAL {inventory.serial_no or inventory.id} '
+        f'· CHALLAN {returned_challan.challan_no} · SHIPPED BY {shipped_by_party}'
+    ).upper()
     flash(f'Returned shipment marked as shipped by {shipped_by_party}.', 'success')
     return redirect(url_for('challan_portal', shipper=shipped_by_party))
 
@@ -18530,6 +18964,7 @@ def billing_party_directory():
             party.notes = (request.form.get('party_notes') or '').strip()
             db.session.add(party)
             db.session.commit()
+            g.activity_action = f'SAVED BILLING PARTY {party.party_name} FOR {selected_shipper}'.upper()
             flash(f'{party.party_name} saved in the global party directory.', 'success')
             return redirect(url_for('billing_party_directory', party_id=party.id, shipper=selected_shipper))
         flash('Choose a valid party directory action.', 'danger')
@@ -18785,6 +19220,10 @@ def billing_portal():
                 app.logger.exception('Unable to create Bill and Sales Invoice')
                 flash('Bill and Sales Invoice could not be created. Check whether a selected challan is already billed.', 'danger')
                 return redirect(url_for('billing_portal', shipper=selected_shipper))
+            g.activity_action = (
+                f'CREATED BILL {bill.bill_no} AND SALES INVOICE {invoice.invoice_no} · '
+                f'{party_name} · {len(challans)} CHALLAN(S) · PKR {bill.total:,.2f}'
+            ).upper()
             flash(f'Bill {bill.bill_no} and Sales Invoice {invoice.invoice_no} created for {len(challans)} challan(s).', 'success')
             return redirect(url_for('billing_portal', invoice_id=invoice.id, shipper=selected_shipper))
 
@@ -18833,6 +19272,10 @@ def billing_portal():
                     received_by=session.get('name') or session.get('user') or '',
                 ))
             db.session.commit()
+            g.activity_action = (
+                f'RECORDED CUSTOMER PAYMENT PKR {amount:,.2f} · INVOICE {invoice.invoice_no} · '
+                f'{invoice.party_name} · {method}'
+            ).upper()
             flash(f'Payment of PKR {amount:,.2f} recorded for {invoice.invoice_no}.', 'success')
             return redirect(url_for('billing_portal', invoice_id=invoice.id, shipper=selected_shipper))
 
@@ -19033,7 +19476,7 @@ def billing_portal():
     }
     return render_template(
         'billing.html',
-        invoice_rows=visible_invoice_rows,
+        invoice_rows=invoice_rows,
         unbilled_rows=unbilled_rows,
         unbilled_party_groups=list(unbilled_party_groups.values()),
         selected_invoice=selected_invoice,
@@ -19832,8 +20275,9 @@ def set_order_fulfillment_status(job_no):
             flash(str(exc), 'danger')
             return redirect(request.referrer or url_for('warehouse_portal'))
         db.session.commit()
+        shipment_challan_no = next_challan_number(shipped_by_party)
         db.session.add(ChallanRecord(
-            challan_no=next_challan_number(shipped_by_party),
+            challan_no=shipment_challan_no,
             source_type='order',
             shipment_id=shipment_record.id,
             order_id=order.id,
@@ -19859,6 +20303,11 @@ def set_order_fulfillment_status(job_no):
             created_by=shipment_record.shipped_by or '',
         ))
         db.session.commit()
+        g.activity_action = (
+            f'DISPATCHED FROM WAREHOUSE · {order.job_no} · '
+            f'{shipment_pcs:g} PCS (A/Q {shipment_aq_pcs:g}, B/Q {shipment_bq_pcs:g}) · '
+            f'CHALLAN {shipment_challan_no} · SHIPPED BY {shipped_by_party}'
+        ).upper()
         flash(f'Shipment marked: {shipment_aq_pcs:.0f} A/Q + {shipment_bq_pcs:.0f} B/Q PCS.', 'success')
         return redirect(url_for('challan_portal', shipper=shipped_by_party))
     order.fulfillment_status = new_status
@@ -19919,6 +20368,7 @@ def create_combined_shipment():
         return redirect(url_for('warehouse_portal'))
 
     shipment_records = []
+    shipment_activity_details = []
     challan_totals = {
         'shipped_pcs': 0.0, 'shipped_aq_pcs': 0.0, 'shipped_bq_pcs': 0.0,
         'shipped_aq_direct_pcs': 0.0, 'shipped_bq_direct_pcs': 0.0,
@@ -20011,6 +20461,10 @@ def create_combined_shipment():
                 order.job_no, 'BQ', bq['total_pcs'], shipment
             )
             shipment_records.append((order, shipment))
+            shipment_activity_details.append(
+                f'ORDER {order.job_no} {shipment_pcs:g} PCS '
+                f'(A/Q {aq["total_pcs"]:g}, B/Q {bq["total_pcs"]:g})'
+            )
             for key in challan_totals:
                 challan_totals[key] += {
                     'shipped_pcs': shipment_pcs, 'shipped_aq_pcs': aq['total_pcs'], 'shipped_bq_pcs': bq['total_pcs'],
@@ -20031,13 +20485,18 @@ def create_combined_shipment():
             inventory.b_returned_shipped = True
             inventory.b_returned_shipped_by = shipped_by_party
             inventory.b_returned_shipped_date = now
+            shipment_activity_details.append(
+                f'RETURNED FABRIC {parse_numeric(inventory.b_returned_quantity):g} METER '
+                f'SERIAL {inventory.serial_no or inventory.id}'
+            )
         db.session.flush()
         shipment_ids = [shipment.id for _, shipment in shipment_records]
         inventory_ids = [inventory.id for inventory in valid_returns]
         first_order = shipment_records[0][0] if shipment_records else None
         first_party = first_order.name if first_order else (valid_returns[0].b_returned_party if valid_returns else '')
+        combined_challan_no = next_challan_number(shipped_by_party)
         db.session.add(ChallanRecord(
-            challan_no=next_challan_number(shipped_by_party), source_type='order',
+            challan_no=combined_challan_no, source_type='order',
             shipment_id=shipment_ids[0] if shipment_ids else None, combined_shipment_ids=json.dumps(shipment_ids),
             combined_inventory_ids=json.dumps(inventory_ids),
             order_id=first_order.id if first_order else None, job_no=', '.join(dict.fromkeys(job_numbers)) or ', '.join(f'RETURNED-{item.serial_no or item.id}' for item in valid_returns),
@@ -20050,6 +20509,10 @@ def create_combined_shipment():
         db.session.rollback()
         flash(str(exc), 'danger')
         return redirect(url_for('warehouse_portal'))
+    g.activity_action = (
+        f'COMBINED DISPATCH FROM WAREHOUSE · {"; ".join(shipment_activity_details)} '
+        f'· CHALLAN {combined_challan_no} · SHIPPED BY {shipped_by_party}'
+    ).upper()
     flash(f'Combined shipment created for {len(shipment_records)} shipment entries.', 'success')
     return redirect(url_for('challan_portal', shipper=shipped_by_party))
 

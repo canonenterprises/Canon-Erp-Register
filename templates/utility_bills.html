@@ -3,7 +3,7 @@
 <div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
   <div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-8">
     <header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
-      <div><p class="text-xs font-bold uppercase text-sky-700">Accounts · Operating costs</p><h1 class="mt-1 text-3xl font-black text-slate-950">Utility Bills</h1><p class="mt-2 text-sm text-slate-500">Record recurring utility expenses and track partial or full payments.</p></div>
+      <div><p class="text-xs font-bold uppercase text-sky-700">Accounts · Operating costs</p><h1 class="mt-1 text-3xl font-black text-slate-950">Company Bills &amp; Rent</h1><p class="mt-2 text-sm text-slate-500">Record company bills and rental payments, and track partial or full payments.</p></div>
       <div class="flex flex-wrap gap-2"><a href="{{ url_for('accounts_utility_bill_summary') }}" class="inline-flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-bold text-white hover:bg-sky-800"><i class="fa-solid fa-file-lines" aria-hidden="true"></i> Bill Summary</a><a href="{{ url_for('accounts_portal') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Accounts</a></div>
     </header>
 
@@ -17,7 +17,7 @@
       <summary class="flex cursor-pointer list-none items-center justify-between gap-4"><span><span class="block text-xs font-bold uppercase text-sky-700">New expense</span><span class="mt-1 block text-lg font-black text-slate-950">Record a utility bill</span></span><span class="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add bill</span></summary>
       <form method="post" class="mt-5 grid gap-4 border-t border-slate-200 pt-5 sm:grid-cols-2 lg:grid-cols-3">
         <input type="hidden" name="action" value="create_bill">
-        <label class="text-xs font-bold uppercase text-slate-500">Utility type<select name="utility_type" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">{% for utility_type in utility_types %}<option value="{{ utility_type }}">{{ utility_type }}</option>{% endfor %}</select></label>
+        <label class="text-xs font-bold uppercase text-slate-500">Bill type<select name="utility_type" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">{% for utility_type in utility_types %}<option value="{{ utility_type }}">{{ utility_type }}</option>{% endfor %}</select></label>
         <label class="text-xs font-bold uppercase text-slate-500">Company<select name="company" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="Canon">Canon</option><option value="Haram">Haram</option></select></label>
         <label class="text-xs font-bold uppercase text-slate-500">Provider<input name="provider" maxlength="150" required placeholder="Utility company" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
         <label class="text-xs font-bold uppercase text-slate-500">Account / consumer no.<input name="account_reference" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
@@ -146,11 +146,21 @@
   }
 }
 </style>
+<template id="utility-cheque-bank-field">
+  <label class="grid gap-1 text-xs font-bold text-slate-600">Bank
+    <select name="bank_name" data-cheque-bank required disabled class="rounded border border-slate-300 px-2 py-1.5">
+      <option value="">Select bank</option>
+      {% for bank_name in bank_names %}<option value="{{ bank_name }}">{{ bank_name }}</option>{% endfor %}
+    </select>
+  </label>
+</template>
 <script>
 document.querySelectorAll('[data-utility-payment-form]').forEach(form => {
   const method = form.querySelector('[data-payment-method]');
   const transferFields = form.querySelector('[data-transfer-fields]');
   const chequeFields = form.querySelector('[data-cheque-fields]');
+  const bankFieldTemplate = document.getElementById('utility-cheque-bank-field');
+  chequeFields.prepend(bankFieldTemplate.content.cloneNode(true));
 
   function updatePaymentFields() {
     const isTransfer = method.value === 'Bank Transfer';
@@ -161,9 +171,9 @@ document.querySelectorAll('[data-utility-payment-form]').forEach(form => {
       input.disabled = !isTransfer;
       input.required = isTransfer;
     });
-    chequeFields.querySelectorAll('input').forEach(input => {
-      input.disabled = !isCheque;
-      input.required = isCheque;
+    chequeFields.querySelectorAll('input, select').forEach(field => {
+      field.disabled = !isCheque;
+      field.required = isCheque;
     });
   }
 

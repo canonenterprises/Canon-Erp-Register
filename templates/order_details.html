@@ -121,6 +121,39 @@
         transform: translateY(-2px);
     }
 
+    html[data-theme="dark"] .workflow-card {
+        background: rgba(17, 27, 44, 0.94);
+        color: #f8fafc;
+        box-shadow: 0 12px 28px -18px rgba(0, 0, 0, 0.8);
+    }
+
+    html[data-theme="dark"] .workflow-card:hover {
+        background: rgba(24, 38, 59, 0.98);
+        transform: translateY(-2px);
+    }
+
+    html[data-theme="dark"] .workflow-icon {
+        background-color: color-mix(in srgb, currentColor 22%, transparent) !important;
+        color: var(--workflow-accent) !important;
+    }
+
+    html[data-theme="dark"] .workflow-number {
+        color: var(--workflow-accent) !important;
+    }
+
+    html[data-theme="dark"] .workflow-arrow {
+        color: #cbd5e1;
+    }
+
+    html[data-theme="dark"] .workflow-glow-blue { --workflow-accent: #3b82f6; }
+    html[data-theme="dark"] .workflow-glow-emerald { --workflow-accent: #10b981; }
+    html[data-theme="dark"] .workflow-glow-amber { --workflow-accent: #f59e0b; }
+    html[data-theme="dark"] .workflow-glow-violet { --workflow-accent: #8b5cf6; }
+    html[data-theme="dark"] .workflow-glow-red { --workflow-accent: #f43f5e; }
+    html[data-theme="dark"] .workflow-glow-cyan { --workflow-accent: #06b6d4; }
+    html[data-theme="dark"] .workflow-glow-indigo { --workflow-accent: #6366f1; }
+    html[data-theme="dark"] .workflow-glow-slate { --workflow-accent: #94a3b8; }
+
     .workflow-glow-blue:hover { box-shadow: 0 0 0.9rem rgba(37, 99, 235, 0.5), 0 16px 26px -18px rgba(15, 23, 42, 0.6); }
     .workflow-glow-emerald:hover { box-shadow: 0 0 0.9rem rgba(5, 150, 105, 0.5), 0 16px 26px -18px rgba(15, 23, 42, 0.6); }
     .workflow-glow-amber:hover { box-shadow: 0 0 0.9rem rgba(245, 158, 11, 0.5), 0 16px 26px -18px rgba(15, 23, 42, 0.6); }

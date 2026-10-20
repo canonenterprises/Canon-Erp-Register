@@ -440,7 +440,7 @@
           {% for supplier_return in supplier_returns %}
           <tr class="border-t border-slate-200">
             <td class="px-3 py-2">{{ supplier_return.return_date }}</td>
-            <td class="px-3 py-2 font-bold">{{ supplier_return.requirement.item }}{% if supplier_return.requirement.size or supplier_return.requirement.quality %}<div class="text-xs font-normal text-slate-500">{{ supplier_return.requirement.size or '' }}{% if supplier_return.requirement.size and supplier_return.requirement.quality %} · {% endif %}{{ supplier_return.requirement.quality or '' }}</div>{% endif %}{% if supplier_return.return_type == 'EXCHANGE' and supplier_return.exchange_item %}<div class="mt-1 text-xs font-semibold text-emerald-700">Exchange for: {{ supplier_return.exchange_item }}</div>{% endif %}</td>
+            <td class="px-3 py-2 font-bold">{{ supplier_return.requirement.item }}{% if supplier_return.requirement.size or supplier_return.requirement.quality %}<div class="text-xs font-normal text-slate-500">{{ supplier_return.requirement.size or '' }}{% if supplier_return.requirement.size and supplier_return.requirement.quality %} · {% endif %}{{ supplier_return.requirement.quality or '' }}</div>{% endif %}{% if supplier_return.return_type == 'EXCHANGE' and supplier_return.exchange_item %}<div class="mt-1 text-xs font-semibold text-emerald-700">Received: {{ '{:,.2f}'.format(supplier_return.exchange_received_qty or 0) }} {{ supplier_return.exchange_item_unit or 'PCS' }} {{ supplier_return.exchange_item }}</div>{% endif %}</td>
             <td class="px-3 py-2">PO {{ supplier_return.requirement.po_no or '—' }} · {{ supplier_return.requirement.supplier or '—' }}</td>
             <td class="px-3 py-2 font-bold uppercase">{{ supplier_return.return_type }}</td>
             <td class="px-3 py-2">{{ '{:,.2f}'.format(supplier_return.returned_qty) }} {{ supplier_return.requirement.unit or 'PCS' }}</td>
@@ -508,6 +508,7 @@
       <label class="text-xs font-bold uppercase text-slate-500">Item from this PO<select name="item_id" id="supplier-return-item-id" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" onchange="updateSupplierReturnItem()"><option value="">Select item</option>{% for item in put_away_items %}<option value="{{ item.id }}" data-po-no="{{ item.po_no or '' }}" data-order-id="{{ item.order_id or '' }}" data-supplier="{{ item.supplier or '' }}" data-available="{{ item.unlocated_qty }}" data-unit="{{ item.unit or 'PCS' }}">{{ item.item }}{% if item.size or item.quality %} · {{ item.size or '' }}{% if item.size and item.quality %} · {% endif %}{{ item.quality or '' }}{% endif %} · PO {{ item.po_no or '—' }} · {{ item.supplier or 'Supplier not set' }} · {{ '{:,.2f}'.format(item.unlocated_qty) }} {{ item.unit or 'PCS' }}</option>{% endfor %}</select></label>
       <label class="text-xs font-bold uppercase text-slate-500">Type<select name="return_type" id="supplier-return-type" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" onchange="updateSupplierReturnType()"><option value="RETURN">Return to supplier</option><option value="EXCHANGE">Exchange with supplier</option></select></label>
       <label id="supplier-exchange-item-wrap" class="hidden text-xs font-bold uppercase text-slate-500">Replacement item<select name="exchange_item_id" id="supplier-exchange-item" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"><option value="">Select replacement item</option>{% for master_item in local_po_items %}<option value="{{ master_item.id }}" data-unit="{{ master_item.unit or '' }}">{{ master_item.item_name }}{% if master_item.size or master_item.material %} · {{ master_item.size or master_item.material }}{% endif %}{% if master_item.unit %} · {{ master_item.unit }}{% endif %}</option>{% endfor %}</select><span class="mt-1 block text-[10px] font-normal normal-case text-slate-500">Choose the item you want to receive in exchange.</span></label>
+      <label id="supplier-exchange-qty-wrap" class="hidden text-xs font-bold uppercase text-slate-500">Replacement quantity<input type="number" name="exchange_received_qty" id="supplier-exchange-qty" min="0.01" step="0.01" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
       <label class="text-xs font-bold uppercase text-slate-500">Return date<input type="date" name="return_date" id="supplier-return-date" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
       <label class="text-xs font-bold uppercase text-slate-500">Quantity<input type="number" name="returned_qty" id="supplier-return-qty" min="0.01" step="0.01" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
       <label class="text-xs font-bold uppercase text-slate-500">Reason / note<input type="text" name="return_note" maxlength="255" placeholder="Wrong accessory, size, quality, or excess quantity" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
@@ -936,9 +937,16 @@
     const isExchange = document.getElementById('supplier-return-type').value === 'EXCHANGE';
     const replacementWrap = document.getElementById('supplier-exchange-item-wrap');
     const replacementSelect = document.getElementById('supplier-exchange-item');
+    const replacementQuantityWrap = document.getElementById('supplier-exchange-qty-wrap');
+    const replacementQuantity = document.getElementById('supplier-exchange-qty');
     replacementWrap.classList.toggle('hidden', !isExchange);
+    replacementQuantityWrap.classList.toggle('hidden', !isExchange);
     replacementSelect.required = isExchange;
-    if (!isExchange) replacementSelect.value = '';
+    replacementQuantity.required = isExchange;
+    if (!isExchange) {
+      replacementSelect.value = '';
+      replacementQuantity.value = '';
+    }
   }
 
   function closeSupplierReturnModal() {

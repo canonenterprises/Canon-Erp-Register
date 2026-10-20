@@ -84,7 +84,7 @@
                         <div>
                             <h3 class="text-xl font-bold print:hidden">{{ job.job_no }}</h3>
                         </div>
-                        <button type="button" onclick="printJob('job-summary-{{ job.job_no|replace('/', '-')|replace(' ', '-')|replace('.', '-')|replace(':', '-') }}')" class="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold shadow hover:bg-slate-800">Print This Order</button>
+                        <button type="button" onclick="printJob('job-summary-{{ job.job_no|replace('/', '-')|replace(' ', '-')|replace('.', '-')|replace(':', '-') }}')" class="px-4 py-2 bg-[#b7955c] text-white rounded-xl text-xs font-bold shadow hover:bg-[#a17f49]">Print This Order</button>
                     </div>
                     <div class="summary-order-header overflow-x-auto border border-slate-400 bg-white mb-4">
                         <table class="w-full border-collapse border border-slate-400 text-center text-[14px] font-sans leading-tight">
@@ -565,6 +565,43 @@ td {
 
 .sticky-col-total {
     right: 80px;
+}
+
+@media screen {
+    html[data-theme="dark"] .job-print-section th,
+    html[data-theme="dark"] .job-print-section td {
+        color: #e2e8f0 !important;
+        border-color: #48566c !important;
+    }
+
+    html[data-theme="dark"] .job-print-section .bg-slate-300,
+    html[data-theme="dark"] .job-print-section .bg-slate-200 {
+        background-color: #2a3850 !important;
+    }
+
+    html[data-theme="dark"] .job-print-section .bg-slate-100 {
+        background-color: #1c293c !important;
+    }
+
+    html[data-theme="dark"] .job-print-section .bg-yellow-100 {
+        background-color: #3b321a !important;
+    }
+
+    html[data-theme="dark"] .job-print-section .bg-emerald-200 {
+        background-color: #124638 !important;
+    }
+
+    html[data-theme="dark"] .job-print-section td[style*="background-color: #e2e8f0"] {
+        background-color: #34445d !important;
+    }
+
+    html[data-theme="dark"] .job-print-section td[style*="background-color: #ef4444"] {
+        color: #fff !important;
+    }
+
+    html[data-theme="dark"] .job-print-section .text-purple-600 {
+        color: #c4b5fd !important;
+    }
 }
 </style>
 

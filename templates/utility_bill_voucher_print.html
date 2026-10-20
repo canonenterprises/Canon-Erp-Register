@@ -7,17 +7,17 @@
   <!-- SCREEN ACTIONS -->
   <div class="payment-actions mb-5 flex justify-between print:hidden">
     <a href="{{ invoice_back_url if invoice_back_url is defined else url_for('accounts_utility_bill_summary', summary_id=summary.id, view='invoice') }}"
-       class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">
+      class="print-back-button rounded-md border border-slate-300 bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">
       {{ invoice_back_label if invoice_back_label is defined else ('Back to Accessories Billing' if document_type == 'accessory' else 'Back to Bill Summary') }}
     </a>
 
     <button type="button" onclick="window.print()"
-      class="rounded-md bg-slate-900 px-5 py-2 text-sm font-bold text-white">
+      class="print-gold-button rounded-md bg-[#b7955c] px-5 py-2 text-sm font-bold text-white hover:bg-[#9b7e4e]">
       Print Payment Voucher
     </button>
   </div>
 
-  <article class="payment-voucher">
+  <article class="payment-voucher print-light-paper">
 
     <!-- PROFESSIONAL HEADER -->
     <header class="voucher-header">
@@ -69,7 +69,7 @@
 
         <div class="meta-item meta-bank">
             <span class="meta-label">BANK</span>
-          <span class="meta-value">{{ summary.bank_name or '—' }}</span>
+          <span class="meta-value">{{ voucher_bank_name if voucher_bank_name is defined else summary.bank_name or '—' }}</span>
         </div>
 
       </div>
@@ -104,6 +104,13 @@
             <td class="amount-cell">{{ '{:,.0f}'.format(po_rows[0].total_amount or 0) if po_rows else '' }}</td>
             <td class="amount-cell"></td>
           </tr>
+          {% elif bill is defined and bill.utility_type == 'Rental Payment' %}
+          <tr class="account-row">
+            <td class="account-name"><span class="account-main">FACTORY RENT</span></td>
+            <td class="ref-number">{{ rental_month or '—' }}</td>
+            <td class="amount-cell">{{ '{:,.0f}'.format(summary.total_amount or 0) }}</td>
+            <td class="amount-cell"></td>
+          </tr>
           {% else %}
           {% for item in summary_rows %}
           <tr class="account-row">
@@ -128,16 +135,18 @@
           {% endif %}
 
           <tr class="bank-account-row">
-            <td class="account-name">BANK — {{ summary.bank_name or '' }}</td>
+            <td class="account-name">BANK — {{ voucher_bank_name if voucher_bank_name is defined else summary.bank_name or '' }}</td>
             <td class="ref-number">{% if document_type == 'accessory' and po_rows|length > 1 %}{{ po_rows[1].po_no }}{% if po_rows[1].month %}<span class="po-month">{{ po_rows[1].month }}</span>{% endif %}{% endif %}</td>
             <td class="amount-cell">{% if document_type == 'accessory' and po_rows|length > 1 %}{{ '{:,.0f}'.format(po_rows[1].total_amount or 0) }}{% endif %}</td>
-            <td></td>
+            <td class="amount-cell">{% if bill is defined and bill.utility_type == 'Rental Payment' %}{{ '{:,.0f}'.format(summary.total_amount or 0) }}{% endif %}</td>
           </tr>
 
           <tr class="period-row">
             <td class="account-name">
               {% if document_type == 'accessory' %}
                 M/O — {{ bill.purchase_months or '—' }}
+              {% elif bill is defined and bill.utility_type == 'Rental Payment' %}
+                BILLING PERIOD — {{ bill.billing_period or '—' }}
               {% else %}
                 BILLING PERIOD — {{ bill.billing_period or '—' }}
               {% endif %}
@@ -145,9 +154,18 @@
             <td class="ref-number">{% if document_type == 'accessory' and po_rows|length > 2 %}{{ po_rows[2].po_no }}{% if po_rows[2].month %}<span class="po-month">{{ po_rows[2].month }}</span>{% endif %}{% endif %}</td>
             <td class="amount-cell">{% if document_type == 'accessory' and po_rows|length > 2 %}{{ '{:,.0f}'.format(po_rows[2].total_amount or 0) }}{% endif %}</td>
             <td class="amount-cell">
-              {% if document_type != 'accessory' %}{{ '{:,.0f}'.format(summary.total_amount or 0) }}{% endif %}
+              {% if document_type != 'accessory' and not (bill is defined and bill.utility_type == 'Rental Payment') %}{{ '{:,.0f}'.format(summary.total_amount or 0) }}{% endif %}
             </td>
           </tr>
+
+          {% if bill is defined and bill.utility_type == 'Rental Payment' %}
+          <tr class="period-row">
+            <td class="account-name">PROVIDER — {{ bill.provider or '—' }}</td>
+            <td class="ref-number"></td>
+            <td class="amount-cell"></td>
+            <td class="amount-cell"></td>
+          </tr>
+          {% endif %}
 
           {% if document_type == 'accessory' %}
           {% for po in po_rows[3:] %}
@@ -230,6 +248,8 @@
         <div class="detail-value">
           {% if document_type == 'accessory' %}
             ISSUE CHEQUE TO {{ vendor_name or company_name or 'VENDOR' }} — M/O - {{ bill.purchase_months or '—' }}
+          {% elif bill is defined and bill.utility_type == 'Rental Payment' %}
+            ISSUED CHEQUE FOR RENTAL BILL — M/O {{ bill.billing_period or '' }}
           {% else %}
             {{ summary.notes or 'ISSUED CHEQUE FOR ELECTRICITY BILL — M/O ' ~ (bill.billing_period or '') }}
           {% endif %}

@@ -15,7 +15,7 @@
     <section class="grid gap-4 sm:grid-cols-3">
       {% if 'utility_bills' in page_access_keys %}
       <a href="{{ url_for('accounts_utility_bills') if can_access_accounts else url_for('login', target_role='stock', next=url_for('accounts_utility_bills')) }}" class="group border-l-4 border-sky-600 bg-sky-50 p-5 transition hover:bg-sky-100">
-        <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-sky-800">Operating costs</p><h2 class="mt-2 text-xl font-black text-slate-950">Utility Bills</h2><p class="mt-2 text-sm text-slate-600">Record electricity, gas, water, internet, and other utility bills and payments.</p></div><i class="fa-solid fa-bolt mt-1 text-2xl text-sky-700" aria-hidden="true"></i></div>
+        <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-sky-800">Operating costs</p><h2 class="mt-2 text-xl font-black text-slate-950">Company Bills &amp; Rent</h2><p class="mt-2 text-sm text-slate-600">Record company bills, rental payments, and other operating expenses.</p></div><i class="fa-solid fa-file-invoice-dollar mt-1 text-2xl text-sky-700" aria-hidden="true"></i></div>
         <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-sky-900">Open utility ledger <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
       </a>
       {% endif %}
