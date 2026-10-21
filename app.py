@@ -3933,6 +3933,7 @@ class DailyAttendance(db.Model):
 class Inventory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.String(100), default='')
     serial_no = db.Column(db.String(100), unique=True)
     order_id = db.Column(db.String(100))
     recv_date = db.Column(db.String(50))
@@ -4047,6 +4048,7 @@ class ReceivingChallan(db.Model):
     delivered_by = db.Column(db.String(100))
     driver_cell_no = db.Column(db.String(50))
     image_file = db.Column(db.String(255))
+    created_by = db.Column(db.String(100), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
@@ -4059,6 +4061,7 @@ class FactoryManualMovement(db.Model):
     reference = db.Column(db.String(100), default='')
     quantity = db.Column(db.Float, nullable=False)
     unit = db.Column(db.String(20), nullable=False)
+    person_in_charge = db.Column(db.String(100), default='')
     created_by = db.Column(db.String(100), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
@@ -4102,6 +4105,7 @@ class SavedRequirement(db.Model):
     po_no = db.Column(db.String(100))
     accessory_status = db.Column(db.String(30), default='PENDING')
     received_qty = db.Column(db.String(50), default='0')
+    received_by = db.Column(db.String(100), default='')
     issued_qty = db.Column(db.String(50), default='0')
     used_qty = db.Column(db.String(50), default='0')
     po_sent_at = db.Column(db.String(50))
@@ -4215,6 +4219,7 @@ class AccessorySupplierReturn(db.Model):
     exchange_item_unit = db.Column(db.String(50), default='')
     exchange_received_qty = db.Column(db.Float, nullable=False, default=0.0)
     note = db.Column(db.String(255), default='')
+    created_by = db.Column(db.String(100), default='')
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     requirement = db.relationship(
         'SavedRequirement',
@@ -4413,6 +4418,26 @@ class AnnualReport(db.Model):
 def ensure_table_columns(engine):
     try:
         inspector = inspect(engine)
+        existing_tables = set(inspector.get_table_names())
+        actor_columns = {
+            'factory_manual_movement': {'person_in_charge': "VARCHAR(100) NOT NULL DEFAULT ''"},
+            'inventory': {'created_by': "VARCHAR(100) NOT NULL DEFAULT ''"},
+            'receiving_challan': {'created_by': "VARCHAR(100) NOT NULL DEFAULT ''"},
+            'saved_requirement': {'received_by': "VARCHAR(100) NOT NULL DEFAULT ''"},
+            'accessory_supplier_return': {'created_by': "VARCHAR(100) NOT NULL DEFAULT ''"},
+        }
+        with engine.begin() as conn:
+            for table_name, columns_to_add in actor_columns.items():
+                if table_name not in existing_tables:
+                    continue
+                existing_columns = {
+                    column['name'] for column in inspector.get_columns(table_name)
+                }
+                for column_name, column_type in columns_to_add.items():
+                    if column_name not in existing_columns:
+                        conn.execute(text(
+                            f'ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}'
+                        ))
         columns = {c['name'] for c in inspector.get_columns('cutting_sheet')}
         alter_sql = {
             'mini_palla_22': 'ALTER TABLE cutting_sheet ADD COLUMN mini_palla_22 VARCHAR(100)',
@@ -6097,6 +6122,7 @@ def factory_in_out_ledger():
         direction_value = (request.form.get('movement_direction') or '').strip().upper()
         date_value = (request.form.get('movement_date') or '').strip()
         item_value = (request.form.get('movement_item') or '').strip()
+        person_in_charge = (request.form.get('movement_person_in_charge') or '').strip()
         unit_value = (request.form.get('movement_unit') or '').strip()
         quantity_value = parse_numeric(request.form.get('movement_quantity'))
         parsed_date = normalize_date(date_value)
@@ -6106,6 +6132,8 @@ def factory_in_out_ledger():
             flash('Enter a valid movement date.', 'danger')
         elif not item_value:
             flash('Enter an item for this movement.', 'danger')
+        elif not person_in_charge:
+            flash('Enter the person in charge of this movement.', 'danger')
         elif quantity_value <= 0 or not math.isfinite(quantity_value):
             flash('Quantity must be greater than zero.', 'danger')
         elif not unit_value:
@@ -6119,6 +6147,7 @@ def factory_in_out_ledger():
                 reference=(request.form.get('movement_reference') or '').strip(),
                 quantity=quantity_value,
                 unit=unit_value,
+                person_in_charge=person_in_charge,
                 created_by=session.get('name') or session.get('user') or '',
             ))
             db.session.commit()
@@ -6147,7 +6176,7 @@ def factory_in_out_ledger():
 
     def add_movement(
         date_value, direction, category, item, description, reference, quantity,
-        unit, quantity_display=None, recorded_at=None,
+        unit, quantity_display=None, recorded_at=None, person_in_charge=None,
     ):
         if quantity_display is None and parse_numeric(quantity) <= 0:
             return
@@ -6167,6 +6196,7 @@ def factory_in_out_ledger():
             'item': item or 'â€”',
             'description': description or 'â€”',
             'reference': reference or 'â€”',
+            'person_in_charge': person_in_charge or '—',
             'quantity': quantity_display,
         })
 
@@ -6189,6 +6219,7 @@ def factory_in_out_ledger():
                     quantity,
                     'MTR',
                     recorded_at=receipt.created_at,
+                    person_in_charge=receipt.created_by,
                 )
         if parse_numeric(receipt.received_cut_pcs) > 0:
             add_movement(
@@ -6201,6 +6232,7 @@ def factory_in_out_ledger():
                 receipt.received_cut_pcs,
                 'PCS',
                 recorded_at=receipt.created_at,
+                person_in_charge=receipt.created_by,
             )
 
     for inventory in Inventory.query.order_by(Inventory.id.asc()).all():
@@ -6218,6 +6250,7 @@ def factory_in_out_ledger():
                 inventory.quantity,
                 inventory.unit or 'PCS',
                 recorded_at=inventory.created_at,
+                person_in_charge=inventory.created_by,
             )
             continue
         fabric_name = inventory.fabric_for or inventory.fabric_quality or 'Fabric'
@@ -6234,6 +6267,7 @@ def factory_in_out_ledger():
                     quantity,
                     'MTR',
                     recorded_at=inventory.created_at,
+                    person_in_charge=inventory.created_by,
                 )
 
     accessories = SavedRequirement.query.order_by(SavedRequirement.id.asc()).all()
@@ -6255,6 +6289,7 @@ def factory_in_out_ledger():
                 received_qty,
                 item.unit or 'PCS',
                 recorded_at=item.created_at,
+                person_in_charge=item.received_by,
             )
         for supplier_return in supplier_returns:
             is_exchange = (
@@ -6278,6 +6313,7 @@ def factory_in_out_ledger():
                     supplier_return.returned_qty,
                     supplier_return.exchange_item_unit or item.unit or 'PCS',
                     recorded_at=supplier_return.created_at,
+                    person_in_charge=supplier_return.created_by,
                 )
                 add_movement(
                     supplier_return.return_date,
@@ -6289,6 +6325,7 @@ def factory_in_out_ledger():
                     supplier_return.returned_qty,
                     item.unit or 'PCS',
                     recorded_at=supplier_return.created_at,
+                    person_in_charge=supplier_return.created_by,
                 )
             else:
                 add_movement(
@@ -6301,6 +6338,7 @@ def factory_in_out_ledger():
                     supplier_return.returned_qty,
                     item.unit or 'PCS',
                     recorded_at=supplier_return.created_at,
+                    person_in_charge=supplier_return.created_by,
                 )
     challans = ChallanRecord.query.order_by(ChallanRecord.id.asc()).all()
     standalone_return_ids = {
@@ -6338,6 +6376,7 @@ def factory_in_out_ledger():
                 '',
                 quantity_display=' · '.join(quantities),
                 recorded_at=challan.created_at,
+                person_in_charge=challan.created_by,
             )
 
         try:
@@ -6361,6 +6400,7 @@ def factory_in_out_ledger():
                     inventory.b_returned_quantity,
                     'MTR',
                     recorded_at=inventory.created_at,
+                    person_in_charge=challan.created_by,
                 )
 
     for movement in FactoryManualMovement.query.order_by(FactoryManualMovement.id.asc()).all():
@@ -6374,6 +6414,7 @@ def factory_in_out_ledger():
             movement.quantity,
             movement.unit,
             recorded_at=movement.created_at,
+            person_in_charge=movement.person_in_charge or movement.created_by,
         )
 
     search = (request.args.get('q') or '').strip().casefold()
@@ -10824,6 +10865,7 @@ def receiving_challan():
                 editing_challan.vehicle_no = request.form.get('vehicle_no', '')
                 editing_challan.delivered_by = request.form.get('delivered_by', '')
                 editing_challan.driver_cell_no = request.form.get('driver_cell_no', '')
+                editing_challan.created_by = (session.get('name') or session.get('user') or '').strip()
                 if image_path:
                     editing_challan.image_file = image_path
                 db.session.commit()
@@ -10858,7 +10900,8 @@ def receiving_challan():
             vehicle_no=request.form.get('vehicle_no', ''),
             delivered_by=request.form.get('delivered_by', ''),
             driver_cell_no=request.form.get('driver_cell_no', ''),
-            image_file=image_path
+            image_file=image_path,
+            created_by=(session.get('name') or session.get('user') or '').strip(),
         )
         db.session.add(new_challan)
         db.session.commit()
@@ -12477,6 +12520,8 @@ def save_inventory():
             rejected_recovered_fabric=f'{reactive_value:.2f}'
         )
         db.session.add(inventory_entry)
+
+    inventory_entry.created_by = (session.get('name') or session.get('user') or '').strip()
 
     missing = [k for k, v in form_headers.items() if not v]
     if missing:
@@ -17285,6 +17330,7 @@ def accessories_portal(portal_page='home'):
                 for_field=f'PARTY SUPPLIED · {order.job_no}',
                 accessory_status='RECEIVED',
                 received_qty=str(quantity),
+                received_by=(session.get('name') or session.get('user') or '').strip(),
                 issued_qty='0',
                 used_qty=str(quantity),
                 received_at=sent_date,
@@ -17530,6 +17576,7 @@ def accessories_portal(portal_page='home'):
                 exchange_item_unit=exchange_item.unit if exchange_item else '',
                 exchange_received_qty=exchange_received_qty,
                 note=(request.form.get('return_note') or '').strip(),
+                created_by=(session.get('name') or session.get('user') or '').strip(),
             ))
             remaining_received = max(0.0, received_qty - returned_qty)
             item.received_qty = str(round(remaining_received, 4))
@@ -18000,6 +18047,7 @@ def accessories_portal(portal_page='home'):
                     po_item.roll_length_m = roll_length_m
                 po_item.accessory_status = 'RECEIVED'
                 po_item.received_at = received_date
+                po_item.received_by = (session.get('name') or session.get('user') or '').strip()
                 po_item.purchase_slip_image = image_path
             flash(f'All items in PO {item.po_no or ""} marked as received.', 'success')
         db.session.commit()
