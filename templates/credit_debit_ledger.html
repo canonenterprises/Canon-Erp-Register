@@ -51,9 +51,9 @@
     </header>
 
     {% if company_mode %}
-    <nav class="ledger-screen-only flex gap-2 border-b border-slate-200 pb-4" aria-label="Company ledger">
+    <nav class="ledger-screen-only flex w-full max-w-md rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Company ledger">
       {% for company_option in ('Canon', 'Haram') %}
-      <a href="{{ url_for('accounts_company_credit_debit', company=company_option, direction=direction, start_date=start_date, end_date=end_date, q=search) }}" class="rounded-lg border px-4 py-2 text-sm font-bold {% if company == company_option %}border-indigo-800 bg-indigo-800 text-white{% else %}border-slate-300 text-slate-700 hover:bg-slate-50{% endif %}">{{ company_option }}</a>
+      <a href="{{ url_for('accounts_company_credit_debit', company=company_option, direction=direction, start_date=start_date, end_date=end_date, q=search) }}" {% if company == company_option %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2.5 text-center text-sm font-black {% if company == company_option %}{% if company_option == 'Canon' %}bg-[#b7955c] text-white shadow-sm{% else %}bg-slate-900 text-white shadow-sm{% endif %}{% else %}text-slate-500 hover:text-slate-900{% endif %}">{{ company_option }}</a>
       {% endfor %}
     </nav>
     {% endif %}
@@ -89,25 +89,18 @@
     </section>
 
     <section class="ledger-no-print border-b border-slate-200 pb-5">
-      <label for="ledger-search" class="block text-xs font-bold uppercase text-slate-600">Search transactions</label>
-      <input id="ledger-search" type="search" value="{{ search }}" placeholder="Search descriptions, parties, references, or methods" autocomplete="off" class="mt-2 w-full rounded-lg border border-slate-300 px-4 py-3 text-sm sm:max-w-2xl">
+      <form id="ledger-filter-form" method="get" class="grid w-full gap-2 sm:grid-cols-2 lg:max-w-6xl {% if company_mode %}lg:grid-cols-[minmax(14rem,1fr)_9rem_9rem_9rem]{% else %}lg:grid-cols-[minmax(14rem,1.5fr)_minmax(12rem,1fr)_9rem_9rem_9rem]{% endif %}">
+        <div><label for="ledger-search" class="mb-1 block text-xs font-bold uppercase text-slate-600">Search transactions</label><input id="ledger-search" name="q" type="search" value="{{ search }}" placeholder="Search descriptions, parties, references, or methods" autocomplete="off" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></div>
+        {% if company_mode %}<input type="hidden" name="company" value="{{ company }}">{% else %}<label for="ledger-party" class="min-w-0 text-xs font-bold text-slate-600">Party<select id="ledger-party" name="party" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal"><option value="">All billing parties</option>{% for party_name in party_names %}<option value="{{ party_name }}" {% if selected_party == party_name %}selected{% endif %}>{{ party_name }}</option>{% endfor %}</select></label>{% endif %}
+        <label for="ledger-direction" class="min-w-0 text-xs font-bold text-slate-600">Direction<select id="ledger-direction" name="direction" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal"><option value="ALL" {% if direction == 'ALL' %}selected{% endif %}>Credits and debits</option><option value="CREDIT" {% if direction == 'CREDIT' %}selected{% endif %}>Credits</option><option value="DEBIT" {% if direction == 'DEBIT' %}selected{% endif %}>Debits</option></select></label>
+        <label for="ledger-start-date" class="min-w-0 text-xs font-bold text-slate-600">Start date<input id="ledger-start-date" type="date" name="start_date" value="{{ start_date }}" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal"></label>
+        <label for="ledger-end-date" class="min-w-0 text-xs font-bold text-slate-600">End date<input id="ledger-end-date" type="date" name="end_date" value="{{ end_date }}" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal"></label>
+      </form>
       <p id="transaction-count" class="mt-2 text-sm text-slate-500">{{ entries|length }} transaction(s) in this view</p>
     </section>
 
-    <section class="ledger-no-print flex flex-col gap-4 border-b border-slate-200 pb-5 md:flex-row md:items-end md:justify-between">
-      <div><h2 class="text-xl font-black text-slate-900">Filters</h2></div>
-      <form id="ledger-filter-form" method="get" class="grid w-full gap-2 sm:grid-cols-2 lg:max-w-5xl {% if company_mode %}lg:grid-cols-[9rem_9rem_9rem_auto]{% else %}lg:grid-cols-[minmax(12rem,1fr)_9rem_9rem_9rem_auto]{% endif %}">
-        <input type="hidden" name="q" value="{{ search }}">
-        {% if company_mode %}<input type="hidden" name="company" value="{{ company }}">{% else %}<select name="party" class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="">All billing parties</option>{% for party_name in party_names %}<option value="{{ party_name }}" {% if selected_party == party_name %}selected{% endif %}>{{ party_name }}</option>{% endfor %}</select>{% endif %}
-        <select name="direction" class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="ALL" {% if direction == 'ALL' %}selected{% endif %}>Credits and debits</option><option value="CREDIT" {% if direction == 'CREDIT' %}selected{% endif %}>Credits</option><option value="DEBIT" {% if direction == 'DEBIT' %}selected{% endif %}>Debits</option></select>
-        <input type="date" name="start_date" value="{{ start_date }}" aria-label="Start date" class="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
-        <input type="date" name="end_date" value="{{ end_date }}" aria-label="End date" class="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
-        <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-filter" aria-hidden="true"></i> Filter</button>
-      </form>
-    </section>
-
     <div class="ledger-no-print flex justify-end">
-      <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Statement</button>
+      <button type="button" onclick="window.print()" class="print-gold-button inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Statement</button>
     </div>
 
     <section class="statement-print-only">
@@ -197,7 +190,6 @@
     balanceElement.classList.toggle('text-emerald-800', netBalance >= 0);
     balanceElement.classList.toggle('text-rose-800', netBalance < 0);
 
-    ledgerFilterForm.querySelector('input[name="q"]').value = ledgerSearch.value;
     const params = new URLSearchParams(window.location.search);
     if (ledgerSearch.value) params.set('q', ledgerSearch.value);
     else params.delete('q');
@@ -206,7 +198,14 @@
   }
 
   ledgerSearch.addEventListener('input', updateLedgerSearch);
+  ledgerSearch.addEventListener('keydown', event => {
+    if (event.key === 'Enter') event.preventDefault();
+  });
   updateLedgerSearch();
+
+  ledgerFilterForm.querySelectorAll('select, input[type="date"]').forEach(control => {
+    control.addEventListener('change', () => ledgerFilterForm.requestSubmit());
+  });
 
   const manualEntryToggle = document.getElementById('toggle-manual-entry');
   const manualEntryForm = document.getElementById('manual-entry-form');

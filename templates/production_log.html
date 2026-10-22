@@ -83,7 +83,7 @@
 
         .print-content > div:nth-of-type(2) > div:last-child {
             display: grid !important;
-            grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
             gap: 4mm !important;
             padding: 4mm 6mm !important;
         }
@@ -259,12 +259,13 @@
                 </div>
             </div>
         </div>
-        <div class="grid grid-cols-2 gap-x-5 gap-y-5 p-5 text-center sm:grid-cols-3 lg:grid-cols-6 lg:p-6">
+        <div class="grid grid-cols-2 gap-x-5 gap-y-5 p-5 text-center sm:grid-cols-3 lg:grid-cols-7 lg:p-6">
             <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER M/O</p><p class="mt-1 text-base font-bold text-slate-800">{{ selected_order_month or '-' }}</p></div>
-            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER Number</p><p class="mt-1 text-base font-bold text-slate-800">{{ selected_order.job_no or '-' }}</p></div>
+            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER No.</p><p class="mt-1 text-base font-bold text-slate-800">{{ selected_order.job_no or '-' }}</p></div>
             <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER PCS</p><p class="mt-1 text-xl font-black text-slate-900">{{ selected_order_pcs or '-' }}</p></div>
             <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">CURRENT M/O</p><p class="mt-1 text-base font-bold text-slate-800">{{ current_month_label }}</p></div>
-            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">CUTTING PCS</p><p class="mt-1 text-xl font-black text-slate-900">{{ logs[0].cut_pcs if selected_cut and logs else '-' }}</p></div>
+            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">CUTTING PCS</p><p class="mt-1 text-xl font-black text-slate-900">{{ '{:,.0f}'.format(production_cutting_pcs) if production_cutting_pcs > 0 else '-' }}</p></div>
+            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">B/Q %</p><p class="mt-1 text-xl font-black text-slate-900">{{ '%.2f'|format(production_bq_percent) if production_bq_percent is not none else '-' }}{% if production_bq_percent is not none %}%{% endif %}</p></div>
             <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">INV#</p><p class="mt-1 text-base font-black text-slate-900">{{ selected_inventory_serial or '-' }}</p></div>
         </div>
     </div>

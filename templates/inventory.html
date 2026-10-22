@@ -34,22 +34,24 @@
         <!-- Form -->
         <form id="inventory-form" method="POST" action="{{ url_for('save_inventory', job_no=selected_job) }}">
             <input type="hidden" name="serial_no" value="{{ serial_no or '' }}">
-            <input type="hidden" name="inventory_id" value="{{ inventory.id if inventory else '' }}">
+            <input type="hidden" name="inventory_id" value="{{ inventory.id if inventory and inventory.id else '' }}">
+            <input type="hidden" name="is_direct_cutting_pcs" value="{{ 'on' if inventory and inventory.is_direct_cutting_pcs else '' }}">
+            <input type="hidden" name="direct_cutting_pcs" value="{{ inventory.direct_cutting_pcs if inventory and inventory.is_direct_cutting_pcs else '' }}">
             <fieldset {% if inventory_read_only %}disabled{% endif %}>
             <!-- Header -->
             <div class="flex justify-between items-center mb-6">
                 <div>
                     <h2 class="text-2xl font-extrabold text-black-800">Fabric Position Inventory</h2>
                 </div>
-                <div class="flex flex-wrap items-center gap-2 no-print">
-                    <span class="px-3 py-1 rounded-full bg-emerald-100 text-black-700 text-sm font-bold">Serial No: {{ serial_no }}</span>
-                    <span class="px-3 py-1 rounded-full text-sm font-bold {% if 'Rejected' in inventory_status %}bg-rose-100 text-rose-800{% elif 'Re-active' in inventory_status %}bg-teal-100 text-teal-800{% elif inventory_status.startswith('Finished') %}bg-emerald-100 text-emerald-800{% elif inventory_status.startswith('Active') %}bg-cyan-100 text-cyan-800{% elif inventory_status.startswith('Partially Used') %}bg-amber-100 text-amber-800{% else %}bg-slate-100 text-slate-700{% endif %}">Status: {{ inventory_status or 'Not Used' }}</span>
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="no-print rounded-full bg-emerald-100 px-3 py-1 text-sm font-bold text-black-700">Serial No: {{ serial_no }}</span>
+                    <span class="inventory-print-status rounded-full px-3 py-1 text-sm font-bold {% if 'Rejected' in inventory_status %}bg-rose-100 text-rose-800{% elif 'Re-active' in inventory_status %}bg-teal-100 text-teal-800{% elif inventory_status.startswith('Finished') %}bg-emerald-100 text-emerald-800{% elif inventory_status.startswith('Active') %}bg-cyan-100 text-cyan-800{% elif inventory_status.startswith('Partially Used') %}bg-amber-100 text-amber-700{% else %}bg-slate-100 text-slate-700{% endif %}">Status: {{ inventory_status or 'Not Used' }}</span>
                 </div>
             </div>
 
             <!-- Top Info -->
-            <div class="upper-inventory-fields">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="upper-inventory-fields {% if inventory and inventory.is_direct_cutting_pcs %}direct-pcs-mode{% endif %}">
+            <div class="grid grid-cols-1 {% if inventory and inventory.is_direct_cutting_pcs %}md:grid-cols-3{% else %}md:grid-cols-4{% endif %} gap-4 mb-6">
                 <div>
                     <label class="block text-xs font-bold text-black-500">Supplier</label>
                     <input type="text" name="suppliers" value="{{ inventory.suppliers if inventory and inventory.suppliers else '' }}"readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
@@ -58,7 +60,7 @@
                     <label class="block text-xs font-bold text-black-500">Fabric Quality</label>
                     <input type="text" name="fabric_quality" value="{{ inventory.fabric_quality if inventory and inventory.fabric_quality else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
-                <div>
+                <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
                     <label class="block text-xs font-bold text-black-500">Width</label>
                     <input type="text" name="width" value="{{ inventory.width if inventory and inventory.width else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
@@ -68,7 +70,7 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div class="grid grid-cols-1 {% if inventory and inventory.is_direct_cutting_pcs %}md:grid-cols-2{% else %}md:grid-cols-5{% endif %} gap-4 mb-6">
                 <div>
                     <label class="block text-xs font-bold text-black-500">File No</label>
                     <input type="text" name="file_no" value="{{ inventory.file_no if inventory and inventory.file_no else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
@@ -77,21 +79,21 @@
                     <label class="block text-xs font-bold text-black-500">Cut Size</label>
                     <input type="text" name="cut_size_header" value="{{ inventory.cut_size_header if inventory and inventory.cut_size_header else '' }}" required class="upper w-full border border-black-500 rounded-lg p-2">
                 </div>
-                <div>
+                <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
                     <label class="block text-xs font-bold text-black-500">Req Cutting</label>
                     <input type="text" id="req_cutting" name="req_cutting" value="{{ inventory.req_cutting if inventory and inventory.req_cutting else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
-                <div>
+                <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
                     <label class="block text-xs font-bold text-black-500">Consumption</label>
                     <input type="number" step="0.01" id="consumption" name="consumption" value="{{ inventory.consumption if inventory and inventory.consumption else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed" oninput="updateReqCutting()">
                 </div>
-                <div>
+                <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
                     <label class="block text-xs font-bold text-black-500">Req Average</label>
                     <input type="text" id="req_average" name="req_average" value="{{ inventory.req_average if inventory and inventory.req_average else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div class="grid grid-cols-1 {% if inventory and inventory.is_direct_cutting_pcs %}md:grid-cols-5{% else %}md:grid-cols-6{% endif %} gap-4 mb-6">
                 <div>
                     <label class="block text-xs font-bold text-black-500">Recieved Date</label>
                     <input type="date" name="recv_date" value="{{ inventory.recv_date if inventory and inventory.recv_date else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
@@ -108,39 +110,77 @@
                     <label class="block text-xs font-bold text-black-500">Place</label>
                     <input type="text" name="place" value="{{ inventory.place if inventory and inventory.place else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
+                <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
+                    <label class="block text-xs font-bold text-black-500">1 METER = 100 CM</label>
+                    <input type="text" name="meter_note" value="{{ inventory_avg_value or (inventory.meter_note if inventory and inventory.meter_note else '') }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
                 <div>
-                    <label class="block text-xs font-bold text-black-500">1 Meter = 100 CM (Rolls)</label>
-                    <input type="text" name="meter_note" value="{{ inventory.meter_note if inventory and inventory.meter_note else '' }}" readonly required class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                    <label class="block text-xs font-bold text-black-500">BUNDLES</label>
+                    <input type="text" value="{{ inventory_rolls or '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10">
-                <div>
+            <div class="inventory-quantities-grid grid grid-cols-1 md:grid-cols-5 gap-4 mb-10 {% if inventory and inventory.is_direct_cutting_pcs %}direct-pcs-mode{% endif %}">
+                <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
                     <label class="block text-xs font-bold text-black-500">Fabric Quantity A</label>
                     <input type="number" step="0.01" name="fabric_qty_a" value="{{ inventory.fabric_qty_a if inventory and inventory.fabric_qty_a else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
-                <div>
+                <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
                     <label class="block text-xs font-bold text-black-500">Fabric Quantity B</label>
                     <input type="number" step="0.01" name="fabric_qty_b" value="{{ inventory.fabric_qty_b if inventory and inventory.fabric_qty_b else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                     <label class="no-print mt-2 flex items-center gap-2 text-xs font-bold text-black-700">
-                        <input type="checkbox" name="enable_fabric_b" {% if inventory and inventory.fabric_b_enabled %}checked{% endif %}>
+                        <input type="checkbox" name="enable_fabric_b" {% if inventory and inventory.fabric_b_enabled %}checked{% endif %} {% if inventory and inventory.is_direct_cutting_pcs %}disabled{% endif %}>
                         Enable Fabric B.Q for future cuts
                     </label>
                     {% if inventory and inventory.fabric_b_enabled %}
                     <span class="print-only text-xs font-bold text-black-700">B-QUALITY ACTIVE</span>
                     {% endif %}
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-black-500">Receive Cut Pcs</label>
+                <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
+                    <label class="block text-xs font-bold text-black-500">Received Cut PCS</label>
                     <input type="number" name="receive_cut_pcs" value="{{ inventory.receive_cut_pcs if inventory and inventory.receive_cut_pcs else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-black-500">Total</label>
-                    <input type="text" name="total" value="{{ inventory.total if inventory and inventory.total else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                <div class="inventory-mode-field">
+                    <label class="block text-xs font-bold text-black-500">Inventory Mode</label>
+                    <input
+                    type="text"
+                    value="{{ 'Direct Cutting PCS' if inventory and inventory.is_direct_cutting_pcs else 'Fabric' }}"
+                    readonly
+                    class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed"
+                    >
                 </div>
+
+                {% if inventory and inventory.is_direct_cutting_pcs %}
+                <div class="inventory-direct-pcs-field">
+                    <label class="block text-xs font-bold text-black-500">
+                        Recv Cutting PCS
+                    </label>
+                    <input
+                        type="number"
+                        value="{{ inventory.direct_cutting_pcs or '' }}"
+                        readonly
+                        class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed"
+                    >
+                </div>
+                {% endif %}
+                <div>
+                    <label class="block text-xs font-bold text-black-500">{% if inventory and inventory.is_direct_cutting_pcs %}Total Direct PCS{% else %}Total{% endif %}</label>
+                    <input type="text" name="total" value="{{ inventory.direct_cutting_pcs if inventory and inventory.is_direct_cutting_pcs else (inventory.total if inventory and inventory.total else '') }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                {% if inventory and inventory.is_direct_cutting_pcs %}
+                <div class="no-print">
+                    <label class="block text-xs font-bold text-black-500">Used Direct PCS</label>
+                    <input type="text" name="used_fabric" value="{{ direct_pcs_used }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                <div class="no-print">
+                    <label class="block text-xs font-bold text-black-500">Remaining Direct PCS</label>
+                    <input type="text" name="left_over_fabric" value="{{ direct_pcs_remaining }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                </div>
+                {% endif %}
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-10 no-print">
+                {% if not (inventory and inventory.is_direct_cutting_pcs) %}
                 <div>
                     <label class="block text-xs font-bold text-black-500">Used Fabric</label>
                     <input type="text" name="used_fabric" value="{{ inventory.used_fabric if inventory and inventory.used_fabric else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
@@ -149,11 +189,12 @@
                     <label class="block text-xs font-bold text-black-500">Left Over Fabric</label>
                     <input type="text" name="left_over_fabric" value="{{ inventory.left_over_fabric if inventory and inventory.left_over_fabric else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
-                <div>
+                {% endif %}
+                <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
                     <label class="block text-xs font-bold text-black-500">Rejected Fabric</label>
                     <input type="number" step="0.01" id="rejected_fabric" name="rejected_fabric" value="{{ inventory.rejected_fabric if inventory and inventory.rejected_fabric else '' }}" data-original-value="{{ inventory.rejected_fabric if inventory and inventory.rejected_fabric else '' }}" class="upper w-full border border-black-500 rounded-lg p-2">
                 </div>
-                <div>
+                <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
                     <label class="block text-xs font-bold text-black-500">Re-active Fabric</label>
                     <input type="number" step="0.01" min="0" max="{{ inventory.rejected_fabric|float if inventory else '' }}" name="re_active_fabric" value="{{ inventory.rejected_recovered_fabric if inventory and inventory.rejected_recovered_fabric else '0' }}" class="upper w-full border border-black-500 rounded-lg p-2">
                 </div>
@@ -176,12 +217,13 @@
                             <th class="border px-2 py-1">Cut No</th>
                             <th class="border px-2 py-1">Cut Size</th>
                             <th class="border px-2 py-1">Cutting Pcs</th>
+                            <th class="border px-2 py-1">AVG/ PCS</th>
                             <th class="border px-2 py-1">Fabric Req</th>
                             <th class="border px-2 py-1">Fabric Issue</th>
                             <th class="border px-2 py-1">Fabric Use</th>
                             <th class="border px-2 py-1">Fabric Return</th>
-                            <th class="border px-2 py-1">Shortage</th>
-                            <th class="border px-2 py-1">Wastage</th>
+                            <th class="border px-2 py-1 whitespace-normal break-words">Shortage</th>
+                            <th class="border px-2 py-1 whitespace-normal break-words">Wastage</th>
                             <th class="border px-2 py-1">Cut Pcs</th>
                             <th class="border px-2 py-1">Fabric Balance</th>
                         </tr>
@@ -206,6 +248,7 @@
                             <td class="border px-1 py-1"><input type="number" name="cut_no_{{ i }}" value="{{ r.cut_no if r and r.cut_no else '' }}" class="w-full p-1 border rounded" readonly></td>
                             <td class="border px-1 py-1"><input type="number" name="cut_size_{{ i }}" value="{{ r.cut_size if r and r.cut_size else '' }}" class="w-full p-1 border rounded" readonly></td>
                             <td class="border px-1 py-1"><input type="number" name="cutting_pcs_{{ i }}" value="{{ r.cutting_pcs if r and r.cutting_pcs is not none else '' }}" class="w-full p-1 border rounded" readonly></td>
+                            <td class="border px-1 py-1"><input type="text" value="{{ r.avg_pcs if r and r.avg_pcs else '' }}" class="w-full p-1 border rounded" readonly></td>
                             <td class="border px-1 py-1"><input type="number" step="0.01" name="fabric_req_{{ i }}" value="{{ r.fabric_req if r and r.fabric_req else '' }}" class="w-full p-1 border rounded" readonly></td>
                             <td class="border px-1 py-1"><input type="number" step="0.01" name="fabric_issue_{{ i }}" value="{{ r.fabric_issue if r and r.fabric_issue else '' }}" class="w-full p-1 border rounded" readonly></td>
                             <td class="border px-1 py-1"><input type="number" step="0.01" name="fabric_use_{{ i }}" value="{{ r.fabric_use if r and r.fabric_use else '' }}" class="w-full p-1 border rounded" readonly></td>
@@ -388,6 +431,11 @@ document.getElementById('inventory-form').addEventListener('submit', function (e
 });
 
 function updateInventoryFabricStatus() {
+    const directPcsModeEl = document.querySelector('input[name="is_direct_cutting_pcs"]');
+    if (directPcsModeEl?.value === 'on') {
+        return;
+    }
+
     const fabricAEl = document.querySelector('input[name="fabric_qty_a"]');
     const fabricBEl = document.querySelector('input[name="fabric_qty_b"]');
     const enableFabricBEl = document.querySelector('input[name="enable_fabric_b"]');
@@ -644,11 +692,30 @@ input[type="number"]::-webkit-outer-spin-button {
 /* hide print-date spans on screen; show in print */
 .print-date{ display:none; }
 
+@media screen and (min-width: 768px) {
+    #inventory-form .upper-inventory-fields.direct-pcs-mode {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    #inventory-form .upper-inventory-fields.direct-pcs-mode > .grid:nth-child(1),
+    #inventory-form .upper-inventory-fields.direct-pcs-mode > .grid:nth-child(2) {
+        display: contents;
+    }
+
+    #inventory-form .upper-inventory-fields.direct-pcs-mode > .grid:nth-child(3),
+    #inventory-form .upper-inventory-fields.direct-pcs-mode > .grid:nth-child(4) {
+        grid-column: 1 / -1;
+    }
+}
+
 @media print {
     @page { size: A4 portrait; margin: 0.25in; }
 
     body * { visibility: hidden; }
     #print-area, #print-area * { visibility: visible; }
+    #print-area [hidden] { display: none !important; }
     #print-area {
         position: absolute;
         left: 0;
@@ -736,9 +803,44 @@ input[type="number"]::-webkit-outer-spin-button {
         grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     }
 
-    #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(2),
-    #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(3) {
+    #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(2) {
         grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    }
+
+    #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(3) {
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    }
+
+    #inventory-form fieldset > .upper-inventory-fields.direct-pcs-mode {
+        display: grid !important;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        gap: 4px 8px !important;
+    }
+
+    #inventory-form fieldset > .upper-inventory-fields.direct-pcs-mode > .grid:nth-child(1),
+    #inventory-form fieldset > .upper-inventory-fields.direct-pcs-mode > .grid:nth-child(2) {
+        display: contents !important;
+    }
+
+    #inventory-form fieldset > .upper-inventory-fields.direct-pcs-mode > .grid:nth-child(3),
+    #inventory-form fieldset > .upper-inventory-fields.direct-pcs-mode > .grid:nth-child(4) {
+        grid-column: 1 / -1;
+    }
+
+    #inventory-form fieldset > .upper-inventory-fields.direct-pcs-mode > .grid:nth-child(1) {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    }
+
+    #inventory-form fieldset > .upper-inventory-fields.direct-pcs-mode > .grid:nth-child(2) {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    #inventory-form fieldset > .upper-inventory-fields.direct-pcs-mode > .grid:nth-child(3) {
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    }
+
+    #inventory-form fieldset > .upper-inventory-fields > .grid.inventory-quantities-grid.direct-pcs-mode {
+        grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     }
 
     #inventory-form fieldset > .upper-inventory-fields > .grid:nth-child(4) {
@@ -917,6 +1019,25 @@ input[type="number"]::-webkit-outer-spin-button {
     .signature-row div {
         font-size: 12px !important;
     }
+    #inventory-form .inventory-mode-field input.upper,
+    #inventory-form .inventory-direct-pcs-field input.upper {
+    width: 100% !important;
+    height: 20px !important;
+    min-height: 20px !important;
+    padding: 13px 7px !important;
+    box-sizing: border-box !important;
+    color: #000 !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    line-height: 1.1 !important;
+    text-align: center !important;
+    background: #fff !important;
+    border: 1px solid #000 !important;
+    border-radius: 2px !important;
+    box-shadow: none !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+}
 
 }
 

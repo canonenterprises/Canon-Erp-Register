@@ -17,11 +17,10 @@
         <input type="hidden" name="action" value="save_summary" data-summary-action>
         {% if summary %}<input type="hidden" name="summary_id" value="{{ summary.id }}">{% endif %}
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <label class="text-xs font-bold uppercase text-slate-500">Utility type<select name="utility_type" required class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm">{% for utility_type in utility_types %}<option value="{{ utility_type }}" {% if bill and bill.utility_type == utility_type %}selected{% elif not bill and utility_type == 'Electricity' %}selected{% endif %}>{{ utility_type }}</option>{% endfor %}</select></label>
           <label class="text-xs font-bold uppercase text-slate-500">Company<select name="company" required class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="Canon" {% if not bill or bill.company == 'Canon' %}selected{% endif %}>Canon</option><option value="Haram" {% if bill and bill.company == 'Haram' %}selected{% endif %}>Haram</option></select></label>
           <label class="text-xs font-bold uppercase text-slate-500">Provider<input name="provider" value="{{ bill.provider if bill else '' }}" maxlength="150" required placeholder="Utility company or combined bill name" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
           <label class="text-xs font-bold uppercase text-slate-500">Account / consumer no.<input name="account_reference" value="{{ bill.account_reference if bill else '' }}" maxlength="100" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
-          <label class="text-xs font-bold uppercase text-slate-500">Bill Month<input type="month" name="billing_period" value="{{ bill.billing_period if bill else current_month }}" required class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
+          <div data-billing-periods class="text-xs font-bold uppercase text-slate-500"><span>Bill Month(s)</span><div data-billing-period-list class="mt-1 grid gap-2">{% for period in (bill.billing_period.split(',') if bill else [current_month]) %}<div class="flex gap-2"><input type="month" name="billing_period" value="{{ period.strip() }}" required class="w-full min-w-0 rounded-md border border-slate-300 px-3 py-2.5 text-sm"><button type="button" data-remove-billing-month aria-label="Remove billing month" class="rounded-md border border-slate-300 px-3 text-slate-600" hidden><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></div>{% endfor %}</div><button type="button" data-add-billing-month class="mt-2 inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add month</button></div>
           <label class="text-xs font-bold uppercase text-slate-500">Bill date<input type="date" name="bill_date" value="{{ bill.bill_date if bill else today }}" required class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
           <label class="text-xs font-bold uppercase text-slate-500">Due date<input type="date" name="due_date" value="{{ bill.due_date if bill else '' }}" class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2.5 text-sm"></label>
         </div>
@@ -95,6 +94,24 @@
   const form = document.getElementById('bill-summary-form');
   const rows = document.querySelector('[data-summary-rows]');
   if (!form || !rows) return;
+  const billingPeriodList = form.querySelector('[data-billing-period-list]');
+  function updateBillingMonthControls() {
+    const monthRows = Array.from(billingPeriodList.children);
+    monthRows.forEach(row => row.querySelector('[data-remove-billing-month]').hidden = monthRows.length === 1);
+  }
+  form.querySelector('[data-add-billing-month]').addEventListener('click', () => {
+    const monthRow = billingPeriodList.firstElementChild.cloneNode(true);
+    monthRow.querySelector('input').value = '';
+    billingPeriodList.appendChild(monthRow);
+    updateBillingMonthControls();
+  });
+  billingPeriodList.addEventListener('click', event => {
+    const removeButton = event.target.closest('[data-remove-billing-month]');
+    if (!removeButton || billingPeriodList.children.length === 1) return;
+    removeButton.closest('div').remove();
+    updateBillingMonthControls();
+  });
+  updateBillingMonthControls();
   const numericNames = ['previous_reading', 'present_reading', 'units', 'electric_charges', 'adjustment', 'fuel_charges', 'additional_surcharge', 'tariff_difference', 'maintenance_charges', 'water_charges'];
   const money = value => Number.isFinite(value) ? value.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00';
   const bankName = form.querySelector('[name="bank_name"]');

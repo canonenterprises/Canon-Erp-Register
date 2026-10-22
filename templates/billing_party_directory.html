@@ -20,22 +20,35 @@
     </header>
 
     <div class="grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-      <form method="post" class="space-y-3">
+      {% if add_party_name %}
+      <div class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-4" role="dialog" aria-modal="true" aria-labelledby="required-party-title">
+      {% endif %}
+      <form method="post" class="{% if add_party_name %}max-h-[92vh] w-full max-w-2xl space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-white p-6 shadow-2xl{% else %}space-y-3{% endif %}">
         <input type="hidden" name="action" value="save_party">
         <input type="hidden" name="shipper" value="{{ selected_shipper }}">
         <input type="hidden" name="party_id" value="{{ selected_party.id if selected_party else '' }}">
+        <input type="hidden" name="add_party_name" value="{{ add_party_name }}">
+        <input type="hidden" name="return_to_billing" value="{{ '1' if return_to_billing else '' }}">
+        {% if add_party_name %}
+        <p class="text-xs font-black uppercase text-amber-700">Party directory required</p>
+        <h2 id="required-party-title" class="text-xl font-black text-slate-900">Add {{ add_party_name }} to the Party Directory</h2>
+        <p class="text-sm text-slate-600">A Bill and Invoice can only be created after this customer has been added.</p>
+        {% else %}
         <h2 class="text-xl font-black text-slate-900">{{ 'Update party' if selected_party else 'Add party' }}</h2>
+        {% endif %}
 
         <label class="block text-xs font-bold uppercase text-slate-500">
           Party name
           <select name="party_name" required class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm">
             {% if selected_party %}
             <option value="{{ selected_party.party_name }}" selected>{{ selected_party.party_name }}</option>
+            {% elif add_party_name %}
+            <option value="{{ add_party_name }}" selected>{{ add_party_name }}</option>
             {% else %}
             <option value="">Select an existing party</option>
             {% endif %}
             {% for party_name in party_name_options %}
-            {% if not selected_party or party_name != selected_party.party_name %}
+            {% if (not selected_party or party_name != selected_party.party_name) and party_name != add_party_name %}
             <option value="{{ party_name }}">{{ party_name }}</option>
             {% endif %}
             {% endfor %}
@@ -89,9 +102,14 @@
           </button>
           {% if selected_party %}
           <a href="{{ url_for('billing_party_directory', shipper=selected_shipper) }}" class="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</a>
+          {% elif add_party_name and return_to_billing %}
+          <a href="{{ url_for('billing_portal', shipper=selected_shipper) }}" class="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700">Cancel</a>
           {% endif %}
         </div>
       </form>
+      {% if add_party_name %}
+      </div>
+      {% endif %}
 
       <div class="min-w-0">
         <h2 class="text-xl font-black text-slate-900">Saved parties <span class="ml-1 text-sm font-semibold text-slate-500">{{ party_records|length }}</span></h2>

@@ -7,17 +7,17 @@
   <!-- SCREEN ACTIONS -->
   <div class="payment-actions mb-5 flex justify-between print:hidden">
     <a href="{{ invoice_back_url if invoice_back_url is defined else url_for('accounts_utility_bill_summary', summary_id=summary.id, view='invoice') }}"
-       class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">
-      Back to Bill Summary
+      class="print-back-button rounded-md border border-slate-300 bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">
+      {{ invoice_back_label if invoice_back_label is defined else ('Back to Accessories Billing' if document_type == 'accessory' else 'Back to Bill Summary') }}
     </a>
 
     <button type="button" onclick="window.print()"
-      class="rounded-md bg-slate-900 px-5 py-2 text-sm font-bold text-white">
+      class="print-gold-button rounded-md bg-[#b7955c] px-5 py-2 text-sm font-bold text-white hover:bg-[#9b7e4e]">
       Print Payment Voucher
     </button>
   </div>
 
-  <article class="payment-voucher">
+  <article class="payment-voucher print-light-paper">
 
     <!-- PROFESSIONAL HEADER -->
     <header class="voucher-header">
@@ -39,11 +39,11 @@
 
         <div class="company-name">{{ company_name or 'COMPANY' }}</div>
         <div class="voucher-title">
-          {{ invoice_title if invoice_title is defined else 'BANK PAYMENT VOUCHER' }}
+          BANK PAYMENT VOUCHER
         </div>
       </div>
 
-      <div class="voucher-meta">
+      <div class="voucher-meta{% if document_type == 'accessory' %} voucher-meta-accessory{% endif %}">
 
         <div class="meta-item">
           <span class="meta-label">VOUCHER NO.</span>
@@ -52,24 +52,24 @@
 
         <div class="meta-item">
           <span class="meta-label">VOUCHER DATE</span>
-          <span class="meta-value">{{ summary.invoice_date or '—' }}</span>
+          <span class="meta-value">{{ summary.invoice_date|format_ddmmyyyy or '—' }}</span>
         </div>
 
         <div class="meta-item">
           <span class="meta-label">
-            {{ payment_reference_label if payment_reference_label is defined else 'CHEQUE NO.' }}
+            {{ 'CHEQUE NO.' if document_type == 'accessory' else (payment_reference_label if payment_reference_label is defined else 'CHEQUE NO.') }}
           </span>
           <span class="meta-value">{{ cheque_no if cheque_no is defined and cheque_no else '—' }}</span>
         </div>
 
         <div class="meta-item">
           <span class="meta-label">PAYMENT DATE</span>
-          <span class="meta-value">{{ payment_date if payment_date is defined and payment_date else '—' }}</span>
+          <span class="meta-value">{{ payment_date|format_ddmmyyyy if payment_date is defined and payment_date else '—' }}</span>
         </div>
 
         <div class="meta-item meta-bank">
-          <span class="meta-label">BANK</span>
-          <span class="meta-value">{{ summary.bank_name or '—' }}</span>
+            <span class="meta-label">BANK</span>
+          <span class="meta-value">{{ voucher_bank_name if voucher_bank_name is defined else summary.bank_name or '—' }}</span>
         </div>
 
       </div>
@@ -95,6 +95,23 @@
         </thead>
 
         <tbody>
+          {% if document_type == 'accessory' %}
+          <tr class="account-row">
+            <td class="account-name"><span class="account-main">{{ vendor_name or '' }}</span></td>
+            <td class="ref-number">
+              {% if po_rows %}{{ po_rows[0].po_no }}{% if po_rows[0].month %}<span class="po-month">{{ po_rows[0].month }}</span>{% endif %}{% else %}—{% endif %}
+            </td>
+            <td class="amount-cell">{{ '{:,.0f}'.format(po_rows[0].total_amount or 0) if po_rows else '' }}</td>
+            <td class="amount-cell"></td>
+          </tr>
+          {% elif bill is defined and bill.utility_type == 'Rental Payment' %}
+          <tr class="account-row">
+            <td class="account-name"><span class="account-main">FACTORY RENT</span></td>
+            <td class="ref-number">{{ rental_month or '—' }}</td>
+            <td class="amount-cell">{{ '{:,.0f}'.format(summary.total_amount or 0) }}</td>
+            <td class="amount-cell"></td>
+          </tr>
+          {% else %}
           {% for item in summary_rows %}
           <tr class="account-row">
             <td class="account-name">
@@ -115,51 +132,83 @@
             <td class="amount-cell"></td>
           </tr>
           {% endfor %}
+          {% endif %}
 
           <tr class="bank-account-row">
-            <td class="account-name">BANK — {{ summary.bank_name or '' }}</td>
-            <td></td>
-            <td></td>
-            <td></td>
+            <td class="account-name">BANK — {{ voucher_bank_name if voucher_bank_name is defined else summary.bank_name or '' }}</td>
+            <td class="ref-number">{% if document_type == 'accessory' and po_rows|length > 1 %}{{ po_rows[1].po_no }}{% if po_rows[1].month %}<span class="po-month">{{ po_rows[1].month }}</span>{% endif %}{% endif %}</td>
+            <td class="amount-cell">{% if document_type == 'accessory' and po_rows|length > 1 %}{{ '{:,.0f}'.format(po_rows[1].total_amount or 0) }}{% endif %}</td>
+            <td class="amount-cell">{% if bill is defined and bill.utility_type == 'Rental Payment' %}{{ '{:,.0f}'.format(summary.total_amount or 0) }}{% endif %}</td>
           </tr>
 
           <tr class="period-row">
             <td class="account-name">
-              BILLING PERIOD — {{ bill.billing_period or '—' }}
+              {% if document_type == 'accessory' %}
+                M/O — {{ bill.purchase_months or '—' }}
+              {% elif bill is defined and bill.utility_type == 'Rental Payment' %}
+                BILLING PERIOD — {{ bill.billing_period|format_month_year or '—' }}
+              {% else %}
+                BILLING PERIOD — {{ bill.billing_period|format_month_year or '—' }}
+              {% endif %}
             </td>
-            <td></td>
-            <td></td>
-            <td></td>
+            <td class="ref-number">{% if document_type == 'accessory' and po_rows|length > 2 %}{{ po_rows[2].po_no }}{% if po_rows[2].month %}<span class="po-month">{{ po_rows[2].month }}</span>{% endif %}{% endif %}</td>
+            <td class="amount-cell">{% if document_type == 'accessory' and po_rows|length > 2 %}{{ '{:,.0f}'.format(po_rows[2].total_amount or 0) }}{% endif %}</td>
+            <td class="amount-cell">
+              {% if document_type != 'accessory' and not (bill is defined and bill.utility_type == 'Rental Payment') %}{{ '{:,.0f}'.format(summary.total_amount or 0) }}{% endif %}
+            </td>
           </tr>
 
-          <tr class="payee-row">
-            <td class="account-name">
-              PAYEE / ACCOUNT — {{ summary.invoice_to or company_name or '' }}
-            </td>
-            <td></td>
-            <td></td>
-            <td class="amount-cell">
-              {{ '{:,.0f}'.format(summary.total_amount or 0) }}
-            </td>
+          {% if bill is defined and bill.utility_type == 'Rental Payment' %}
+          <tr class="period-row">
+            <td class="account-name">PROVIDER — {{ bill.provider or '—' }}</td>
+            <td class="ref-number"></td>
+            <td class="amount-cell"></td>
+            <td class="amount-cell"></td>
           </tr>
+          {% endif %}
+
+          {% if document_type == 'accessory' %}
+          {% for po in po_rows[3:] %}
+          <tr class="additional-po-row">
+            <td></td>
+            <td class="ref-number">{{ po.po_no }}{% if po.month %}<span class="po-month">{{ po.month }}</span>{% endif %}</td>
+            <td class="amount-cell">{{ '{:,.0f}'.format(po.total_amount or 0) }}</td>
+            <td></td>
+          </tr>
+          {% endfor %}
+          <tr class="po-credit-total-row">
+            <td></td>
+            <td></td>
+            <td></td>
+            <td class="amount-cell">{{ '{:,.0f}'.format(summary.total_amount or 0) }}</td>
+          </tr>
+          {% endif %}
 
           <!-- CHEQUE IMAGE -->
           <tr class="cheque-row">
-            <td class="cheque-image-cell" rowspan="3">
+            <td class="cheque-image-cell" rowspan="5">
               {% if cheque_image_url is defined and cheque_image_url %}
                 <img class="cheque-image"
                      src="{{ cheque_image_url }}"
                      alt="Uploaded bank cheque">
               {% else %}
                 <div class="cheque-placeholder print:hidden">
-                  <strong>CHEQUE IMAGE</strong>
-                  <small>Upload from Bill Summary</small>
+                  <strong>{{ 'SUPPLIER DOCUMENT' if document_type == 'accessory' else 'CHEQUE IMAGE' }}</strong>
+                  <small>{{ 'No document attached' if document_type == 'accessory' else 'Upload from Bill Summary' }}</small>
                 </div>
               {% endif %}
             </td>
             <td class="blank-cell"></td>
             <td class="blank-cell"></td>
             <td class="blank-cell"></td>
+          </tr>
+
+          <tr class="writing-row">
+            <td></td><td></td><td></td>
+          </tr>
+
+          <tr class="writing-row">
+            <td></td><td></td><td></td>
           </tr>
 
           <tr class="writing-row">
@@ -197,7 +246,13 @@
         <div class="detail-label">NARRATION</div>
         <div class="detail-colon">:</div>
         <div class="detail-value">
-          {{ summary.notes or ('ISSUED CHEQUE FOR ELECTRICITY BILL — M/O ' ~ (bill.billing_period or '')) }}
+          {% if document_type == 'accessory' %}
+            ISSUE CHEQUE TO {{ vendor_name or company_name or 'VENDOR' }} — M/O - {{ bill.purchase_months or '—' }}
+          {% elif bill is defined and bill.utility_type == 'Rental Payment' %}
+            ISSUED CHEQUE FOR RENTAL BILL — M/O {{ bill.billing_period|format_month_year }}
+          {% else %}
+            {{ summary.notes or 'ISSUED CHEQUE FOR ELECTRICITY BILL — M/O ' ~ (bill.billing_period|format_month_year) }}
+          {% endif %}
         </div>
       </div>
     </section>
@@ -205,21 +260,19 @@
     <!-- SIGNATURES -->
     <footer class="voucher-footer">
       <div class="signature">
+        <span class="signature-name">{{ session.get('name', '') }}</span>
         <span class="signature-line"></span>
-        <span>PREPARED BY</span>
+        <span>ACCOUNTANT</span>
       </div>
 
       <div class="signature">
-        <span class="signature-line"></span>
-        <span>CHECKED BY</span>
-      </div>
-
-      <div class="signature">
+        <span class="signature-name"></span>
         <span class="signature-line"></span>
         <span>AUTHORIZED BY</span>
       </div>
 
       <div class="signature">
+        <span class="signature-name"></span>
         <span class="signature-line"></span>
         <span>RECEIVED BY</span>
       </div>
@@ -227,7 +280,7 @@
 
     <div class="voucher-print-meta">
       <span>{{ company_name or '' }}</span>
-      <span>{{ print_timestamp or '' }}</span>
+      <span>Printed on: {{ print_timestamp or '' }}</span>
     </div>
 
   </article>
@@ -240,13 +293,14 @@
    ========================================= */
 
 .payment-page {
-  color: #111;
+  color: #000;
   font-family: Arial, Helvetica, sans-serif;
 }
 
 .payment-voucher,
 .payment-voucher * {
   box-sizing: border-box;
+  color: #000;
 }
 
 .payment-voucher {
@@ -255,8 +309,8 @@
   min-height: 650px;
   padding: 22px;
   background: #fff;
-  color: #111;
-  border: 1px solid #cbd0d6;
+  color: #000;
+  border: 1px solid #000;
   border-radius: 5px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -269,7 +323,7 @@
   display: grid;
   grid-template-columns: 42% 58%;
   min-height: 112px;
-  border: 1.5px solid #222;
+  border: 1.5px solid #000;
 }
 
 .company-block {
@@ -278,7 +332,7 @@
   align-items: center;
   justify-content: center;
   padding: 8px 12px;
-  border-right: 1.5px solid #222;
+  border-right: 1.5px solid #000;
   text-align: center;
 }
 
@@ -330,14 +384,18 @@
   min-width: 0;
 }
 
+.voucher-meta-accessory {
+  grid-template-rows: repeat(2, minmax(36px, auto)) minmax(28px, auto);
+}
+
 .meta-item {
   display: flex;
   flex-direction: column;
   justify-content: center;
   min-width: 0;
   padding: 5px 9px;
-  border-right: 1px solid #c4c4c4;
-  border-bottom: 1px solid #c4c4c4;
+  border-right: 1px solid #000;
+  border-bottom: 1px solid #000;
 }
 
 .meta-item:nth-child(even) {
@@ -347,7 +405,7 @@
 .meta-label {
   display: block;
   margin-bottom: 3px;
-  color: #454545;
+  color: #000;
   font-size: 9px;
   line-height: 1.1;
   font-weight: 800;
@@ -372,6 +430,12 @@
   border-bottom: 0;
 }
 
+.voucher-meta-accessory .meta-bank {
+  grid-column: 1 / -1;
+  border-right: 0;
+  border-bottom: 0;
+}
+
 /* ACCOUNTS TABLE */
 
 .accounts-section {
@@ -383,7 +447,7 @@
   margin: 0;
   border-collapse: collapse;
   table-layout: fixed;
-  border: 1.5px solid #222;
+  border: 1.5px solid #000;
 }
 
 .account-col { width: 46%; }
@@ -393,7 +457,7 @@
 
 .accounts-table th,
 .accounts-table td {
-  border: 1px solid #b8b8b8;
+  border: 1px solid #000;
   padding: 5px 7px;
   vertical-align: middle;
 }
@@ -401,8 +465,8 @@
 .accounts-table thead th {
   height: 30px;
   background: #f0f2f4;
-  color: #111;
-  border-bottom: 1.5px solid #222;
+  color: #000;
+  border-bottom: 1.5px solid #000;
   text-align: center;
   font-size: 10px;
   font-weight: 800;
@@ -412,6 +476,7 @@
 .accounts-table tbody td {
   height: 27px;
   font-size: 10.5px;
+  color: #000;
 }
 
 .accounts-table .account-name {
@@ -428,15 +493,23 @@
 .account-detail {
   display: block;
   margin-top: 2px;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 400;
-  color: #333;
+  color: #000;
 }
 
 .accounts-table .ref-number {
   text-align: center;
   font-size: 10px;
   overflow-wrap: anywhere;
+}
+
+.po-month {
+  display: block;
+  margin-top: 1px;
+  font-size: 8px;
+  line-height: 1.1;
+  font-weight: 500;
 }
 
 .accounts-table .amount-cell {
@@ -458,24 +531,33 @@
   font-weight: 700;
 }
 
+.accounts-table .bank-account-row .account-name {
+  font-size: 16px;
+}
+
 .accounts-table .writing-row td {
   height: 21px;
 }
 
 .accounts-table .cheque-image-cell {
-  height: 63px;
+  height: 111px;
   padding: 3px;
   text-align: center;
   vertical-align: middle;
   overflow: hidden;
+  background: #fff;
 }
 
 .cheque-image {
   display: block;
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   object-position: center;
+  border: 0;
+  margin: 0 auto;
 }
 
 .cheque-placeholder {
@@ -486,8 +568,8 @@
   align-items: center;
   justify-content: center;
   gap: 5px;
-  border: 1px dashed #b8b8b8;
-  color: #666;
+  border: 1px dashed #000;
+  color: #000;
   background: #fafafa;
 }
 
@@ -501,7 +583,7 @@
 
 .accounts-table tfoot td {
   height: 30px;
-  border-top: 1.5px solid #222;
+  border-top: 1.5px solid #000;
   background: #f0f2f4;
 }
 
@@ -536,11 +618,31 @@
   line-height: 1.3;
 }
 
+.amount-words-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.amount-words-row .detail-label {
+  white-space: nowrap;
+}
+
+.amount-words-row .detail-colon {
+  flex: 0 0 auto;
+}
+
+.amount-words-row .detail-value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .detail-label {
   padding-top: 2px;
   font-size: 9px;
   font-weight: 800;
   letter-spacing: .045em;
+  color: #000;
 }
 
 .detail-colon {
@@ -553,9 +655,10 @@
   min-width: 0;
   min-height: 19px;
   padding: 2px 4px 3px;
-  border-bottom: 1px dotted #777;
+  border-bottom: 1px dotted #000;
   overflow-wrap: anywhere;
   text-transform: uppercase;
+  color: #000;
 }
 
 .narration-row {
@@ -582,11 +685,21 @@
   letter-spacing: .05em;
 }
 
+.signature-name {
+  display: block;
+  width: 100%;
+  height: 1.2em;
+  overflow: hidden;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .signature-line {
   display: block;
   width: 100%;
   height: 13px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid #000;
 }
 
 .voucher-print-meta {
@@ -595,7 +708,7 @@
   gap: 10px;
   margin-top: 10px;
   color: #444;
-  font-size: 8px;
+  font-size: 14px;
 }
 
 .voucher-print-meta span {
@@ -617,7 +730,7 @@
 
   .company-block {
     border-right: 0;
-    border-bottom: 1px solid #222;
+    border-bottom: 1px solid #000;
   }
 
   .voucher-meta {
@@ -691,7 +804,7 @@
     margin: 0 !important;
     padding: 3mm !important;
     overflow: visible !important;
-    border: 1px solid #222 !important;
+    border: 1px solid #000 !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     font-size: 12px !important;
@@ -704,11 +817,12 @@
     grid-template-columns: 42% 58% !important;
     min-height: 25mm !important;
     height: 25mm !important;
+    border-color: #000 !important;
   }
 
   .company-block {
     padding: 1.5mm 2mm !important;
-    border-right: 1px solid #222 !important;
+    border-right: 1px solid #000 !important;
     border-bottom: 0 !important;
   }
 
@@ -744,17 +858,23 @@
   }
 
   .meta-item {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 2mm !important;
     padding: 1mm 2mm !important;
-    border-color: #999 !important;
+    border-color: #000 !important;
   }
 
   .meta-label {
-    margin-bottom: 0.5mm !important;
-    color: #222 !important;
+    flex: 0 0 auto !important;
+    margin-bottom: 0 !important;
+    color: #000 !important;
     font-size: 9px !important;
   }
 
   .meta-value {
+    min-width: 0 !important;
     font-size: 11px !important;
   }
 
@@ -777,7 +897,7 @@
   .accounts-table th,
   .accounts-table td {
     padding: 1mm 1.5mm !important;
-    border: 1px solid #999 !important;
+    border: 1px solid #000 !important;
     color: #000 !important;
     text-align: center !important;
   }
@@ -785,7 +905,7 @@
   .accounts-table thead th {
     height: 7mm !important;
     background: #f0f2f4 !important;
-    border-bottom: 1.5px solid #222 !important;
+    border-bottom: 1.5px solid #000 !important;
     font-size: 11px !important;
   }
 
@@ -795,7 +915,7 @@
   }
 
   .accounts-table .account-detail {
-    font-size: 9px !important;
+    font-size: calc(10px / var(--voucher-print-scale, 1)) !important;
   }
 
   .accounts-table .ref-number {
@@ -819,14 +939,18 @@
   }
 
   .accounts-table .cheque-image-cell {
-    height: 17mm !important;
+    height: 33mm !important;
     padding: 0.5mm !important;
+    background: #fff !important;
   }
 
   .cheque-image {
     width: 100% !important;
     height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
     object-fit: contain !important;
+    object-position: center !important;
   }
 
   .cheque-placeholder {
@@ -836,7 +960,7 @@
   .accounts-table tfoot td {
     height: 7mm !important;
     background: #f0f2f4 !important;
-    border-top: 1.5px solid #222 !important;
+    border-top: 1.5px solid #000 !important;
   }
 
   .accounts-table .total-label {
@@ -862,6 +986,16 @@
     break-inside: avoid !important;
   }
 
+  .amount-words-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 1mm !important;
+  }
+
+  .amount-words-row .detail-label {
+    white-space: nowrap !important;
+  }
+
   .detail-label {
     font-size: 9px !important;
   }
@@ -880,7 +1014,7 @@
 
   .signature {
     gap: 1mm !important;
-    font-size: 8px !important;
+    font-size: 14px !important;
   }
 
   .signature-line {
@@ -889,12 +1023,161 @@
 
   .voucher-print-meta {
     margin-top: 2mm !important;
-    color: #222 !important;
-    font-size: 8px !important;
+    color: #000 !important;
+    font-size: 14px !important;
   }
 
   .payment-actions {
     display: none !important;
+  }
+}
+
+.payment-voucher {
+  font-size: 13px;
+}
+
+.company-name,
+.voucher-number {
+  font-size: 17px;
+}
+
+.voucher-title {
+  font-size: 15px;
+}
+
+.accounts-table .final-total {
+  font-size: 12px;
+}
+
+.meta-label,
+.detail-label {
+  font-size: 10px;
+}
+
+.accounts-table .total-label {
+  font-size: 12px;
+}
+
+.meta-value {
+  font-size: 13px;
+}
+
+.meta-label {
+  font-size: 12px;
+}
+
+.accounts-table thead th {
+  font-size: 13px;
+}
+
+.accounts-table .ref-number {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.accounts-table tbody td {
+  font-size: 14px;
+}
+
+.accounts-table .amount-cell {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.accounts-table .account-main {
+  font-size: 12px;
+}
+
+.cheque-placeholder strong {
+  font-size: 12px;
+}
+
+.accounts-table .account-detail {
+  font-size: 10px;
+}
+
+.cheque-placeholder small,
+.voucher-print-meta {
+  font-size: 12px;
+}
+
+.detail-row,
+.detail-label,
+.detail-value,
+.signature {
+  font-size: 14px;
+}
+
+@media print {
+  .payment-voucher {
+    font-size: 13px !important;
+  }
+
+  .company-name,
+  .voucher-title,
+  .voucher-number {
+    font-size: 15px !important;
+  }
+
+  .meta-label,
+  .detail-label {
+    font-size: 10px !important;
+  }
+
+  .meta-label {
+    font-size: 12px !important;
+  }
+
+  .accounts-table .total-label {
+    font-size: 11px !important;
+  }
+
+  .accounts-table tbody td {
+    font-size: 13px !important;
+  }
+
+  .accounts-table .bank-account-row .account-name {
+    font-size: calc(14px / var(--voucher-print-scale, 1)) !important;
+  }
+
+  .accounts-table .amount-cell {
+    font-size: calc(12px / var(--voucher-print-scale, 1)) !important;
+  }
+
+  .accounts-table thead th {
+    font-size: 12px !important;
+  }
+
+  .accounts-table .ref-number,
+  .accounts-table .amount-cell {
+    font-size: calc(12px / var(--voucher-print-scale, 1)) !important;
+  }
+
+  .accounts-table .final-total {
+    font-size: calc(12px / var(--voucher-print-scale, 1)) !important;
+  }
+
+  .accounts-table .account-detail {
+    font-size: calc(10px / var(--voucher-print-scale, 1)) !important;
+  }
+
+  .accounts-table .account-main {
+    font-size: calc(14px / var(--voucher-print-scale, 1)) !important;
+  }
+
+  .meta-value {
+    font-size: 16px !important;
+  }
+
+  .voucher-print-meta {
+    font-size: 12px !important;
+  }
+
+  .detail-row,
+  .detail-label,
+  .detail-value,
+  .signature {
+    font-size: 14px !important;
   }
 }
 </style>

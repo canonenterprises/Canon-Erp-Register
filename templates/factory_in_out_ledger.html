@@ -12,20 +12,22 @@
     </header>
 
     <section class="flex flex-col gap-4 border-b border-slate-200 pb-5 md:flex-row md:items-end md:justify-between">
-      <div><h2 class="text-xl font-black text-slate-900">Factory movements</h2><p class="mt-1 text-sm text-slate-500">{{ movements|length }} movement(s) in this view</p></div>
-      <form method="get" class="grid w-full gap-2 sm:grid-cols-2 lg:max-w-4xl lg:grid-cols-[minmax(12rem,1fr)_9rem_9rem_9rem_auto]">
+      <div><h2 class="text-xl font-black text-slate-900">Factory movements</h2><p id="factory-movement-count" class="mt-1 text-sm text-slate-500">{{ movements|length }} movement(s) in this view</p></div>
+      <form id="factory-ledger-filter-form" method="get" class="grid w-full gap-2 sm:grid-cols-2 lg:max-w-4xl lg:grid-cols-[minmax(12rem,1fr)_9rem_9rem_9rem]">
         <input type="hidden" name="next" value="{{ return_url }}">
-        <input type="search" name="q" value="{{ search }}" placeholder="Search item, party or reference" class="min-w-0 rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
+        <input id="factory-ledger-search" type="search" name="q" value="{{ search }}" placeholder="Search item, party or reference" autocomplete="off" class="min-w-0 rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
         <select name="direction" class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="ALL" {% if direction == 'ALL' %}selected{% endif %}>In and out</option><option value="IN" {% if direction == 'IN' %}selected{% endif %}>Received</option><option value="OUT" {% if direction == 'OUT' %}selected{% endif %}>Dispatched</option></select>
         <input type="date" name="start_date" value="{{ start_date }}" aria-label="Start date" class="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
         <input type="date" name="end_date" value="{{ end_date }}" aria-label="End date" class="rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
-        <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-filter" aria-hidden="true"></i> Filter</button>
       </form>
     </section>
 
     <section class="border-b border-slate-200 pb-5">
-      <h2 class="text-lg font-black text-slate-900">Record manual movement</h2>
-      <form method="post" class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="text-lg font-black text-slate-900">Manual movement</h2>
+        <button type="button" id="toggle-manual-movement" aria-expanded="false" aria-controls="manual-movement-form" class="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-teal-800"><i class="fa-solid fa-plus" aria-hidden="true"></i> Record manual movement</button>
+      </div>
+      <form id="manual-movement-form" method="post" hidden style="display: none;" class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <input type="hidden" name="next" value="{{ return_url }}">
         <input type="hidden" name="q" value="{{ search }}">
         <input type="hidden" name="direction" value="{{ direction }}">
@@ -49,7 +51,10 @@
         <label class="text-xs font-bold text-slate-600">Details
           <input name="movement_description" maxlength="500" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
         </label>
-        <label class="text-xs font-bold text-slate-600">Challan / PO reference
+        <label class="text-xs font-bold text-slate-600">Person in charge
+          <input name="movement_person_in_charge" maxlength="100" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
+        </label>
+        <label class="text-xs font-bold text-slate-600">Challan / PO / Reference
           <input name="movement_reference" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm">
         </label>
         <div class="flex items-end"><button class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-teal-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-teal-800"><i class="fa-solid fa-plus" aria-hidden="true"></i> Record movement</button></div>
@@ -58,17 +63,70 @@
 
     <div class="overflow-x-auto border-y border-slate-200">
       <table class="w-full min-w-[850px] text-left text-sm">
-        <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-3 py-3">Date</th><th class="px-3 py-3">Direction</th><th class="px-3 py-3">Movement</th><th class="px-3 py-3">Item</th><th class="px-3 py-3">Details</th><th class="px-3 py-3">Challan / PO</th><th class="px-3 py-3 text-right">Quantity</th></tr></thead>
+        <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-3 py-3">Date</th><th class="px-3 py-3">Direction</th><th class="px-3 py-3">Movement</th><th class="px-3 py-3">Item</th><th class="px-3 py-3">Details</th><th class="px-3 py-3">Person in charge</th><th class="px-3 py-3">Challan / PO / Reference</th><th class="px-3 py-3 text-right">Quantity</th></tr></thead>
         <tbody class="divide-y divide-slate-100">
           {% for movement in movements %}
-          <tr class="hover:bg-slate-50"><td class="px-3 py-3 whitespace-nowrap">{{ movement.date }}</td><td class="px-3 py-3"><span class="rounded-full px-2.5 py-1 text-[10px] font-black {% if movement.direction == 'IN' %}bg-emerald-100 text-emerald-800{% else %}bg-rose-100 text-rose-800{% endif %}">{{ 'IN' if movement.direction == 'IN' else 'OUT' }}</span></td><td class="px-3 py-3 font-semibold text-slate-700">{{ movement.category }}</td><td class="px-3 py-3">{{ movement.item }}</td><td class="px-3 py-3">{{ movement.description }}</td><td class="px-3 py-3">{{ movement.reference }}</td><td class="px-3 py-3 text-right font-bold">{{ movement.quantity }}</td></tr>
-          {% else %}
-          <tr><td colspan="7" class="px-3 py-12 text-center text-slate-500">No factory movements match these filters.</td></tr>
+          <tr data-factory-movement-row data-search="{{ [movement.date, movement.direction, movement.category, movement.item, movement.description, movement.person_in_charge, movement.reference, movement.quantity]|join(' ')|lower|e }}" class="hover:bg-slate-50"><td class="px-3 py-3 whitespace-nowrap">{{ movement.date }}</td><td class="px-3 py-3"><span class="rounded-full px-2.5 py-1 text-[10px] font-black {% if movement.direction == 'IN' %}bg-emerald-100 text-emerald-800{% else %}bg-rose-100 text-rose-800{% endif %}">{{ 'IN' if movement.direction == 'IN' else 'OUT' }}</span></td><td class="px-3 py-3 font-semibold text-slate-700">{{ movement.category }}</td><td class="px-3 py-3">{{ movement.item }}</td><td class="px-3 py-3">{{ movement.description }}</td><td class="px-3 py-3">{{ movement.person_in_charge }}</td><td class="px-3 py-3">{{ movement.reference }}</td><td class="px-3 py-3 text-right font-bold">{{ movement.quantity }}</td></tr>
           {% endfor %}
+          <tr id="factory-ledger-no-results" {% if movements %}hidden{% endif %}><td colspan="8" class="px-3 py-12 text-center text-slate-500">No factory movements match these filters or search.</td></tr>
         </tbody>
       </table>
     </div>
     <p class="text-xs text-slate-500">This ledger shows item quantities only; it does not include monetary amounts.</p>
   </div>
 </div>
+<script>
+  const factoryFilterForm = document.getElementById('factory-ledger-filter-form');
+  const factorySearch = document.getElementById('factory-ledger-search');
+  const factoryRows = Array.from(document.querySelectorAll('[data-factory-movement-row]'));
+  const factoryEmptyRow = document.getElementById('factory-ledger-no-results');
+  const factoryMovementCount = document.getElementById('factory-movement-count');
+
+  function filterFactoryMovements() {
+    const query = factorySearch.value.trim().toLocaleLowerCase();
+    let visibleCount = 0;
+    factoryRows.forEach(function (row) {
+      const matches = !query || (row.dataset.search || '').includes(query);
+      row.hidden = !matches;
+      if (matches) visibleCount += 1;
+    });
+    if (factoryEmptyRow) factoryEmptyRow.hidden = visibleCount > 0;
+    if (factoryMovementCount) factoryMovementCount.textContent = `${visibleCount} movement(s) in this view`;
+
+    const manualSearch = document.querySelector('form[method="post"] input[name="q"]');
+    if (manualSearch) manualSearch.value = factorySearch.value;
+    const url = new URL(window.location.href);
+    if (query) url.searchParams.set('q', factorySearch.value.trim());
+    else url.searchParams.delete('q');
+    window.history.replaceState({}, '', url);
+  }
+
+  if (factoryFilterForm && factorySearch) {
+    factorySearch.addEventListener('input', filterFactoryMovements);
+    factorySearch.addEventListener('keydown', event => {
+      if (event.key === 'Enter') event.preventDefault();
+    });
+    factoryFilterForm.querySelectorAll('select, input[type="date"]').forEach(function (control) {
+      control.addEventListener('change', function () {
+        factoryFilterForm.requestSubmit();
+      });
+    });
+    filterFactoryMovements();
+  }
+
+  const manualMovementToggle = document.getElementById('toggle-manual-movement');
+  const manualMovementForm = document.getElementById('manual-movement-form');
+  if (manualMovementToggle && manualMovementForm) {
+    manualMovementToggle.addEventListener('click', function () {
+      const isExpanded = manualMovementToggle.getAttribute('aria-expanded') === 'true';
+      manualMovementForm.hidden = isExpanded;
+      manualMovementForm.style.display = isExpanded ? 'none' : 'grid';
+      manualMovementToggle.setAttribute('aria-expanded', String(!isExpanded));
+      manualMovementToggle.innerHTML = isExpanded
+        ? '<i class="fa-solid fa-plus" aria-hidden="true"></i> Record manual movement'
+        : '<i class="fa-solid fa-xmark" aria-hidden="true"></i> Cancel';
+      if (!isExpanded) manualMovementForm.querySelector('input[name="movement_date"]').focus();
+    });
+  }
+</script>
 {% endblock %}

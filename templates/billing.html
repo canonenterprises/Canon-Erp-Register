@@ -26,7 +26,7 @@
   </header>
 
   <nav class="flex w-full max-w-md rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Billing portals">
-    <a href="{{ url_for('billing_portal', shipper='Canon') }}" {% if selected_shipper == 'Canon' %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2.5 text-center text-sm font-black {% if selected_shipper == 'Canon' %}bg-white text-emerald-800 shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Canon</a>
+    <a href="{{ url_for('billing_portal', shipper='Canon') }}" {% if selected_shipper == 'Canon' %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2.5 text-center text-sm font-black {% if selected_shipper == 'Canon' %}bg-[#b7955c] text-white shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Canon</a>
     <a href="{{ url_for('billing_portal', shipper='Haram') }}" {% if selected_shipper == 'Haram' %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2.5 text-center text-sm font-black {% if selected_shipper == 'Haram' %}bg-slate-900 text-white shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Haram</a>
   </nav>
 
@@ -42,15 +42,14 @@
       <h2 class="text-xl font-black text-slate-900">{{ selected_shipper }} invoice register</h2>
       <p class="mt-1 text-sm text-slate-500">Only {{ selected_shipper }} delivery challans, invoices, and receipts appear in this portal.</p>
     </div>
-    <form method="get" class="grid w-full gap-2 sm:grid-cols-[minmax(12rem,1fr)_10rem_auto] md:max-w-2xl">
+    <form id="billing-filters" method="get" class="grid w-full gap-2 sm:grid-cols-[minmax(12rem,1fr)_10rem_auto] md:max-w-2xl">
       <input type="hidden" name="shipper" value="{{ selected_shipper }}">
-      <input type="search" name="q" value="{{ search }}" placeholder="Search billing records" class="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
-      <select name="status" class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
+      <input id="billing-filter-search" type="search" name="q" value="{{ search }}" placeholder="Search billing records" class="min-w-0 rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
+      <select id="billing-filter-status" name="status" class="rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm">
         {% for value, label in [('ALL', 'All statuses'), ('OPEN', 'Open'), ('PARTIAL', 'Partially paid'), ('PAID', 'Paid'), ('OVERDUE', 'Overdue')] %}
         <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
-      <button class="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Apply</button>
     </form>
   </section>
 
@@ -66,9 +65,7 @@
         {% if selected_bill %}
         <a href="{{ url_for('print_billing_bill', bill_id=selected_bill.id, shipper=selected_shipper) }}" target="_blank" class="inline-flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 text-sm font-bold text-slate-950 hover:bg-amber-400"><i class="fa-solid fa-eye" aria-hidden="true"></i> View Bill</a>
         {% endif %}
-        {% if selected_shipper == 'Canon' %}
-        <a href="{{ url_for('print_billing_invoice', invoice_id=selected_invoice.invoice.id, shipper=selected_shipper) }}" target="_blank" class="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Invoice</a>
-        {% endif %}
+        <a href="{{ url_for('print_billing_invoice', invoice_id=selected_invoice.invoice.id, shipper=selected_shipper) }}" target="_blank" data-packet-weight-print data-invoice-id="{{ selected_invoice.invoice.id }}" class="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Invoice</a>
       </div>
     </div>
     <div class="mt-5 grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
@@ -113,14 +110,15 @@
   {% endif %}
 
   <section id="invoice-register" class="space-y-3">
-    <div class="flex items-end justify-between gap-3"><div><h2 class="text-xl font-black text-slate-900">Invoices</h2><p class="mt-1 text-sm text-slate-500">Invoice snapshots and balances from posted receipts.</p></div><span class="text-sm font-bold text-slate-500">{{ invoice_rows|length }} shown</span></div>
+    <div class="flex items-end justify-between gap-3"><div><h2 class="text-xl font-black text-slate-900">Invoices</h2><p class="mt-1 text-sm text-slate-500">Invoice snapshots and balances from posted receipts.</p></div><span class="text-sm font-bold text-slate-500"><span id="billing-invoice-count">{{ invoice_rows|length }}</span> shown</span></div>
     <div class="overflow-x-auto border-y border-slate-200">
       <table class="w-full min-w-[920px] text-left text-sm">
         <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-3 py-3">Invoice</th><th class="px-3 py-3">Date / Due</th><th class="px-3 py-3">Customer</th><th class="px-3 py-3">Challan</th><th class="px-3 py-3">Job</th><th class="px-3 py-3 text-right">Total</th><th class="px-3 py-3 text-right">Received</th><th class="px-3 py-3 text-right">Balance</th><th class="px-3 py-3">Status</th><th class="px-3 py-3"></th></tr></thead>
         <tbody class="divide-y divide-slate-100">
           {% for row in invoice_rows %}
-          <tr class="hover:bg-slate-50"><td class="px-3 py-3 font-black text-slate-900">{{ row.invoice.invoice_no }}</td><td class="px-3 py-3 text-slate-600">{{ row.invoice.invoice_date }}{% if row.invoice.due_date %}<span class="block text-xs">Due {{ row.invoice.due_date }}</span>{% endif %}</td><td class="px-3 py-3 font-semibold">{{ row.invoice.party_name }}</td><td class="px-3 py-3">{% for challan in row.invoice.billing_challans %}{{ format_challan_number(challan.challan_no) }}{% if not loop.last %}, {% endif %}{% endfor %}</td><td class="px-3 py-3">{% for line in row.invoice.lines %}{{ line.job_no }}{% if not loop.last %}, {% endif %}{% endfor %}</td><td class="px-3 py-3 text-right font-bold">{{ '{:,.2f}'.format(row.invoice.total) }}</td><td class="px-3 py-3 text-right text-emerald-700">{{ '{:,.2f}'.format(row.paid) }}</td><td class="px-3 py-3 text-right font-bold {% if row.balance > 0 %}text-rose-700{% else %}text-slate-500{% endif %}">{{ '{:,.2f}'.format(row.balance) }}</td><td class="px-3 py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-[10px] font-black {% if row.status == 'PAID' %}bg-emerald-100 text-emerald-800{% elif row.status == 'OVERDUE' %}bg-rose-100 text-rose-800{% elif row.status == 'PARTIAL' %}bg-amber-100 text-amber-800{% else %}bg-slate-100 text-slate-700{% endif %}">{{ row.status }}</span></td><td class="px-3 py-3"><a href="{{ url_for('billing_portal', invoice_id=row.invoice.id, q=search, status=status_filter, shipper=selected_shipper) }}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold hover:bg-slate-100"><i class="fa-solid fa-eye" aria-hidden="true"></i> View</a></td></tr>
+          <tr data-billing-invoice-row data-status="{{ row.status }}" data-search-text="{{ row.invoice.invoice_no }} {{ row.invoice.party_name }} {% for challan in row.invoice.billing_challans %}{{ challan.challan_no }} {% endfor %}{% for line in row.invoice.lines %}{{ line.job_no }} {{ line.article }} {% endfor %}" class="hover:bg-slate-50"><td class="px-3 py-3 font-black text-slate-900">{{ row.invoice.invoice_no }}</td><td class="px-3 py-3 text-slate-600">{{ row.invoice.invoice_date }}{% if row.invoice.due_date %}<span class="block text-xs">Due {{ row.invoice.due_date }}</span>{% endif %}</td><td class="px-3 py-3 font-semibold">{{ row.invoice.party_name }}</td><td class="px-3 py-3">{% for challan in row.invoice.billing_challans %}{{ format_challan_number(challan.challan_no) }}{% if not loop.last %}, {% endif %}{% endfor %}</td><td class="px-3 py-3">{% for line in row.invoice.lines %}{{ line.job_no }}{% if not loop.last %}, {% endif %}{% endfor %}</td><td class="px-3 py-3 text-right font-bold">{{ '{:,.2f}'.format(row.invoice.total) }}</td><td class="px-3 py-3 text-right text-emerald-700">{{ '{:,.2f}'.format(row.paid) }}</td><td class="px-3 py-3 text-right font-bold {% if row.balance > 0 %}text-rose-700{% else %}text-slate-500{% endif %}">{{ '{:,.2f}'.format(row.balance) }}</td><td class="px-3 py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-[10px] font-black {% if row.status == 'PAID' %}bg-emerald-100 text-emerald-800{% elif row.status == 'OVERDUE' %}bg-rose-100 text-rose-800{% elif row.status == 'PARTIAL' %}bg-amber-100 text-amber-800{% else %}bg-slate-100 text-slate-700{% endif %}">{{ row.status }}</span></td><td class="px-3 py-3"><a href="{{ url_for('billing_portal', invoice_id=row.invoice.id, q=search, status=status_filter, shipper=selected_shipper) }}" class="inline-flex items-center gap-1 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-bold hover:bg-slate-100"><i class="fa-solid fa-eye" aria-hidden="true"></i> View</a></td></tr>
           {% else %}<tr><td colspan="10" class="px-3 py-10 text-center text-slate-500">No invoices match this view.</td></tr>{% endfor %}
+          <tr id="billing-no-matches" class="hidden"><td colspan="10" class="px-3 py-10 text-center text-slate-500">No invoices match these filters.</td></tr>
         </tbody>
       </table>
     </div>
@@ -128,8 +126,11 @@
 
   <section id="unbilled-challans" class="space-y-4 border-t border-slate-200 pt-6">
     <div><p class="text-xs font-bold uppercase text-amber-700">{{ selected_shipper }} · Ready to bill</p><h2 class="mt-1 text-xl font-black text-slate-900">Uninvoiced delivery challans</h2><p class="mt-1 text-sm text-slate-500">Only {{ selected_shipper }} challans are shown. Enter the agreed selling rate for each shipped PCS line.</p></div>
+    {% if party_added_name %}
+    <p class="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">{{ party_added_name }} is now in the Party Directory. Continue by selecting challans and creating the Bill and Invoice.</p>
+    {% endif %}
     {% for group in unbilled_party_groups %}
-    <details class="group border-b border-slate-200 py-3">
+    <details class="group border-b border-slate-200 py-3" {% if party_added_name and group.party_name|lower == party_added_name|lower %}open{% endif %}>
       <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3">
         <span><span class="font-black text-slate-900">{{ group.party_name }}</span><span class="ml-2 text-xs text-slate-500">{{ group.rows|length }} unbilled challan(s)</span></span>
         <span class="inline-flex items-center gap-2 text-sm font-bold text-emerald-800">Create combined Bill &amp; Invoice <i class="fa-solid fa-chevron-down transition group-open:rotate-180" aria-hidden="true"></i></span>
@@ -160,7 +161,7 @@
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label class="text-xs font-bold uppercase text-slate-500">Invoice date<input type="date" name="invoice_date" value="{{ today }}" required class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
           <label class="text-xs font-bold uppercase text-slate-500">Due date<input type="date" name="due_date" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
-          <label class="text-xs font-bold uppercase text-slate-500">Tax (%)<input type="number" name="tax_rate" min="0" max="100" step="0.01" value="0" class="billing-tax mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
+          <label class="text-xs font-bold uppercase text-slate-500">Tax (%)<input type="number" name="tax_rate" min="0" max="100" step="0.01" value="18" class="billing-tax mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
           <label class="text-xs font-bold uppercase text-slate-500">Further Tax on Unregistered Person (%)<input type="number" name="further_tax_rate" min="0" max="100" step="0.01" value="0" class="billing-further-tax mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm"></label>
         </div>
         <label class="block text-xs font-bold uppercase text-slate-500">Invoice note<textarea name="notes" rows="2" maxlength="1000" class="mt-1 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm" placeholder="Optional payment terms or customer note"></textarea></label>
@@ -172,6 +173,44 @@
     {% endfor %}
   </section>
 </div>
+<script>
+  const billingFilters = document.getElementById('billing-filters');
+  const billingFilterSearch = document.getElementById('billing-filter-search');
+  const billingFilterStatus = document.getElementById('billing-filter-status');
+  const billingInvoiceRows = Array.from(document.querySelectorAll('[data-billing-invoice-row]'));
+  const billingInvoiceCount = document.getElementById('billing-invoice-count');
+  const billingNoMatches = document.getElementById('billing-no-matches');
+
+  function normalizeBillingSearchValue(value) {
+    return String(value || '').trim().toLocaleLowerCase().replace(/(^|\D)0+(\d+)/g, '$1$2');
+  }
+
+  function filterBillingInvoices() {
+    const query = normalizeBillingSearchValue(billingFilterSearch?.value);
+    const selectedStatus = billingFilterStatus?.value || 'ALL';
+    let visibleCount = 0;
+
+    billingInvoiceRows.forEach(function (row) {
+      const searchText = normalizeBillingSearchValue(row.dataset.searchText);
+      const matchesQuery = searchText.includes(query);
+      const matchesStatus = selectedStatus === 'ALL' || row.dataset.status === selectedStatus;
+      const isVisible = matchesQuery && matchesStatus;
+      row.classList.toggle('hidden', !isVisible);
+      if (isVisible) visibleCount += 1;
+    });
+
+    if (billingInvoiceCount) billingInvoiceCount.textContent = String(visibleCount);
+    billingNoMatches?.classList.toggle('hidden', visibleCount > 0 || billingInvoiceRows.length === 0);
+  }
+
+  billingFilters?.addEventListener('submit', function (event) {
+    event.preventDefault();
+    filterBillingInvoices();
+  });
+  billingFilterSearch?.addEventListener('input', filterBillingInvoices);
+  billingFilterStatus?.addEventListener('change', filterBillingInvoices);
+  filterBillingInvoices();
+</script>
 {% if show_billing_notification_cards and (notification_unbilled_count or pending_payment_count) %}
 <aside class="fixed right-4 top-24 z-[70] flex max-h-[calc(100vh-7rem)] w-[min(32rem,calc(100vw-2rem))] flex-col gap-3 overflow-y-auto" aria-label="Billing notifications">
   {% if notification_unbilled_count %}
@@ -310,5 +349,72 @@ document.querySelectorAll('form:has(.billing-rate)').forEach(form => {
   });
   updateEstimate();
 });
+</script>
+  {% if selected_invoice %}
+  <dialog id="packet-weight-dialog" class="m-auto w-[min(32rem,calc(100vw-2rem))] max-w-none rounded-lg border-0 bg-transparent p-0 shadow-2xl backdrop:bg-slate-950/60">
+    <form id="packet-weight-form" class="overflow-hidden rounded-lg border border-slate-300 bg-white text-slate-900">
+      <div class="border-b border-slate-200 px-6 py-5">
+        <p class="text-xs font-bold uppercase text-emerald-700">Invoice printing</p>
+        <h2 id="packet-weight-title" class="mt-1 text-xl font-black">Enter packet weight</h2>
+        <p class="mt-2 text-sm text-slate-600">Enter the weight of one packet. You can verify or change it before printing again.</p>
+      </div>
+      <div class="px-6 py-5">
+        <label for="packet-weight-input" class="block text-sm font-bold text-slate-700">Weight of one packet</label>
+        <input id="packet-weight-input" name="packet_weight" type="text" maxlength="50" required placeholder="For example, 0.50 kg" class="mt-2 w-full rounded-lg border border-slate-300 px-3 py-3 text-sm focus:border-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-700/20">
+      </div>
+      <div class="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-6 py-4">
+        <button type="button" id="packet-weight-cancel" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100">Cancel</button>
+        <button type="submit" class="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><i class="fa-solid fa-print" aria-hidden="true"></i> Confirm &amp; Print</button>
+      </div>
+    </form>
+  </dialog>
+  {% endif %}
+<script>
+  const packetWeightDialog = document.getElementById('packet-weight-dialog');
+  if (packetWeightDialog) {
+    const packetWeightForm = document.getElementById('packet-weight-form');
+    const packetWeightInput = document.getElementById('packet-weight-input');
+    const packetWeightTitle = document.getElementById('packet-weight-title');
+    let invoicePrintLink = null;
+    packetWeightInput.addEventListener('input', () => packetWeightInput.setCustomValidity(''));
+
+document.querySelectorAll('[data-packet-weight-print]').forEach(link => {
+  link.addEventListener('click', event => {
+    event.preventDefault();
+      invoicePrintLink = link;
+    const storageKey = `billing-packet-weight:${link.dataset.invoiceId}`;
+    const savedWeight = window.localStorage.getItem(storageKey) || '';
+      packetWeightTitle.textContent = savedWeight ? 'Verify packet weight' : 'Enter packet weight';
+      packetWeightInput.value = savedWeight;
+      packetWeightDialog.showModal();
+      packetWeightInput.focus();
+    });
+  });
+
+    document.getElementById('packet-weight-cancel').addEventListener('click', () => {
+      packetWeightDialog.close();
+    });
+
+    packetWeightForm.addEventListener('submit', event => {
+      event.preventDefault();
+      if (!invoicePrintLink || !packetWeightForm.reportValidity()) return;
+      const packetWeight = packetWeightInput.value.trim();
+      if (!packetWeight) {
+        packetWeightInput.setCustomValidity('Enter the weight of one packet.');
+        packetWeightInput.reportValidity();
+        return;
+      }
+      packetWeightInput.setCustomValidity('');
+      const storageKey = `billing-packet-weight:${invoicePrintLink.dataset.invoiceId}`;
+    window.localStorage.setItem(storageKey, packetWeight);
+      const printUrl = new URL(invoicePrintLink.href, window.location.href);
+    printUrl.searchParams.set('packet_weight', packetWeight);
+      packetWeightDialog.close();
+    const printWindow = window.open(printUrl.href, '_blank');
+    if (!printWindow) {
+        window.alert('Allow pop-ups to open the invoice for printing.');
+    }
+  });
+  }
 </script>
 {% endblock %}

@@ -75,6 +75,7 @@
       </tr>
       {% if supplier_return.return_type == 'EXCHANGE' %}
       <tr><th>Replacement Item</th><td class="font-bold">{{ supplier_return.exchange_item or 'Not specified' }}</td></tr>
+      <tr><th>Replacement Quantity Received</th><td class="font-bold">{{ '{:,.2f}'.format(supplier_return.exchange_received_qty or 0) }} {{ supplier_return.exchange_item_unit or 'PCS' }}</td></tr>
       {% endif %}
       <tr><th>Quantity Returned</th><td class="font-bold">{{ '{:,.2f}'.format(supplier_return.returned_qty) }} {{ supplier_return.requirement.unit or 'PCS' }}</td></tr>
       <tr><th>Returned From</th><td>{{ location_label }}</td></tr>
@@ -84,7 +85,7 @@
   </table>
 
   {% if supplier_return.return_type == 'EXCHANGE' %}
-  <p class="mt-4 text-sm">Replacement item selected: <strong>{{ supplier_return.exchange_item or 'Not specified' }}</strong>{% if supplier_return.exchange_item_unit %} ({{ supplier_return.exchange_item_unit }}){% endif %}.</p>
+  <p class="mt-4 text-sm">Replacement received: <strong>{{ '{:,.2f}'.format(supplier_return.exchange_received_qty or 0) }} {{ supplier_return.exchange_item_unit or 'PCS' }} {{ supplier_return.exchange_item or 'Not specified' }}</strong>.</p>
   {% endif %}
 
   <div class="mt-16 grid grid-cols-2 gap-12 text-center text-sm">

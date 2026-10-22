@@ -46,7 +46,7 @@
           <h1 class="mt-2 text-3xl font-black">{% if portal_page == 'home' %}Accessories{% elif portal_page == 'purchase-orders' %}Purchase Orders{% elif portal_page == 'unallocated-stock' %}Unallocated Stock{% elif portal_page == 'issuance-store-finder' %}Issuance &amp; Store Finder{% else %}Issued / Returned Items{% endif %}</h1>
         </div>
         <div class="flex flex-wrap gap-2">
-          {% if portal_page == 'home' and not read_only_profile %}<a href="#local-po" class="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600"><i class="fa-solid fa-cart-plus"></i> Local PO</a>{% endif %}
+          {% if portal_page == 'home' and can_create_local_po %}<a href="#local-po" class="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600"><i class="fa-solid fa-cart-plus"></i> Local PO</a>{% endif %}
           {% if portal_page != 'home' %}<a href="{{ url_for('accessories_portal') }}" class="inline-flex items-center rounded-lg border border-violet-300 bg-violet-700 px-3 py-2 text-sm font-bold text-white hover:bg-violet-600">Accessories Home</a>{% endif %}
           <a href="{{ url_for('stock_portal') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Stock Portal</a>
         </div>
@@ -83,6 +83,11 @@
         <label for="purchase-order-search" class="mb-1 block text-xs font-bold uppercase text-slate-500">Search purchase orders</label>
         <input id="purchase-order-search" type="search" autocomplete="off" placeholder="Order, PO, item, supplier, party, or article" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
       </div>
+      <fieldset class="flex w-full max-w-sm rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Filter purchase orders by company">
+        <legend class="sr-only">Purchase order company</legend>
+        <a href="{{ url_for('accessories_portal', portal_page='purchase-orders', company='Canon') }}" {% if selected_po_company == 'Canon' %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2 text-center text-sm font-black {% if selected_po_company == 'Canon' %}bg-[#b7955c] text-white shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Canon</a>
+        <a href="{{ url_for('accessories_portal', portal_page='purchase-orders', company='Haram') }}" {% if selected_po_company == 'Haram' %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2 text-center text-sm font-black {% if selected_po_company == 'Haram' %}bg-slate-900 text-white shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Haram</a>
+      </fieldset>
       <nav class="flex flex-wrap gap-2" aria-label="Purchase order sections">
         <button type="button" data-scroll-target="auto-generated-pos-section" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">Auto Generated POs</button>
         <button type="button" data-scroll-target="local-po" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">Local POs</button>
@@ -118,10 +123,38 @@
     {% if portal_page in ('home', 'purchase-orders') %}
     <section id="local-po" class="space-y-4 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-[10px] font-bold uppercase tracking-wider text-emerald-700">General factory stock</p><h2 class="text-lg font-black text-slate-800">LOCAL POs</h2></div>
-        {% if not read_only_profile %}<details class="w-full sm:w-auto"><summary class="cursor-pointer rounded-lg bg-emerald-600 px-4 py-2 text-center text-sm font-bold text-white hover:bg-emerald-700">Create Local PO</summary><form id="local-po-create-form" method="post" class="mt-4 space-y-4 rounded-xl border border-slate-200 p-4"><input type="hidden" name="action" value="create_local_po"><div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><label class="text-xs font-bold text-slate-600">Supplier<input name="local_supplier" list="local-vendor-list" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><datalist id="local-vendor-list">{% for vendor in vendors %}<option value="{{ vendor.name }}">{% endfor %}</datalist></label><label class="text-xs font-bold text-slate-600">PO Date<input type="date" name="local_date" value="{{ local_po_today }}" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label><label class="text-xs font-bold text-slate-600">Requested By<input name="local_requested_by" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label><label class="text-xs font-bold text-slate-600">Priority<select name="local_priority" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option>Normal</option><option>Urgent</option></select></label></div><div class="overflow-x-auto rounded-xl border border-slate-200"><table class="w-full min-w-[920px] text-sm"><thead class="bg-slate-50 text-left text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-3 py-2">Item</th><th class="px-3 py-2">Qty</th><th class="px-3 py-2">Unit</th><th class="px-3 py-2">Size</th><th class="px-3 py-2">Quality</th><th class="px-3 py-2">Rate</th><th class="px-3 py-2">Amount</th></tr></thead><tbody>{% for row_number in range(1, 7) %}<tr class="border-t border-slate-100"><td class="px-2 py-2"><input name="local_item_{{ row_number }}" data-local-row="{{ row_number }}" list="local-item-list" class="local-po-item w-full rounded border border-slate-300 px-2 py-1.5" placeholder="Accessory name"></td><td class="px-2 py-2"><input type="number" name="local_qty_{{ row_number }}" min="0" step="any" class="local-po-qty w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_unit_{{ row_number }}" value="PCS" class="local-po-unit w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_size_{{ row_number }}" class="w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_quality_{{ row_number }}" class="w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input type="number" name="local_rate_{{ row_number }}" min="0" step="0.01" class="local-po-rate w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input type="number" name="local_amount_{{ row_number }}" readonly class="local-po-amount w-full rounded border border-slate-200 bg-slate-50 px-2 py-1.5"></td></tr>{% endfor %}</tbody></table></div><datalist id="local-item-list">{% for item in local_po_items %}<option value="{{ item.item_name }}" data-size="{{ item.size or '' }}" data-quality="{{ item.material or '' }}" data-unit="{{ item.unit or '' }}">{% endfor %}</datalist><div class="flex justify-end"><button type="submit" class="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">Create Local PO</button></div></form></details>{% endif %}
+        {% if can_create_local_po %}
+        <details class="w-full sm:w-auto">
+          <summary class="cursor-pointer rounded-lg bg-emerald-600 px-4 py-2 text-center text-sm font-bold text-white hover:bg-emerald-700">Create Local PO</summary>
+          <form id="local-po-create-form" method="post" class="mt-4 space-y-4 rounded-xl border border-slate-200 p-4">
+            <input type="hidden" name="action" value="create_local_po">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              <label class="text-xs font-bold text-slate-600">Supplier<input name="local_supplier" list="local-vendor-list" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><datalist id="local-vendor-list">{% for vendor in vendors %}<option value="{{ vendor.name }}">{% endfor %}</datalist></label>
+              <label class="text-xs font-bold text-slate-600">PO Date<input type="date" name="local_date" value="{{ local_po_today }}" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label>
+              <label class="text-xs font-bold text-slate-600">Requested By<input name="local_requested_by" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label>
+              <label class="text-xs font-bold text-slate-600">Bought By<input name="local_bought_by" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label>
+              <label class="text-xs font-bold text-slate-600">Priority<select name="local_priority" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option>Normal</option><option>Urgent</option></select></label>
+            </div>
+            <fieldset class="flex w-full max-w-md rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Company">
+              <legend class="sr-only">Company</legend>
+              <label class="flex-1 cursor-pointer"><input type="radio" name="local_company" value="Canon" class="peer sr-only" {% if selected_po_company == 'Canon' %}checked{% endif %} required><span class="block rounded-md px-4 py-2.5 text-center text-sm font-black text-slate-500 hover:text-slate-900 peer-checked:bg-[#b7955c] peer-checked:text-white peer-checked:shadow-sm">Canon</span></label>
+              <label class="flex-1 cursor-pointer"><input type="radio" name="local_company" value="Haram" class="peer sr-only" {% if selected_po_company == 'Haram' %}checked{% endif %} required><span class="block rounded-md px-4 py-2.5 text-center text-sm font-black text-slate-500 hover:text-slate-900 peer-checked:bg-slate-900 peer-checked:text-white peer-checked:shadow-sm">Haram</span></label>
+            </fieldset>
+            <div class="overflow-x-auto rounded-xl border border-slate-200">
+              <table class="w-full min-w-[920px] text-sm">
+                <thead class="bg-slate-50 text-left text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-3 py-2">Item</th><th class="px-3 py-2">Qty</th><th class="px-3 py-2">Unit</th><th class="px-3 py-2">Size</th><th class="px-3 py-2">Quality</th><th class="px-3 py-2">Rate</th><th class="px-3 py-2">Amount</th></tr></thead>
+                <tbody id="local-po-items">{% for row_number in range(1, 7) %}<tr class="border-t border-slate-100"><td class="px-2 py-2"><input name="local_item_{{ row_number }}" data-local-row="{{ row_number }}" list="local-item-list" class="local-po-item w-full rounded border border-slate-300 px-2 py-1.5" placeholder="Accessory name"></td><td class="px-2 py-2"><input type="number" name="local_qty_{{ row_number }}" min="0" step="any" class="local-po-qty w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_unit_{{ row_number }}" value="PCS" class="local-po-unit w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_size_{{ row_number }}" class="w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_quality_{{ row_number }}" class="w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input type="number" name="local_rate_{{ row_number }}" min="0" step="0.01" class="local-po-rate w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input type="number" name="local_amount_{{ row_number }}" readonly class="local-po-amount w-full rounded border border-slate-200 bg-slate-50 px-2 py-1.5"></td></tr>{% endfor %}</tbody>
+              </table>
+            </div>
+            <button type="button" id="add-local-po-row" class="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add line</button>
+            <datalist id="local-item-list">{% for item in local_po_items %}<option value="{{ item.item_name }}" data-size="{{ item.size or '' }}" data-quality="{{ item.material or '' }}" data-unit="{{ item.unit or '' }}">{% endfor %}</datalist>
+            <div class="flex justify-end"><button type="submit" class="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">Create Local PO</button></div>
+          </form>
+        </details>
+        {% endif %}
       </div>
-      <div class="overflow-x-auto rounded-xl border border-slate-200"><table class="w-full text-center text-sm"><thead class="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500"><tr><th class="px-3 py-3">PO Number</th><th class="px-3 py-3">Status</th><th class="px-3 py-3">Receipt</th></tr></thead><tbody id="local-po-list" {% if portal_page == 'purchase-orders' %}data-load-more-list{% endif %}>
-        {% for po in local_po_summaries %}<tr {% if portal_page == 'purchase-orders' %}data-load-more-row data-po-search-row data-po-search-text="{{ po.order_id }} {{ po.po_no }} {{ po.status }}{% for search_item in po['items'] %} {{ search_item.item }} {{ search_item.size }} {{ search_item.quality }} {{ search_item.supplier }} {{ search_item.date }}{% endfor %}"{% endif %} class="border-y border-slate-200"><td class="px-3 py-3 font-bold text-slate-800">{{ po.po_no }}</td><td class="px-3 py-3"><span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {% if po.all_received %}bg-emerald-100 text-emerald-700{% elif po.status == 'PO_SENT' %}bg-amber-100 text-amber-700{% else %}bg-cyan-100 text-cyan-700{% endif %}">{{ 'RECEIVED' if po.all_received else po.status }}</span></td><td class="px-3 py-3">{% if po.receipt_image %}<a href="{{ po.receipt_image }}" target="_blank" rel="noopener" class="rounded-lg border border-sky-500 bg-sky-50 px-3 py-1.5 text-[10px] font-bold uppercase text-sky-700">View Receipt</a>{% endif %}{% if not po.all_received and po.status == 'PO_SENT' %}{{ receive_po_form(po, 'local-' ~ loop.index) }}{% elif not po.receipt_image and po.all_received %}<span class="text-xs text-slate-500">No receipt image</span>{% endif %}</td></tr>{% else %}<tr data-po-empty-row><td colspan="3" class="px-3 py-6 text-slate-500">No Local POs.</td></tr>{% endfor %}
+      <div class="overflow-x-auto rounded-xl border border-slate-200"><table class="w-full min-w-[640px] text-center text-sm"><thead class="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500"><tr><th class="px-3 py-3">PO Number</th><th class="px-3 py-3">Company</th><th class="px-3 py-3">Bought By</th><th class="px-3 py-3">Status</th><th class="px-3 py-3">Receipt</th></tr></thead><tbody id="local-po-list" {% if portal_page == 'purchase-orders' %}data-load-more-list{% endif %}>
+        {% for po in local_po_summaries %}<tr {% if portal_page == 'purchase-orders' %}data-load-more-row data-po-search-row data-po-search-text="{{ po.order_id }} {{ po.po_no }} {{ po.company }} {{ po.bought_by }} {{ po.status }}{% for search_item in po['items'] %} {{ search_item.item }} {{ search_item.size }} {{ search_item.quality }} {{ search_item.supplier }} {{ search_item.date }}{% endfor %}"{% endif %} class="border-y border-slate-200"><td class="px-3 py-3 font-bold text-slate-800">{{ po.po_no }}</td><td class="px-3 py-3">{{ po.company }}</td><td class="px-3 py-3">{{ po.bought_by or '—' }}</td><td class="px-3 py-3"><span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {% if po.all_received %}bg-emerald-100 text-emerald-700{% elif po.status == 'PO_SENT' %}bg-amber-100 text-amber-700{% else %}bg-cyan-100 text-cyan-700{% endif %}">{{ 'RECEIVED' if po.all_received else po.status }}</span></td><td class="px-3 py-3">{% if po.receipt_image %}<a href="{{ po.receipt_image }}" target="_blank" rel="noopener" class="rounded-lg border border-sky-500 bg-sky-50 px-3 py-1.5 text-[10px] font-bold uppercase text-sky-700">View Receipt</a>{% endif %}{% if not po.all_received and po.status == 'PO_SENT' %}{{ receive_po_form(po, 'local-' ~ loop.index) }}{% elif not po.receipt_image and po.all_received %}<span class="text-xs text-slate-500">No receipt image</span>{% endif %}</td></tr>{% else %}<tr data-po-empty-row><td colspan="5" class="px-3 py-6 text-slate-500">No Local POs.</td></tr>{% endfor %}
       </tbody></table></div>
       {% if portal_page == 'purchase-orders' %}<div class="flex justify-center border-t border-slate-100 p-3"><button type="button" data-load-more-button="local-po-list" class="rounded border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">See more</button></div>{% endif %}
     </section>
@@ -135,7 +168,6 @@
         <p class="text-[10px] font-bold uppercase tracking-wider text-cyan-700">Non-PO order receipt</p>
         <h2 class="text-lg font-black text-slate-800">ACCESSORIES SENT BY PARTY</h2>
       </div>
-      {% if not read_only_profile %}
       <details class="border-b border-slate-200 pb-4">
       <summary class="cursor-pointer rounded-lg bg-cyan-700 px-4 py-2 text-center text-sm font-bold text-white hover:bg-cyan-800">Record Party Accessory</summary>
       <form method="post" class="mt-4 grid gap-3 pb-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -147,13 +179,12 @@
         <label class="text-xs font-bold text-slate-600">Received unit<input id="party-accessory-stock-unit" name="party_accessory_unit" value="PCS" list="party-accessory-unit-list" data-party-stock-unit required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><datalist id="party-accessory-unit-list"><option value="PCS"><option value="BUNDLE"><option value="CONE"><option value="DOZEN"><option value="PACK"><option value="ROLL"><option value="METER"><option value="INCH"><option value="KG"><option value="OTHER"></datalist></label>
         <label class="text-xs font-bold text-slate-600">Issue unit<input id="party-accessory-issue-unit" name="party_accessory_issue_unit" value="PCS" list="party-accessory-unit-list" data-stock-unit="PCS" data-conversion-field="issue-factor-party-accessory" data-auto-default="true" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
         <label id="issue-factor-label-party-accessory" class="text-xs font-bold text-slate-600">PO units per 1 issue unit<input id="issue-factor-party-accessory" type="number" name="party_accessory_issue_factor" value="1" min="0.000001" step="any" data-mode-field="issue-factor-mode-party-accessory" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"><input id="issue-factor-mode-party-accessory" type="hidden" name="party_accessory_issue_factor_mode" value="STOCK_PER_ISSUE"><span class="mt-1 block text-[10px] font-normal">For BUNDLE to CONE, choose CONE and enter cones per bundle.</span></label>
-        <label class="text-xs font-bold text-slate-600">Size<input name="party_accessory_size" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
-        <label class="text-xs font-bold text-slate-600">Quality<input name="party_accessory_quality" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
+        <label class="text-xs font-bold text-slate-600">Size<input name="party_accessory_size" readonly class="mt-1 w-full cursor-not-allowed rounded-lg border border-slate-300 bg-slate-100 px-3 py-2"></label>
+        <label class="text-xs font-bold text-slate-600">Quality<input name="party_accessory_quality" readonly class="mt-1 w-full cursor-not-allowed rounded-lg border border-slate-300 bg-slate-100 px-3 py-2"></label>
         <label class="text-xs font-bold text-slate-600">Notes<input name="party_accessory_note" maxlength="500" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
         <div class="flex items-end"><button type="submit" class="w-full rounded-lg bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800">Record party accessory</button></div>
       </form>
       </details>
-      {% endif %}
       <div class="overflow-x-auto rounded border border-slate-200">
         <table class="w-full min-w-[760px] text-left text-sm">
           <thead class="bg-slate-100 text-[10px] font-bold uppercase tracking-wider text-slate-600"><tr><th class="px-3 py-2">Date</th><th class="px-3 py-2">Party</th><th class="px-3 py-2">Order / Article</th><th class="px-3 py-2">Accessory</th><th class="px-3 py-2 text-right">Quantity</th><th class="px-3 py-2">Recorded By</th><th class="px-3 py-2">View</th></tr></thead>
@@ -185,14 +216,14 @@
           <tr data-unallocated-search="{{ item.item }} {{ item.size }} {{ item.quality }} {{ item.po_no }} {{ item.order_id }} {{ item.supplier }} {{ item.serial_no }} {{ item.received_at }} {{ item.date }}" class="border-t border-slate-200 [&>td]:break-words [&>td]:px-1 [&>td]:py-2">
             <td class="text-center font-bold">{{ item.item }}{% if item.size or item.quality %}<div class="text-[10px] font-normal text-slate-500">{{ item.size or '' }}{% if item.size and item.quality %} · {% endif %}{{ item.quality or '' }}</div>{% endif %}<div class="text-[10px] font-normal text-slate-500">PO {{ item.po_no or '—' }} · {{ item.unit or 'PCS' }}{% if item.roll_length_m %} ({{ '{:g}'.format(item.roll_length_m) }} m/roll){% endif %}</div></td>
             <td class="font-bold text-amber-700">{{ qty_with_issue_unit(item.unlocated_qty, item) }}</td>
-            <td><select form="put-away-{{ item.id }}" name="location_type" required class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"><option value="RACK_SHELF">Rack/Shelf</option><option value="FLOOR">Floor</option><option value="CABINET">Cabinet</option><option value="CUPBOARD">Cupboard</option></select></td>
+            <td><select form="put-away-{{ item.id }}" name="location_type" required class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"><option value="RACK_SHELF">Rack/Shelf</option><option value="FLOOR">Floor</option><option value="CTN_ON_FLOOR">CTN on Floor</option><option value="BORA_ON_FLOOR">BORA on Floor</option><option value="CABINET">Cabinet</option><option value="CUPBOARD">Cupboard</option></select></td>
             <td><select form="put-away-{{ item.id }}" name="department" required class="department-room-department w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"><option value="">Department</option>{% for department in departments %}<option value="{{ department.name }}">{{ department.name }}</option>{% endfor %}</select></td>
             <td><input form="put-away-{{ item.id }}" name="gala" maxlength="100" placeholder="Gala" class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"></td>
             <td><select form="put-away-{{ item.id }}" name="room" required disabled class="department-room-select w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"><option value="">Select department first</option></select></td>
             <td><input form="put-away-{{ item.id }}" name="rack_no" placeholder="Rack" class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"></td>
             <td><input form="put-away-{{ item.id }}" name="shelf_no" placeholder="Shelf" class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"></td>
             <td><input form="put-away-{{ item.id }}" type="number" name="quantity" min="{{ 1 if (item.unit or '')|upper in ('ROLL', 'ROLLS') else 0.01 }}" max="{{ item.unlocated_qty }}" step="{{ 1 if (item.unit or '')|upper in ('ROLL', 'ROLLS') else 0.01 }}" required class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"></td>
-            <td><div class="flex flex-col items-stretch gap-1"><form id="put-away-{{ item.id }}" method="post"><input type="hidden" name="action" value="put_away"><input type="hidden" name="item_id" value="{{ item.id }}"><button type="submit" class="w-full whitespace-normal rounded-lg bg-amber-600 px-1 py-1.5 text-[10px] font-bold text-white hover:bg-amber-700">Place stock</button></form>{% if not read_only_profile %}<button type="button" data-item-id="{{ item.id }}" data-item-name="{{ item.item|e }}" data-unit="{{ item.unit or 'PCS' }}" data-available="{{ item.unlocated_qty }}" data-po-no="{{ item.po_no or '' }}" data-order-id="{{ item.order_id or '' }}" data-supplier="{{ item.supplier or '' }}" data-return-date="{{ local_po_today }}" onclick="openSupplierReturnModal(this)" class="w-full whitespace-normal rounded-lg border border-red-300 bg-red-50 px-1 py-1.5 text-[10px] font-bold text-red-700 hover:bg-red-100">Return to supplier</button>{% endif %}</div></td>
+            <td><div class="flex flex-col items-stretch gap-1"><form id="put-away-{{ item.id }}" method="post"><input type="hidden" name="action" value="put_away"><input type="hidden" name="item_id" value="{{ item.id }}"><button type="submit" class="w-full whitespace-normal rounded-lg bg-amber-600 px-1 py-1.5 text-[10px] font-bold text-white hover:bg-amber-700">Place stock</button></form><button type="button" data-item-id="{{ item.id }}" data-item-name="{{ item.item|e }}" data-unit="{{ item.unit or 'PCS' }}" data-available="{{ item.unlocated_qty }}" data-po-no="{{ item.po_no or '' }}" data-order-id="{{ item.order_id or '' }}" data-supplier="{{ item.supplier or '' }}" data-return-date="{{ local_po_today }}" onclick="openSupplierReturnModal(this)" class="w-full whitespace-normal rounded-lg border border-red-300 bg-red-50 px-1 py-1.5 text-[10px] font-bold text-red-700 hover:bg-red-100">Return to supplier</button></div></td>
           </tr>
           {% else %}<tr id="unallocated-stock-empty-row"><td colspan="10" class="px-3 py-6 text-slate-500">All received stock has been placed in a storage location.</td></tr>{% endfor %}
         </tbody>
@@ -256,7 +287,6 @@
                           {% for row in actionable_layers %}<option value="{{ row.location.id }}" data-item-id="{{ row.location.requirement_id }}" data-unit="{{ row.unit }}" data-issue-unit="{{ row.issue_unit }}" data-issue-factor="{{ row.issue_unit_factor }}" data-roll-length="{{ row.roll_length_m }}" data-left-over="{{ row.location.quantity }}" data-location-label="{{ row.label|e }}" data-po-no="{{ row.po_no|e }}">PO {{ row.po_no or '—' }} · {{ '{:,.2f}'.format(row.location.quantity) }} {{ row.unit }}</option>{% endfor %}
                         </select>
                         <button type="button" data-issue-date="{{ local_po_today }}" data-order-id="{{ selected_order_id }}" onclick="openIssueModal(this)" class="inline-flex shrink-0 items-center gap-1 rounded-lg bg-cyan-700 px-2.5 py-1.5 text-[10px] font-bold text-white hover:bg-cyan-800"><i class="fa-solid fa-arrow-up-from-bracket" aria-hidden="true"></i> Issue</button>
-                        {% if not read_only_profile %}
                         <details class="relative shrink-0">
                           <summary class="inline-flex cursor-pointer list-none items-center gap-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-[10px] font-bold text-slate-700 hover:bg-slate-100"><i class="fa-solid fa-arrow-right-arrow-left" aria-hidden="true"></i> Move</summary>
                           <form method="post" class="absolute right-0 z-20 mt-2 grid w-[min(22rem,calc(100vw-2rem))] gap-2 rounded-lg border border-slate-200 bg-white p-3 text-left shadow-xl">
@@ -273,7 +303,6 @@
                             <button type="submit" class="rounded-lg bg-violet-700 px-3 py-2 text-xs font-bold text-white hover:bg-violet-800">Confirm move</button>
                           </form>
                         </details>
-                        {% endif %}
                       </div>
                       {% endif %}
                       {% for row in location_group.layers %}
@@ -315,11 +344,11 @@
 
     {% if portal_page == 'issued-returned-items' %}
     <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <form method="get" class="grid gap-3 md:grid-cols-[1.5fr_1fr_auto] md:items-end">
-        <div><label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Search issue history</label><input type="text" name="search" value="{{ search }}" placeholder="Item, supplier, PO, order" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></div>
-        <div><label class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</label><select name="status" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">All statuses</option><option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>PENDING</option><option value="PO_SENT" {% if status_filter == 'PO_SENT' %}selected{% endif %}>PO SENT</option><option value="RECEIVED" {% if status_filter == 'RECEIVED' %}selected{% endif %}>RECEIVED</option><option value="ISSUED" {% if status_filter == 'ISSUED' %}selected{% endif %}>ISSUED</option><option value="USED" {% if status_filter == 'USED' %}selected{% endif %}>USED</option><option value="RETURNED" {% if status_filter == 'RETURNED' %}selected{% endif %}>RETURNED</option></select></div>
-        <div class="flex gap-2"><button type="submit" class="rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">Apply</button>{% if search or status_filter %}<a href="{{ url_for('accessories_portal', portal_page='issued-returned-items', order_id=selected_order_id or None) }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Clear</a>{% endif %}</div>
+      <form id="issue-history-filters" method="get" class="grid gap-3 md:grid-cols-[1.5fr_1fr_auto] md:items-end">
+        <div><label for="issue-history-search" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Search issue history</label><input id="issue-history-search" type="search" name="search" value="{{ search }}" placeholder="Item, supplier, PO, order" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></div>
+        <div><label for="issue-history-status" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</label><select id="issue-history-status" name="status" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">All statuses</option><option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>PENDING</option><option value="PO_SENT" {% if status_filter == 'PO_SENT' %}selected{% endif %}>PO SENT</option><option value="RECEIVED" {% if status_filter == 'RECEIVED' %}selected{% endif %}>RECEIVED</option><option value="ISSUED" {% if status_filter == 'ISSUED' %}selected{% endif %}>ISSUED</option><option value="USED" {% if status_filter == 'USED' %}selected{% endif %}>USED</option><option value="RETURNED" {% if status_filter == 'RETURNED' %}selected{% endif %}>RETURNED</option></select></div>
         {% if selected_order_id %}<input type="hidden" name="order_id" value="{{ selected_order_id }}">{% endif %}
+        {% if search or status_filter %}<div><a href="{{ url_for('accessories_portal', portal_page='issued-returned-items', order_id=selected_order_id or None) }}" class="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Clear</a></div>{% endif %}
       </form>
     </section>
     {% endif %}
@@ -341,7 +370,7 @@
         </thead>
         <tbody>
           {% for item in received_item_groups %}
-          <tr class="border-y border-slate-200">
+          <tr class="border-y border-slate-200" data-issue-history-group="{{ loop.index }}" data-issue-history-search="{{ item.item }}{% for size, quality in item.variants %} {{ size }} {{ quality }}{% endfor %}{% for supplier in item.suppliers %} {{ supplier }}{% endfor %}{% for order_id in item.orders %} {{ order_id }}{% endfor %}{% for slip in item.purchase_slips %} {{ slip.po_no }}{% endfor %}">
             <td class="px-3 py-3 font-bold text-slate-800">{{ item.item }}{% for size, quality in item.variants %}<div class="text-xs font-normal text-slate-500">{{ size }}{% if size and quality %} · {% endif %}{{ quality }}</div>{% endfor %}</td>
             <td class="px-3 py-3">{{ qty_by_unit(item, 'qty_value') }}</td>
             <td class="px-3 py-3">{{ qty_by_unit(item, 'received_value') }}</td>
@@ -359,7 +388,7 @@
               </span>
             </td>
           </tr>
-          <tr id="issue-details-{{ loop.index }}" class="{% if not item.issue_history_entries %}hidden {% endif %}border-y border-cyan-200 bg-cyan-50/40">
+          <tr id="issue-details-{{ loop.index }}" data-issue-history-group="{{ loop.index }}" class="{% if not item.issue_history_entries %}hidden {% endif %}border-y border-cyan-200 bg-cyan-50/40">
             <td class="p-0"></td>
             <td colspan="6" class="p-0">
               <table class="w-full border-y border-cyan-200 text-center text-xs">
@@ -384,11 +413,12 @@
                     <td class="px-3 py-1.5">{{ issue.cut_no or '—' }}</td>
                     <td class="px-3 py-1.5">{{ issue.location_label }}</td>
                     <td class="px-3 py-1.5">{{ '{:,.2f}'.format(issue.issued_as_qty if issue.issued_as_qty else issue.issued_qty) }} {{ issue.issued_as_unit or issue.requirement.unit or item.unit or 'PCS' }}{% if issue.requirement.size or issue.requirement.quality %}<span class="block text-[10px] text-slate-500">{{ issue.requirement.size or '' }}{% if issue.requirement.size and issue.requirement.quality %} · {% endif %}{{ issue.requirement.quality or '' }}</span>{% endif %}</td>
-                    <td class="px-3 py-1.5">{{ '{:,.2f}'.format(issue.returned_value or 0) }}{% for returned in issue.return_entries|sort(attribute='id') %}<div class="text-[10px] text-slate-500">{{ returned.return_date }} · {{ '{:,.2f}'.format(returned.returned_qty) }} by {{ returned.returned_by }}</div>{% endfor %}</td>
+                    <td class="px-3 py-1.5">{{ '{:,.2f}'.format(issue.returned_value or 0) }}{% for returned in issue.return_entries|sort(attribute='id') %}<div class="text-[10px] text-slate-500">{{ returned.return_date }} · {{ '{:,.2f}'.format(returned.returned_qty) }} {{ 'refunded to stock' if (returned.return_type or 'REFUNDABLE') == 'REFUNDABLE' else 'returned, not restocked' }} by {{ returned.returned_by }}</div>{% endfor %}</td>
                     <td class="px-3 py-1.5">
                       <div class="flex justify-center gap-1.5">
-                        <button type="button" data-item-id="{{ issue.requirement_id }}" data-item-name="{{ item.item|e }}" data-unit="{{ issue.requirement.unit or item.unit }}" data-issue-unit="{{ issue.issued_as_unit or issue.requirement.issue_unit or issue.requirement.unit }}" data-issue-factor="{{ issue.issue_conversion_factor or issue.requirement.issue_unit_factor or 1 }}" data-roll-length="{{ issue.requirement.roll_length_m }}" data-issue-id="{{ issue.id }}" data-cut-sheet-id="{{ issue.cut_sheet_id or '' }}" data-location-id="{{ issue.storage_location_id or '' }}" data-location-label="{{ issue.location_label|e }}" data-issue-date="{{ issue.issue_date }}" data-worker-name="{{ issue.worker_name|e }}" data-issued-qty="{{ issue.issued_as_qty if issue.issued_as_qty else (issue.issued_qty / (issue.issue_conversion_factor or 1)) }}" data-order-id="{{ issue.order_id or '' }}" data-left-over="{{ issue.editable_max_qty }}" onclick="openIssueModal(this)" class="rounded border border-slate-400 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-100">Edit</button>
-                        {% if issue.returnable and issue.returnable_remaining_qty > 0 %}<button type="button" data-item-id="{{ issue.requirement_id }}" data-issue-id="{{ issue.id }}" data-item-name="{{ item.item|e }}" data-unit="{{ issue.requirement.unit or item.unit }}" data-max-qty="{{ issue.returnable_remaining_qty }}" data-return-date="{{ local_po_today }}" onclick="openReturnModal(this)" class="rounded border border-amber-500 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100">Return</button>{% endif %}
+                        {% if session.get('role') in ('owner', 'manager') and not read_only_profile %}<button type="button" data-item-id="{{ issue.requirement_id }}" data-item-name="{{ item.item|e }}" data-unit="{{ issue.requirement.unit or item.unit }}" data-issue-unit="{{ issue.issued_as_unit or issue.requirement.issue_unit or issue.requirement.unit }}" data-issue-factor="{{ issue.issue_conversion_factor or issue.requirement.issue_unit_factor or 1 }}" data-roll-length="{{ issue.requirement.roll_length_m }}" data-issue-id="{{ issue.id }}" data-cut-sheet-id="{{ issue.cut_sheet_id or '' }}" data-location-id="{{ issue.storage_location_id or '' }}" data-location-label="{{ issue.location_label|e }}" data-issue-date="{{ issue.issue_date }}" data-worker-name="{{ issue.worker_name|e }}" data-issued-qty="{{ issue.issued_as_qty if issue.issued_as_qty else (issue.issued_qty / (issue.issue_conversion_factor or 1)) }}" data-order-id="{{ issue.order_id or '' }}" data-left-over="{{ issue.editable_max_qty }}" onclick="openIssueModal(this)" class="rounded border border-slate-400 bg-white px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-slate-100">Edit</button>{% endif %}
+                        {% if issue.returnable and issue.returnable_remaining_qty > 0 and session.get('role') in ('owner', 'manager') and not read_only_profile %}<button type="button" data-return-type="RETURNABLE" data-item-id="{{ issue.requirement_id }}" data-issue-id="{{ issue.id }}" data-item-name="{{ item.item|e }}" data-unit="{{ issue.requirement.unit or item.unit }}" data-max-qty="{{ issue.returnable_remaining_qty }}" data-return-date="{{ local_po_today }}" onclick="openReturnModal(this)" class="rounded border border-amber-500 bg-amber-50 px-2 py-1 text-[10px] font-bold text-amber-800 hover:bg-amber-100">Return (no stock)</button>{% endif %}
+                        {% if issue.refundable and issue.returnable_remaining_qty > 0 and session.get('role') in ('owner', 'manager') and not read_only_profile %}<button type="button" data-return-type="REFUNDABLE" data-item-id="{{ issue.requirement_id }}" data-issue-id="{{ issue.id }}" data-item-name="{{ item.item|e }}" data-unit="{{ issue.requirement.unit or item.unit }}" data-max-qty="{{ issue.returnable_remaining_qty }}" data-return-date="{{ local_po_today }}" onclick="openReturnModal(this)" class="rounded border border-emerald-600 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-800 hover:bg-emerald-100">Refund to stock</button>{% endif %}
                         {% if issue.returned_value <= 0 and session.get('role') in ('owner', 'manager') and not read_only_profile %}<form method="post" onsubmit="return confirm('Delete this issue entry?');"><input type="hidden" name="item_id" value="{{ issue.requirement_id }}"><input type="hidden" name="issue_id" value="{{ issue.id }}"><input type="hidden" name="action" value="delete_issue"><button type="submit" class="rounded border border-red-400 bg-white px-2 py-1 text-[10px] font-bold text-red-700 hover:bg-red-50">Delete</button></form>{% endif %}
                       </div>
                     </td>
@@ -398,14 +428,56 @@
               </table>
             </td>
           </tr>
-          {% else %}
-          <tr>
-            <td colspan="7" class="px-3 py-8 text-center text-slate-500">No received accessory items match these filters.</td>
-          </tr>
           {% endfor %}
+          <tr id="issue-history-no-results" {% if received_item_groups %}hidden{% endif %}><td colspan="7" class="px-3 py-8 text-center text-slate-500">No received accessory items match these filters.</td></tr>
         </tbody>
       </table>
     </section>
+    <script>
+      const issueHistoryForm = document.getElementById('issue-history-filters');
+      const issueHistorySearch = document.getElementById('issue-history-search');
+      const issueHistoryStatus = document.getElementById('issue-history-status');
+      const issueHistoryEmptyRow = document.getElementById('issue-history-no-results');
+
+      if (issueHistoryForm && issueHistorySearch && issueHistoryStatus) {
+        const issueHistoryRows = Array.from(document.querySelectorAll('[data-issue-history-group]'));
+        const issueHistoryGroups = new Map();
+        issueHistoryRows.forEach(function (row) {
+          row.dataset.issueHistoryInitiallyHidden = row.classList.contains('hidden') ? 'true' : 'false';
+          const group = issueHistoryGroups.get(row.dataset.issueHistoryGroup) || [];
+          group.push(row);
+          issueHistoryGroups.set(row.dataset.issueHistoryGroup, group);
+        });
+
+        function filterIssueHistory() {
+          const query = issueHistorySearch.value.trim().toLocaleLowerCase();
+          let visibleGroups = 0;
+          issueHistoryGroups.forEach(function (rows) {
+            const searchableText = (rows[0].dataset.issueHistorySearch || '').toLocaleLowerCase();
+            const matches = !query || searchableText.includes(query);
+            rows.forEach(function (row) {
+              row.classList.toggle(
+                'hidden',
+                !matches || row.dataset.issueHistoryInitiallyHidden === 'true'
+              );
+            });
+            if (matches) visibleGroups += 1;
+          });
+          if (issueHistoryEmptyRow) issueHistoryEmptyRow.hidden = visibleGroups > 0;
+
+          const url = new URL(window.location.href);
+          if (query) url.searchParams.set('search', issueHistorySearch.value.trim());
+          else url.searchParams.delete('search');
+          window.history.replaceState({}, '', url);
+        }
+
+        issueHistorySearch.addEventListener('input', filterIssueHistory);
+        issueHistoryStatus.addEventListener('change', function () {
+          issueHistoryForm.requestSubmit();
+        });
+        filterIssueHistory();
+      }
+    </script>
     {% endif %}
 
     {% if portal_page == 'issued-returned-items' %}
@@ -417,7 +489,7 @@
           {% for supplier_return in supplier_returns %}
           <tr class="border-t border-slate-200">
             <td class="px-3 py-2">{{ supplier_return.return_date }}</td>
-            <td class="px-3 py-2 font-bold">{{ supplier_return.requirement.item }}{% if supplier_return.requirement.size or supplier_return.requirement.quality %}<div class="text-xs font-normal text-slate-500">{{ supplier_return.requirement.size or '' }}{% if supplier_return.requirement.size and supplier_return.requirement.quality %} · {% endif %}{{ supplier_return.requirement.quality or '' }}</div>{% endif %}{% if supplier_return.return_type == 'EXCHANGE' and supplier_return.exchange_item %}<div class="mt-1 text-xs font-semibold text-emerald-700">Exchange for: {{ supplier_return.exchange_item }}</div>{% endif %}</td>
+            <td class="px-3 py-2 font-bold">{{ supplier_return.requirement.item }}{% if supplier_return.requirement.size or supplier_return.requirement.quality %}<div class="text-xs font-normal text-slate-500">{{ supplier_return.requirement.size or '' }}{% if supplier_return.requirement.size and supplier_return.requirement.quality %} · {% endif %}{{ supplier_return.requirement.quality or '' }}</div>{% endif %}{% if supplier_return.return_type == 'EXCHANGE' and supplier_return.exchange_item %}<div class="mt-1 text-xs font-semibold text-emerald-700">Received: {{ '{:,.2f}'.format(supplier_return.exchange_received_qty or 0) }} {{ supplier_return.exchange_item_unit or 'PCS' }} {{ supplier_return.exchange_item }}</div>{% endif %}</td>
             <td class="px-3 py-2">PO {{ supplier_return.requirement.po_no or '—' }} · {{ supplier_return.requirement.supplier or '—' }}</td>
             <td class="px-3 py-2 font-bold uppercase">{{ supplier_return.return_type }}</td>
             <td class="px-3 py-2">{{ '{:,.2f}'.format(supplier_return.returned_qty) }} {{ supplier_return.requirement.unit or 'PCS' }}</td>
@@ -459,15 +531,16 @@
 </div>
 <div id="accessory-return-modal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-950/50 p-4">
   <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-    <div class="mb-4 flex items-center justify-between"><h2 class="text-xl font-black text-slate-900">Return <span id="return-modal-item"></span></h2><button type="button" onclick="closeReturnModal()" class="text-2xl font-bold text-slate-500 hover:text-slate-900">&times;</button></div>
+    <div class="mb-4 flex items-center justify-between"><h2 class="text-xl font-black text-slate-900"><span id="return-modal-title">Return</span> <span id="return-modal-item"></span></h2><button type="button" onclick="closeReturnModal()" class="text-2xl font-bold text-slate-500 hover:text-slate-900">&times;</button></div>
     <form method="post" class="grid gap-4">
       <input type="hidden" name="action" value="return_issue">
+      <input type="hidden" name="return_type" id="return-modal-type">
       <input type="hidden" name="item_id" id="return-modal-item-id">
       <input type="hidden" name="issue_id" id="return-modal-issue-id">
       <label class="text-xs font-bold uppercase text-slate-500">Return Date<input type="date" name="return_date" id="return-modal-date" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
       <label class="text-xs font-bold uppercase text-slate-500">Quantity Returned<input type="number" name="returned_qty" id="return-modal-qty" min="0.01" step="0.01" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
       <label class="text-xs font-bold uppercase text-slate-500">Note <span class="font-normal normal-case">(optional)</span><input type="text" name="return_note" maxlength="255" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
-      <div class="flex justify-end gap-2"><button type="button" onclick="closeReturnModal()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Cancel</button><button type="submit" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700">Record Return</button></div>
+      <div class="flex justify-end gap-2"><button type="button" onclick="closeReturnModal()" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700">Cancel</button><button type="submit" id="return-modal-submit" class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-bold text-white hover:bg-amber-700">Record Return</button></div>
     </form>
   </div>
 </div>
@@ -484,6 +557,7 @@
       <label class="text-xs font-bold uppercase text-slate-500">Item from this PO<select name="item_id" id="supplier-return-item-id" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" onchange="updateSupplierReturnItem()"><option value="">Select item</option>{% for item in put_away_items %}<option value="{{ item.id }}" data-po-no="{{ item.po_no or '' }}" data-order-id="{{ item.order_id or '' }}" data-supplier="{{ item.supplier or '' }}" data-available="{{ item.unlocated_qty }}" data-unit="{{ item.unit or 'PCS' }}">{{ item.item }}{% if item.size or item.quality %} · {{ item.size or '' }}{% if item.size and item.quality %} · {% endif %}{{ item.quality or '' }}{% endif %} · PO {{ item.po_no or '—' }} · {{ item.supplier or 'Supplier not set' }} · {{ '{:,.2f}'.format(item.unlocated_qty) }} {{ item.unit or 'PCS' }}</option>{% endfor %}</select></label>
       <label class="text-xs font-bold uppercase text-slate-500">Type<select name="return_type" id="supplier-return-type" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" onchange="updateSupplierReturnType()"><option value="RETURN">Return to supplier</option><option value="EXCHANGE">Exchange with supplier</option></select></label>
       <label id="supplier-exchange-item-wrap" class="hidden text-xs font-bold uppercase text-slate-500">Replacement item<select name="exchange_item_id" id="supplier-exchange-item" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"><option value="">Select replacement item</option>{% for master_item in local_po_items %}<option value="{{ master_item.id }}" data-unit="{{ master_item.unit or '' }}">{{ master_item.item_name }}{% if master_item.size or master_item.material %} · {{ master_item.size or master_item.material }}{% endif %}{% if master_item.unit %} · {{ master_item.unit }}{% endif %}</option>{% endfor %}</select><span class="mt-1 block text-[10px] font-normal normal-case text-slate-500">Choose the item you want to receive in exchange.</span></label>
+      <label id="supplier-exchange-qty-wrap" class="hidden text-xs font-bold uppercase text-slate-500">Replacement quantity<input type="number" name="exchange_received_qty" id="supplier-exchange-qty" min="0.01" step="0.01" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
       <label class="text-xs font-bold uppercase text-slate-500">Return date<input type="date" name="return_date" id="supplier-return-date" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
       <label class="text-xs font-bold uppercase text-slate-500">Quantity<input type="number" name="returned_qty" id="supplier-return-qty" min="0.01" step="0.01" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
       <label class="text-xs font-bold uppercase text-slate-500">Reason / note<input type="text" name="return_note" maxlength="255" placeholder="Wrong accessory, size, quality, or excess quantity" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2"></label>
@@ -526,9 +600,11 @@
     </dl>
   </div>
 </div>
+<script id="accessories-page-data" type="application/json">{{ {'department_store_rooms': department_store_rooms, 'issue_article_material_items': issue_article_material_items, 'purchase_order_data': po_view_data}|tojson }}</script>
 <script>
-  const departmentStoreRooms = {{ department_store_rooms|tojson }};
-  const issueArticleMaterialItems = {{ issue_article_material_items|tojson }};
+  const accessoriesPageData = JSON.parse(document.getElementById('accessories-page-data')?.textContent || '{}');
+  const departmentStoreRooms = accessoriesPageData.department_store_rooms || {};
+  const issueArticleMaterialItems = accessoriesPageData.issue_article_material_items || {};
   const purchaseOrderSearch = document.getElementById('purchase-order-search');
   const purchaseOrderSearchEmpty = document.getElementById('purchase-order-search-empty');
   const purchaseOrderListUpdaters = [];
@@ -813,26 +889,51 @@
       }
     }
 
-    localPoForm.querySelectorAll('.local-po-item').forEach(function (itemInput) {
+    function bindLocalPoRow(row) {
+      const itemInput = row.querySelector('.local-po-item');
+      if (itemInput) {
       itemInput.addEventListener('input', () => fillItemMasterDetails(itemInput));
       itemInput.addEventListener('change', () => {
         fillItemMasterDetails(itemInput);
         loadLocalVendorCatalog();
       });
-    });
-    localPoForm.querySelectorAll('.local-po-qty, .local-po-rate').forEach(function (input) {
+      }
+      row.querySelectorAll('.local-po-qty, .local-po-rate').forEach(function (input) {
       input.addEventListener('input', () => {
         const rowNumber = input.name.match(/_(\d+)$/)[1];
         if (input.classList.contains('local-po-rate')) input.dataset.manual = 'true';
         updateLocalPoAmount(rowNumber);
       });
-    });
-    localPoForm.querySelectorAll('.local-po-unit').forEach(function (input) {
+      });
+      row.querySelectorAll('.local-po-unit').forEach(function (input) {
       input.addEventListener('change', function () {
         const rowNumber = this.name.match(/_(\d+)$/)[1];
         const itemInput = localPoForm.querySelector(`[name="local_item_${rowNumber}"]`);
         if (itemInput) applyLocalVendorRate(itemInput);
       });
+      });
+    }
+
+    localPoForm.querySelectorAll('#local-po-items tr').forEach(bindLocalPoRow);
+    const localPoItemsBody = localPoForm.querySelector('#local-po-items');
+    const addLocalPoRowButton = localPoForm.querySelector('#add-local-po-row');
+    let localPoRowCount = localPoItemsBody?.querySelectorAll('tr').length || 0;
+    addLocalPoRowButton?.addEventListener('click', function () {
+      const templateRow = localPoItemsBody?.querySelector('tr');
+      if (!templateRow) return;
+      const newRow = templateRow.cloneNode(true);
+      const rowNumber = ++localPoRowCount;
+      newRow.querySelectorAll('input').forEach(function (input) {
+        input.name = input.name.replace(/_\d+$/, `_${rowNumber}`);
+        input.value = input.classList.contains('local-po-unit') ? 'PCS' : '';
+        if (input.classList.contains('local-po-item')) input.dataset.localRow = String(rowNumber);
+        if (input.classList.contains('local-po-rate')) {
+          input.dataset.manual = 'false';
+          delete input.dataset.itemKey;
+        }
+      });
+      localPoItemsBody.appendChild(newRow);
+      bindLocalPoRow(newRow);
     });
     localSupplierInput.addEventListener('input', function () {
       window.clearTimeout(vendorLookupTimer);
@@ -843,7 +944,9 @@
       loadLocalVendorCatalog();
     });
     localPoForm.addEventListener('submit', function () {
-      for (let rowNumber = 1; rowNumber <= 6; rowNumber++) updateLocalPoAmount(rowNumber);
+      localPoForm.querySelectorAll('.local-po-item').forEach(function (itemInput) {
+        updateLocalPoAmount(itemInput.dataset.localRow);
+      });
     });
   }
 </script>
@@ -910,9 +1013,16 @@
     const isExchange = document.getElementById('supplier-return-type').value === 'EXCHANGE';
     const replacementWrap = document.getElementById('supplier-exchange-item-wrap');
     const replacementSelect = document.getElementById('supplier-exchange-item');
+    const replacementQuantityWrap = document.getElementById('supplier-exchange-qty-wrap');
+    const replacementQuantity = document.getElementById('supplier-exchange-qty');
     replacementWrap.classList.toggle('hidden', !isExchange);
+    replacementQuantityWrap.classList.toggle('hidden', !isExchange);
     replacementSelect.required = isExchange;
-    if (!isExchange) replacementSelect.value = '';
+    replacementQuantity.required = isExchange;
+    if (!isExchange) {
+      replacementSelect.value = '';
+      replacementQuantity.value = '';
+    }
   }
 
   function closeSupplierReturnModal() {
@@ -1126,9 +1236,14 @@
   }
 
   function openReturnModal(button) {
+    const returnType = button.dataset.returnType || 'RETURNABLE';
+    document.getElementById('return-modal-type').value = returnType;
     document.getElementById('return-modal-item-id').value = button.dataset.itemId || '';
     document.getElementById('return-modal-issue-id').value = button.dataset.issueId || '';
     document.getElementById('return-modal-item').textContent = button.dataset.itemName || 'Accessory';
+    const isRefund = returnType === 'REFUNDABLE';
+    document.getElementById('return-modal-title').textContent = isRefund ? 'Refund to stock:' : 'Return (no stock):';
+    document.getElementById('return-modal-submit').textContent = isRefund ? 'Refund to stock' : 'Record return';
     document.getElementById('return-modal-date').value = button.dataset.returnDate || '';
     const quantity = document.getElementById('return-modal-qty');
     const isWholeStockUnit = isDiscreteIssueUnit(button.dataset.unit || '');
@@ -1207,9 +1322,25 @@ function updateReceiptIssueFactor(unitInput, force = false) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
+  const partyAccessoryItemInput = document.getElementById('party-accessory-item');
+  const partyAccessoryItemList = document.getElementById('party-accessory-item-list');
   const partyStockUnit = document.getElementById('party-accessory-stock-unit');
   const partyIssueUnit = document.getElementById('party-accessory-issue-unit');
   const partyFactorInput = document.getElementById('issue-factor-party-accessory');
+  if (partyAccessoryItemInput && partyAccessoryItemList && partyStockUnit && partyIssueUnit) {
+    partyAccessoryItemInput.addEventListener('change', function () {
+      const selectedItemName = this.value.trim().toLocaleLowerCase();
+      const selectedItem = Array.from(partyAccessoryItemList.options).find(function (option) {
+        return option.value.trim().toLocaleLowerCase() === selectedItemName;
+      });
+      const unit = selectedItem?.dataset.unit || 'PCS';
+      partyStockUnit.value = unit;
+      document.querySelector('[name="party_accessory_size"]').value = selectedItem?.dataset.size || '';
+      document.querySelector('[name="party_accessory_quality"]').value = selectedItem?.dataset.quality || '';
+      partyStockUnit.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
   if (partyStockUnit && partyIssueUnit && partyFactorInput) {
     const syncPartyStockUnit = function () {
       const stockUnit = String(partyStockUnit.value || '').trim();
@@ -1242,7 +1373,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <script>
-  const purchaseOrderData = {{ po_view_data|tojson }};
+  const purchaseOrderData = accessoriesPageData.purchase_order_data || {};
   const poCurrencyFormat = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   let activePurchaseOrder = null;
 
@@ -1258,7 +1389,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const meta = document.getElementById('po-view-meta');
     meta.replaceChildren();
     for (const [label, value] of [
-      ['Order', po.order_id], ['Supplier', po.supplier], ['Date', po.date],
+      ['Order', po.order_id], ['Company', po.company], ['Supplier', po.supplier], ['Date', po.date],
+      ['Bought By', po.bought_by],
       ['Requested By', po.requested_by], ['Priority', po.priority],
       ['For', po.for_field]
     ]) {

@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
+  <div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-8">
+    <header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-300 pb-5">
+      <div>
+        <p class="text-xs font-bold uppercase text-emerald-800">Administration</p>
+        <h1 class="mt-1 text-3xl font-black text-slate-950">Activity Log</h1>
+        <p class="mt-2 text-sm text-slate-600">{{ total_count }} recorded event(s), newest first.</p>
+      </div>
+      <a href="{{ url_for('owner_dashboard') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Owner dashboard
+      </a>
+    </header>
+
+    <form method="get" action="{{ url_for('activity_log') }}" class="flex flex-wrap items-end gap-3 border-b border-slate-200 pb-5">
+      <label for="activity-search" class="min-w-0 flex-1 text-xs font-bold uppercase text-slate-600">
+        Search profile or activity
+        <input id="activity-search" name="q" value="{{ search }}" type="search" placeholder="Name, role, route, or action" class="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal normal-case text-slate-900">
+        <input id="activity-search" name="q" value="{{ search }}" type="search" placeholder="Name, role, or activity" class="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal normal-case text-slate-900">
+      </label>
+      <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-700">
+        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Search
+      </button>
+      {% if search %}<a href="{{ url_for('activity_log') }}" class="px-2 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-950">Clear</a>{% endif %}
+    </form>
+
+    <div class="overflow-x-auto border-y border-slate-200">
+      <table class="w-full min-w-[760px] text-left text-sm">
+        <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-600">
+          <tr><th class="px-3 py-3">Date &amp; time (PKT)</th><th class="px-3 py-3">Profile</th><th class="px-3 py-3">Role</th><th class="px-3 py-3">Activity</th></tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for entry in entries %}
+          <tr class="hover:bg-slate-50">
+            <td class="whitespace-nowrap px-3 py-3 text-slate-600">{{ (entry.created_at|pakistan_time).strftime('%d %b %Y, %I:%M:%S %p') }}</td>
+            <td class="px-3 py-3 font-bold text-slate-900">{{ entry.actor_name or entry.actor_username or 'Unknown' }}<span class="mt-0.5 block text-xs font-normal text-slate-500">{{ entry.actor_username or '' }}</span></td>
+            {% set profile_role = entry.actor_profile_role or '—' %}
+            <td class="px-3 py-3 text-slate-600">{{ 'STOCK MANAGER' if profile_role|lower == 'stock' else profile_role|replace('_', ' ')|title }}</td>
+            <td class="px-3 py-3 font-semibold text-slate-800">{{ entry.display_action }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4" class="px-3 py-12 text-center text-slate-500">No activity found.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <nav class="flex items-center justify-between gap-3 text-sm" aria-label="Activity log pages">
+      <span class="text-slate-600">Page {{ page }} of {{ page_count }}</span>
+      <div class="flex gap-2">
+        {% if page > 1 %}<a href="{{ url_for('activity_log', q=search, page=page - 1) }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-slate-700 hover:bg-slate-50">Newer</a>{% endif %}
+        {% if page < page_count %}<a href="{{ url_for('activity_log', q=search, page=page + 1) }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-slate-700 hover:bg-slate-50">Older</a>{% endif %}
+      </div>
+    </nav>
+  </div>
+</div>
+{% endblock %}

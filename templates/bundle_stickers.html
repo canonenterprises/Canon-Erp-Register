@@ -26,9 +26,7 @@
         <p class="mt-1 text-sm text-slate-500">{{ bundle_count }} bundle{{ '' if bundle_count == 1 else 's' }} from this cutting sheet</p>
       </div>
       <div class="flex gap-2">
-        {% if not read_only_profile %}
         <button type="submit" form="bundle-pcs-form" class="inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save PCS</button>
-        {% endif %}
         <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Stickers</button>
       </div>
     </div>
@@ -39,7 +37,7 @@
       <label class="flex items-center justify-between gap-3 border-b border-slate-200 py-2 text-sm font-semibold text-slate-700">
         <span>Bundle {{ bundle_number }}</span>
         <span class="flex items-center gap-2">
-          <input type="number" name="pcs_{{ bundle_number }}" value="{{ pcs_value }}" min="1" step="1" required {% if read_only_profile %}disabled{% endif %} data-pcs-input="{{ bundle_number }}" class="w-24 rounded border border-slate-300 px-3 py-2 text-center text-sm font-bold text-slate-950 disabled:bg-slate-100">
+          <input type="number" name="pcs_{{ bundle_number }}" value="{{ pcs_value }}" min="1" step="1" required data-pcs-input="{{ bundle_number }}" class="w-24 rounded border border-slate-300 px-3 py-2 text-center text-sm font-bold text-slate-950">
           <span class="text-xs font-bold text-slate-500">PCS</span>
         </span>
       </label>

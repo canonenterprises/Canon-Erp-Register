@@ -3,6 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        try {
+            document.documentElement.dataset.theme = localStorage.getItem('canon-theme') === 'dark' ? 'dark' : 'light';
+        } catch (error) {
+            document.documentElement.dataset.theme = 'light';
+        }
+    </script>
     <title>Canon ERP Register</title>
     <link rel="icon" type="image/webp" href="{{ url_for('static', filename='favicon.webp') }}">
     <link rel="shortcut icon" type="image/webp" href="{{ url_for('static', filename='favicon.webp') }}">
@@ -14,11 +21,359 @@
             font-family: 'Poppins', sans-serif;
             overflow-x: hidden;
             /* if you want to remove the background image, remove the 5 lines below */
-            background-image: url("{{ url_for('static', filename='bg7.png') }}");
+            background-image: url("{{ url_for('static', filename='bg7.webp') }}");
             background-position: center;
             background-attachment: fixed;
             background-size: cover;
             background-repeat: no-repeat;
+        }
+        @media screen {
+            html[data-theme="dark"] { color-scheme: dark; }
+            html[data-theme="dark"] body {
+                background-color: #0b1120 !important;
+                background-image: url("{{ url_for('static', filename='bg7dark.webp') }}") !important;
+                color: #e2e8f0 !important;
+            }
+            html[data-theme="dark"] [class~="bg-white"],
+            html[data-theme="dark"] [class*="bg-white/"],
+            html[data-theme="dark"] [class*="bg-slate-50/"],
+            html[data-theme="dark"] [class~="bg-slate-50"],
+            html[data-theme="dark"] [class~="bg-slate-100"],
+            html[data-theme="dark"] [class~="bg-slate-200"],
+            html[data-theme="dark"] [class~="bg-gray-50"],
+            html[data-theme="dark"] [class~="bg-gray-100"],
+            html[data-theme="dark"] [class~="bg-gray-200"],
+            html[data-theme="dark"] [class~="bg-zinc-50"],
+            html[data-theme="dark"] [class~="bg-zinc-100"],
+            html[data-theme="dark"] [class~="bg-neutral-50"],
+            html[data-theme="dark"] [class~="bg-neutral-100"],
+            html[data-theme="dark"] [class~="bg-stone-50"],
+            html[data-theme="dark"] [class~="bg-stone-100"] {
+                background-color: #172033 !important;
+            }
+            html[data-theme="dark"] [class~="bg-emerald-50"],
+            html[data-theme="dark"] [class~="bg-green-50"],
+            html[data-theme="dark"] [class~="bg-teal-50"] { background-color: #12352e !important; }
+            html[data-theme="dark"] [class~="bg-rose-50"],
+            html[data-theme="dark"] [class~="bg-red-50"] { background-color: #3a202b !important; }
+            html[data-theme="dark"] [class~="bg-amber-50"],
+            html[data-theme="dark"] [class~="bg-yellow-50"],
+            html[data-theme="dark"] [class~="bg-orange-50"] { background-color: #382d1b !important; }
+            html[data-theme="dark"] [class~="bg-blue-50"],
+            html[data-theme="dark"] [class~="bg-sky-50"],
+            html[data-theme="dark"] [class~="bg-cyan-50"] { background-color: #172e43 !important; }
+            html[data-theme="dark"] [class~="bg-indigo-50"],
+            html[data-theme="dark"] [class~="bg-violet-50"],
+            html[data-theme="dark"] [class~="bg-purple-50"] { background-color: #2b2542 !important; }
+            html[data-theme="dark"] [class*="border-slate-"],
+            html[data-theme="dark"] [class*="border-gray-"],
+            html[data-theme="dark"] [class*="border-zinc-"],
+            html[data-theme="dark"] [class*="border-neutral-"],
+            html[data-theme="dark"] [class*="border-stone-"] {
+                border-color: #3a475d !important;
+            }
+            html[data-theme="dark"] [class~="text-black"],
+            html[data-theme="dark"] [class~="text-slate-950"],
+            html[data-theme="dark"] [class~="text-slate-900"],
+            html[data-theme="dark"] [class~="text-slate-800"],
+            html[data-theme="dark"] [class~="text-slate-700"],
+            html[data-theme="dark"] [class~="text-gray-950"],
+            html[data-theme="dark"] [class~="text-gray-900"],
+            html[data-theme="dark"] [class~="text-gray-800"],
+            html[data-theme="dark"] [class~="text-gray-700"],
+            html[data-theme="dark"] [class~="text-zinc-900"],
+            html[data-theme="dark"] [class~="text-neutral-900"],
+            html[data-theme="dark"] [class~="text-stone-900"] {
+                color: #e2e8f0 !important;
+            }
+            html[data-theme="dark"] [class~="text-slate-600"],
+            html[data-theme="dark"] [class~="text-slate-500"],
+            html[data-theme="dark"] [class~="text-slate-400"],
+            html[data-theme="dark"] [class~="text-gray-600"],
+            html[data-theme="dark"] [class~="text-gray-500"],
+            html[data-theme="dark"] [class~="text-gray-400"] {
+                color: #a8b5c9 !important;
+            }
+            html[data-theme="dark"] [class*="text-emerald-700"],
+            html[data-theme="dark"] [class*="text-emerald-800"],
+            html[data-theme="dark"] [class*="text-emerald-900"],
+            html[data-theme="dark"] [class*="text-green-700"],
+            html[data-theme="dark"] [class*="text-green-800"],
+            html[data-theme="dark"] [class*="text-teal-700"],
+            html[data-theme="dark"] [class*="text-teal-800"] { color: #6ee7b7 !important; }
+            html[data-theme="dark"] [class*="text-rose-700"],
+            html[data-theme="dark"] [class*="text-rose-800"],
+            html[data-theme="dark"] [class*="text-rose-900"],
+            html[data-theme="dark"] [class*="text-red-700"],
+            html[data-theme="dark"] [class*="text-red-800"] { color: #fda4af !important; }
+            html[data-theme="dark"] [class*="text-amber-700"],
+            html[data-theme="dark"] [class*="text-amber-800"],
+            html[data-theme="dark"] [class*="text-amber-900"],
+            html[data-theme="dark"] [class*="text-yellow-700"],
+            html[data-theme="dark"] [class*="text-yellow-900"],
+            html[data-theme="dark"] [class*="text-orange-700"],
+            html[data-theme="dark"] [class*="text-orange-900"] { color: #fcd34d !important; }
+            html[data-theme="dark"] [class*="text-blue-700"],
+            html[data-theme="dark"] [class*="text-blue-800"],
+            html[data-theme="dark"] [class*="text-blue-900"],
+            html[data-theme="dark"] [class*="text-sky-700"],
+            html[data-theme="dark"] [class*="text-sky-800"],
+            html[data-theme="dark"] [class*="text-sky-900"],
+            html[data-theme="dark"] [class*="text-cyan-700"],
+            html[data-theme="dark"] [class*="text-cyan-800"],
+            html[data-theme="dark"] [class*="text-cyan-900"] { color: #7dd3fc !important; }
+            html[data-theme="dark"] [class*="text-indigo-700"],
+            html[data-theme="dark"] [class*="text-indigo-800"],
+            html[data-theme="dark"] [class*="text-indigo-900"],
+            html[data-theme="dark"] [class*="text-violet-700"],
+            html[data-theme="dark"] [class*="text-violet-800"],
+            html[data-theme="dark"] [class*="text-violet-900"],
+            html[data-theme="dark"] [class*="text-purple-700"],
+            html[data-theme="dark"] [class*="text-purple-800"],
+            html[data-theme="dark"] [class*="text-purple-900"] { color: #c4b5fd !important; }
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-emerald-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-emerald-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-green-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-green-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-teal-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-teal-100"] {
+                background-color: #12352e !important;
+                box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.35);
+                color: #f8fafc !important;
+            }
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-rose-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-rose-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-red-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-red-100"] {
+                background-color: #3a202b !important;
+                box-shadow: inset 0 0 0 1px rgba(251, 113, 133, 0.35);
+                color: #f8fafc !important;
+            }
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-amber-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-amber-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-yellow-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-yellow-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-orange-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-orange-100"] {
+                background-color: #382d1b !important;
+                box-shadow: inset 0 0 0 1px rgba(251, 191, 36, 0.35);
+                color: #f8fafc !important;
+            }
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-blue-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-blue-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-sky-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-sky-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-cyan-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-cyan-100"] {
+                background-color: #172e43 !important;
+                box-shadow: inset 0 0 0 1px rgba(56, 189, 248, 0.35);
+                color: #f8fafc !important;
+            }
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-indigo-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-indigo-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-violet-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-violet-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-purple-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-purple-100"] {
+                background-color: #2b2542 !important;
+                box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.35);
+                color: #f8fafc !important;
+            }
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-slate-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-slate-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-slate-200"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-gray-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-gray-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-gray-200"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-zinc-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-zinc-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-neutral-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-neutral-100"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-stone-50"],
+            html[data-theme="dark"] span[class*="rounded-full"][class~="bg-stone-100"] {
+                background-color: #273449 !important;
+                box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.35);
+                color: #f8fafc !important;
+            }
+            html[data-theme="dark"] .paid-badge {
+                background-color: #12352e !important;
+                box-shadow: inset 0 0 0 1px rgba(52, 211, 153, 0.35);
+                color: #f8fafc !important;
+            }
+            html[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+            html[data-theme="dark"] select,
+            html[data-theme="dark"] textarea {
+                border-color: #475569 !important;
+                background-color: #0f172a !important;
+                color: #e2e8f0 !important;
+                color-scheme: dark;
+            }
+            html[data-theme="dark"] .print-light-paper textarea {
+                border-color: #000000 !important;
+                background-color: transparent !important;
+                color: #000000 !important;
+                color-scheme: light;
+            }
+            html[data-theme="dark"] input::placeholder,
+            html[data-theme="dark"] textarea::placeholder { color: #94a3b8 !important; }
+            html[data-theme="dark"] table tr:hover { background-color: #202c40 !important; }
+            html[data-theme="dark"] .print-light-paper table tr:hover { background-color: transparent !important; }
+            html[data-theme="dark"] #profile-controls {
+                border-color: #facc15 !important;
+                background-color: #facc15 !important;
+            }
+            html[data-theme="dark"] #profile-controls p { color: #000 !important; }
+            html[data-theme="dark"] #profile-controls > a {
+                background-color: #fff !important;
+                color: #0f172a !important;
+            }
+            html[data-theme="dark"] #profile-controls > a:hover { background-color: #f1f5f9 !important; }
+            html[data-theme="dark"] #fab {
+                background-color: #facc15 !important;
+                color: #020617 !important;
+            }
+            html[data-theme="dark"] #fab:hover { background-color: #eab308 !important; }
+            html[data-theme="dark"] #profile-settings-popup {
+                background-color: #0f172a !important;
+                border-color: #475569 !important;
+                color: #e2e8f0 !important;
+                box-shadow: 0 24px 50px -16px rgba(15, 23, 42, 0.9) !important;
+            }
+            html[data-theme="dark"] #profile-settings-popup .border-b,
+            html[data-theme="dark"] #profile-settings-popup .border-t {
+                border-color: #334155 !important;
+            }
+            html[data-theme="dark"] #profile-settings-popup label,
+            html[data-theme="dark"] #profile-settings-popup label span {
+                color: #e2e8f0 !important;
+            }
+            html[data-theme="dark"] #profile-settings-popup p,
+            html[data-theme="dark"] #profile-settings-popup label i {
+                color: #94a3b8 !important;
+            }
+            html[data-theme="dark"] #profile-settings-popup a {
+                color: #fda4af !important;
+            }
+            html[data-theme="dark"] #profile-settings-popup a:hover { background-color: #3a202b !important; }
+            html[data-theme="dark"] #fab-menu {
+                background-color: rgba(15, 23, 42, 0.92) !important;
+                border-color: #334155 !important;
+                box-shadow: 0 18px 40px -12px rgba(15, 23, 42, 0.85) !important;
+            }
+            html[data-theme="dark"] #fab-menu a {
+                color: #e2e8f0 !important;
+                background-color: transparent !important;
+            }
+            html[data-theme="dark"] #fab-menu a:hover {
+                background-color: rgba(148, 163, 184, 0.12) !important;
+            }
+            html[data-theme="dark"] .flash-message {
+                box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18) !important;
+            }
+            html[data-theme="dark"] .print-light-page[class~="bg-slate-100"] {
+                background-color: #f1f5f9 !important;
+                color: #1e293b !important;
+            }
+            html[data-theme="dark"] .print-light-page[class~="bg-white"] { background-color: #ffffff !important; }
+            html[data-theme="dark"] .print-light-paper {
+                color: #111827 !important;
+                background-color: #ffffff !important;
+                color-scheme: light;
+            }
+            html[data-theme="dark"] .print-light-paper [class~="bg-white"],
+            html[data-theme="dark"] .print-light-paper [class*="bg-white/"] { background-color: #ffffff !important; }
+            html[data-theme="dark"] .print-light-paper [class~="bg-slate-50"],
+            html[data-theme="dark"] .print-light-paper [class*="bg-slate-50/"] { background-color: #f8fafc !important; }
+            html[data-theme="dark"] .print-light-paper [class~="bg-slate-100"] { background-color: #f1f5f9 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="bg-slate-200"] { background-color: #e2e8f0 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-emerald-50"] { background-color: #ecfdf5 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-green-50"] { background-color: #f0fdf4 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-teal-50"] { background-color: #f0fdfa !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-rose-50"] { background-color: #fff1f2 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-red-50"] { background-color: #fef2f2 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-amber-50"] { background-color: #fffbeb !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-yellow-50"] { background-color: #fefce8 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-orange-50"] { background-color: #fff7ed !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-blue-50"] { background-color: #eff6ff !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-sky-50"] { background-color: #f0f9ff !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-cyan-50"] { background-color: #ecfeff !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-indigo-50"] { background-color: #eef2ff !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-violet-50"] { background-color: #f5f3ff !important; }
+            html[data-theme="dark"] .print-light-paper [class*="bg-purple-50"] { background-color: #faf5ff !important; }
+            html[data-theme="dark"] .print-light-paper [class*="border-slate-"] { border-color: #cbd5e1 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-black"] { color: #000000 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-slate-950"] { color: #020617 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-slate-900"] { color: #0f172a !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-slate-800"] { color: #1e293b !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-slate-700"] { color: #334155 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-slate-600"] { color: #475569 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-slate-500"] { color: #64748b !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-slate-400"] { color: #94a3b8 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-gray-950"] { color: #030712 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-gray-900"] { color: #111827 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-gray-800"] { color: #1f2937 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-gray-700"] { color: #374151 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-gray-600"] { color: #4b5563 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-gray-500"] { color: #6b7280 !important; }
+            html[data-theme="dark"] .print-light-paper [class~="text-gray-400"] { color: #9ca3af !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-emerald-700"] { color: #047857 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-emerald-800"] { color: #065f46 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-emerald-900"] { color: #064e3b !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-green-700"] { color: #15803d !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-green-800"] { color: #166534 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-teal-700"] { color: #0f766e !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-teal-800"] { color: #115e59 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-rose-700"] { color: #be123c !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-rose-800"] { color: #9f1239 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-rose-900"] { color: #881337 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-red-700"] { color: #b91c1c !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-red-800"] { color: #991b1b !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-amber-700"] { color: #b45309 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-amber-800"] { color: #92400e !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-amber-900"] { color: #78350f !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-yellow-700"] { color: #a16207 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-yellow-900"] { color: #713f12 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-orange-700"] { color: #c2410c !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-orange-900"] { color: #7c2d12 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-blue-700"] { color: #1d4ed8 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-blue-800"] { color: #1e40af !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-sky-700"] { color: #0369a1 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-sky-800"] { color: #075985 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-sky-900"] { color: #0c4a6e !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-cyan-700"] { color: #0e7490 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-cyan-800"] { color: #155e75 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-cyan-900"] { color: #164e63 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-indigo-700"] { color: #4338ca !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-indigo-800"] { color: #3730a3 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-indigo-900"] { color: #312e81 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-violet-700"] { color: #6d28d9 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-violet-800"] { color: #5b21b6 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-violet-900"] { color: #4c1d95 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-purple-700"] { color: #7e22ce !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-purple-800"] { color: #6b21a8 !important; }
+            html[data-theme="dark"] .print-light-paper [class*="text-purple-900"] { color: #581c87 !important; }
+            html[data-theme="dark"] a[class*="border-slate-300"][class*="hover:bg-slate-"],
+            html[data-theme="dark"] button[class*="border-slate-300"][class*="hover:bg-slate-"],
+            html[data-theme="dark"] .print-back-button {
+                background-color: #e2e8f0 !important;
+                border-color: #cbd5e1 !important;
+                color: #000000 !important;
+            }
+            html[data-theme="dark"] a[class*="border-slate-300"][class*="hover:bg-slate-"] *,
+            html[data-theme="dark"] button[class*="border-slate-300"][class*="hover:bg-slate-"] *,
+            html[data-theme="dark"] .print-back-button * { color: #000000 !important; }
+            html[data-theme="dark"] a[class*="border-slate-300"][class*="hover:bg-slate-"]:hover,
+            html[data-theme="dark"] button[class*="border-slate-300"][class*="hover:bg-slate-"]:hover,
+            html[data-theme="dark"] .print-back-button:hover {
+                background-color: #cbd5e1 !important;
+                border-color: #94a3b8 !important;
+                color: #0f172a !important;
+            }
+            html[data-theme="dark"] a[class*="border-slate-300"][class*="hover:bg-slate-"]:hover *,
+            html[data-theme="dark"] button[class*="border-slate-300"][class*="hover:bg-slate-"]:hover *,
+            html[data-theme="dark"] .print-back-button:hover * { color: #0f172a !important; }
+            html[data-theme="dark"] .print-gold-button { background-color: #b7955c !important; color: #ffffff !important; }
+            html[data-theme="dark"] .print-gold-button:hover { background-color: #9b7e4e !important; }
         }
         @media (max-width: 767px) {
             body { font-size: 12px; }
@@ -142,25 +497,70 @@
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen overflow-x-hidden">
     {% set is_accounts_area = request.path.startswith('/accounts') or request.path.startswith('/stock-portal/billing') or request.endpoint in ('annual_reports', 'annual_report', 'annual_report_print') %}
-    {% if session.get('user') %}
+    {% set current_role = session.get('role') %}
+    {% set profile_role = session.get('profile_role', current_role) %}
+    {% if profile_role == 'worker' or current_role == 'worker' %}
+        {% set portal_home_endpoint = 'worker_dashboard' %}
+    {% elif profile_role == 'owner' or current_role == 'owner' %}
+        {% set portal_home_endpoint = 'owner_dashboard' %}
+    {% elif profile_role in ('manager', 'operations', 'operations_manager', 'assistant_manager') or current_role in ('manager', 'operations', 'assistant_manager') %}
+        {% set portal_home_endpoint = 'manager_dashboard' %}
+    {% elif profile_role == 'accounts' %}
+        {% set portal_home_endpoint = 'accounts_portal' %}
+    {% elif profile_role == 'stock' %}
+        {% set portal_home_endpoint = 'stock_portal' %}
+    {% elif profile_role == 'challan' %}
+        {% set portal_home_endpoint = 'challan_portal' %}
+    {% else %}
+        {% set portal_home_endpoint = 'index' %}
+    {% endif %}
     <div class="fixed bottom-4 left-4 z-50 no-print">
-        <div class="flex items-center gap-3 rounded-2xl border-[2px] border-yellow-400 bg-yellow-400 px-4 py-3 shadow-xl backdrop-blur">
+        <div id="profile-controls" class="flex items-center gap-3 rounded-2xl border-[2px] border-yellow-400 bg-yellow-400 px-4 py-3 shadow-xl backdrop-blur">
+            {% if session.get('user') %}
             <div class="min-w-0">
                 <p class="text-[10px] font-semibold uppercase tracking-wider text-black">Logged In As</p>
-                <p class="text-sm font-medium text-black truncate">{{ session.get('name') }}</p>
+                <p class="text-sm font-medium text-black truncate">{{ session.get('name') | upper }}</p>
             </div>
-            <a href="{{ url_for('logout') }}" class="flex h-9 w-9 items-center justify-center rounded-lg bg-red-950 text-white transition hover:bg-black" title="Logout">
-                <i class="fa-solid fa-arrow-right-from-bracket text-sm"></i>
+            {% endif %}
+            <button id="profile-settings-button" type="button" aria-label="Settings" aria-expanded="false" aria-controls="profile-settings-popup" class="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-900 text-white transition hover:bg-slate-700" title="Settings">
+                <i class="fa-solid fa-gear text-sm" aria-hidden="true"></i>
+            </button>
+            {% if session.get('user') %}
+            <a href="{{ url_for(portal_home_endpoint) }}" class="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-slate-900 transition hover:bg-slate-100" title="Home" aria-label="Go to portal home">
+                <i class="fa-solid fa-house text-sm" aria-hidden="true"></i>
             </a>
+            {% endif %}
+        </div>
+        <div id="profile-settings-popup" class="absolute bottom-[calc(100%+0.5rem)] left-0 hidden w-64 overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-2xl">
+            <p class="border-b border-slate-200 px-4 py-3 text-xs font-black uppercase text-slate-500">Settings</p>
+            <label for="theme-toggle" class="flex cursor-pointer items-center justify-between gap-3 px-4 py-4">
+                <span class="flex items-center gap-2 text-sm font-bold"><i class="fa-solid fa-circle-half-stroke text-slate-500" aria-hidden="true"></i> Dark theme</span>
+                <span class="relative inline-flex h-6 w-11 shrink-0">
+                    <input id="theme-toggle" type="checkbox" role="switch" aria-label="Enable dark theme" class="peer absolute inset-0 z-10 h-6 w-11 cursor-pointer opacity-0">
+                    <span class="pointer-events-none absolute inset-0 rounded-full bg-slate-300 transition-colors peer-checked:bg-emerald-700"></span>
+                    <span class="pointer-events-none absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5"></span>
+                </span>
+            </label>
+            {% if session.get('user') %}
+            {% if session.get('role') == 'owner' %}
+            <a href="{{ url_for('activity_log') }}" class="flex items-center gap-3 border-t border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100" title="View global activity log">
+                <i class="fa-solid fa-clock-rotate-left w-4 text-center" aria-hidden="true"></i>
+                Activity Log
+            </a>
+            {% endif %}
+            <a href="{{ url_for('logout') }}" class="flex items-center gap-3 border-t border-slate-200 px-4 py-3 text-sm font-bold text-rose-700 hover:bg-rose-50" title="Logout">
+                <i class="fa-solid fa-arrow-right-from-bracket w-4 text-center" aria-hidden="true"></i>
+                Logout
+            </a>
+            {% endif %}
         </div>
     </div>
-    {% endif %}
 
     <div class="min-h-screen flex flex-col">
         <main class="flex-grow p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto pt-24 md:pt-8">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
-                    <div id="flash-container" class="no-print mb-6 pt-2 md:pt-4">
+                    <div id="flash-container" data-dismiss-ms="{{ 10000 if request.endpoint == 'production_entry' else 3200 }}" class="no-print mb-6 pt-2 md:pt-4">
                         <div class="max-w-7xl mx-auto space-y-3">
                             {% for category, message in messages %}
                                 <div class="flash-message relative z-50 p-4 rounded-xl {% if category == 'success' %} bg-emerald-50 border border-emerald-200 text-emerald-800 {% else %} bg-rose-50 border border-rose-200 text-rose-800 {% endif %} flex items-center shadow-sm">
@@ -181,19 +581,22 @@
             const flashContainer = document.getElementById('flash-container');
             if (!flashContainer) return;
 
+            const baseDismissMs = Number(flashContainer.dataset.dismissMs || 3200);
+            const dismissMs = Number(window.FLASH_DISMISS_MS || baseDismissMs || 3200);
+
             setTimeout(function () {
                 flashContainer.classList.add('fade-out');
                 setTimeout(function () {
                     flashContainer.remove();
                 }, 400);
-            }, 4000);
+            }, dismissMs);
         });
     </script>
 
         <!-- Floating action menu -->
         {% set current_role = session.get('role') %}
         {% set is_costing_page = request.endpoint == 'costing_sheet' %}
-        {% if (current_role in ('owner', 'manager') and is_costing_page) or (current_role in ('owner', 'manager', 'assistant_manager') and not is_costing_page) %}
+        {% if (current_role in ('owner', 'manager') and is_costing_page) or (current_role in ('owner', 'manager', 'assistant_manager', 'stock', 'accounts', 'challan') and not is_costing_page) %}
         <div class="fixed bottom-5 right-5 z-50 no-print sm:bottom-7 sm:right-7">
             <div id="fab-menu" class="hidden absolute bottom-[4.5rem] right-0 w-64 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-2xl shadow-slate-900/15 backdrop-blur-xl">
                 <div class="px-3 pb-2 pt-1">
@@ -241,10 +644,47 @@
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><i class="fa-solid fa-table-cells-large text-sm"></i></span>
                         <span>Dashboard</span>
                     </a>{% endif %}
+                    {% elif current_role in ('stock', 'accounts', 'challan') and not is_accounts_area %}
+                    {% if 'stock_home' in page_access_keys %}<a href="{{ url_for('stock_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-warehouse text-sm"></i></span>
+                        <span>Stock Portal</span>
+                    </a>{% endif %}
+                    {% if 'accessories' in page_access_keys %}<a href="{{ url_for('accessories_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-amber-50 hover:text-amber-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><i class="fa-solid fa-boxes-stacked text-sm"></i></span>
+                        <span>Accessories</span>
+                    </a>{% endif %}
+                    {% if 'warehouse' in page_access_keys %}<a href="{{ url_for('warehouse_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-violet-50 hover:text-violet-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600"><i class="fa-solid fa-boxes-stacked text-sm"></i></span>
+                        <span>Warehouse Dispatch</span>
+                    </a>{% endif %}
+                    {% if 'warehouse_in_transit' in page_access_keys %}<a href="{{ url_for('warehouse_in_transit') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-amber-50 hover:text-amber-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-50 text-amber-600"><i class="fa-solid fa-truck-ramp-box text-sm"></i></span>
+                        <span>In Transit to Warehouse</span>
+                    </a>{% endif %}
+                    {% if 'shipments' in page_access_keys %}<a href="{{ url_for('goods_delivery_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-cyan-50 hover:text-cyan-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><i class="fa-solid fa-truck-fast text-sm"></i></span>
+                        <span>Goods Delivery &amp; Shipments</span>
+                    </a>{% endif %}
+                    {% if 'stock_challan' in page_access_keys %}<a href="{{ url_for('challan_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-cyan-50 hover:text-cyan-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><i class="fa-solid fa-file-invoice text-sm"></i></span>
+                        <span>Delivery Challan</span>
+                    </a>{% endif %}
+                    {% if 'accounts_home' in page_access_keys %}<a href="{{ url_for('accounts_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-file-invoice-dollar text-sm"></i></span>
+                        <span>Accounts</span>
+                    </a>{% endif %}
                     {% elif is_accounts_area %}
                     {% if 'accounts_home' in page_access_keys %}<a href="{{ url_for('accounts_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-house text-sm"></i></span>
                         <span>Accounts Home</span>
+                    </a>{% endif %}
+                    {% if 'stock_home' in page_access_keys %}<a href="{{ url_for('stock_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-warehouse text-sm"></i></span>
+                        <span>Stock Portal</span>
+                    </a>{% endif %}
+                    {% if 'stock_challan' in page_access_keys %}<a href="{{ url_for('challan_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-cyan-50 hover:text-cyan-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><i class="fa-solid fa-file-invoice text-sm"></i></span>
+                        <span>Delivery Challan</span>
                     </a>{% endif %}
                     {% if 'customer_billing' in page_access_keys %}<a href="{{ url_for('billing_portal', shipper=request.args.get('shipper') or 'Canon') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><i class="fa-solid fa-file-invoice-dollar text-sm"></i></span>
@@ -256,7 +696,7 @@
                     </a>{% endif %}
                     {% if 'utility_bills' in page_access_keys %}<a href="{{ url_for('accounts_utility_bills') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 hover:text-sky-900">
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600"><i class="fa-solid fa-bolt text-sm"></i></span>
-                        <span>Utility Bills</span>
+                        <span>Company Bills &amp; Rent</span>
                     </a>{% endif %}
                     {% if 'credit_debit' in page_access_keys %}<a href="{{ url_for('accounts_credit_debit_ledger') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-cyan-50 hover:text-cyan-900">
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600"><i class="fa-solid fa-arrow-right-arrow-left text-sm"></i></span>
@@ -307,6 +747,11 @@
                         <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
                     </a>{% endif %}
                     {% endif %}
+                    {% if current_role in ('owner', 'manager') and 'stock_challan' in page_access_keys %}<a href="{{ url_for('challan_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-50 text-cyan-600 transition group-hover:bg-cyan-100"><i class="fa-solid fa-file-invoice text-sm"></i></span>
+                        <span>Delivery Challan</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
+                    </a>{% endif %}
                     {% if current_role in ('owner', 'manager', 'assistant_manager') %}
                     {% if 'vendors' in page_access_keys %}<a href="{{ url_for('vendors') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 transition group-hover:bg-sky-100"><i class="fa-solid fa-truck-field text-sm"></i></span>
@@ -343,6 +788,53 @@
             </button>
         </div>
         {% endif %}
+
+        <script>
+            const profileSettingsButton = document.getElementById('profile-settings-button');
+            const profileSettingsPopup = document.getElementById('profile-settings-popup');
+            const themeToggle = document.getElementById('theme-toggle');
+
+            function applyTheme(theme) {
+                document.documentElement.dataset.theme = theme;
+                if (themeToggle) {
+                    themeToggle.checked = theme === 'dark';
+                    themeToggle.setAttribute('aria-checked', String(themeToggle.checked));
+                }
+                try {
+                    localStorage.setItem('canon-theme', theme);
+                } catch (error) {
+                    // The current page still uses the selected theme if storage is unavailable.
+                }
+            }
+
+            applyTheme(document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light');
+
+            if (themeToggle) {
+                themeToggle.addEventListener('change', function () {
+                    applyTheme(themeToggle.checked ? 'dark' : 'light');
+                });
+            }
+
+            if (profileSettingsButton && profileSettingsPopup) {
+                profileSettingsButton.addEventListener('click', function () {
+                    const isOpen = !profileSettingsPopup.classList.contains('hidden');
+                    profileSettingsPopup.classList.toggle('hidden', isOpen);
+                    profileSettingsButton.setAttribute('aria-expanded', String(!isOpen));
+                });
+                document.addEventListener('click', function (event) {
+                    if (!profileSettingsPopup.contains(event.target) && !profileSettingsButton.contains(event.target)) {
+                        profileSettingsPopup.classList.add('hidden');
+                        profileSettingsButton.setAttribute('aria-expanded', 'false');
+                    }
+                });
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape') {
+                        profileSettingsPopup.classList.add('hidden');
+                        profileSettingsButton.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            }
+        </script>
 
         <script>
             const fab = document.getElementById('fab');
@@ -383,10 +875,69 @@
             });
         </script>
 
+        <script>
+            (function () {
+                const actionSelector = 'table tbody tr td button, table tbody tr td input[type="submit"], table tbody tr td input[type="button"]';
+                const deleteActionPattern = /\b(delete|remove)\b/i;
+
+                function markDeleteActions(scope) {
+                    const actions = [];
+                    if (scope instanceof Element && scope.matches(actionSelector)) actions.push(scope);
+                    actions.push(...scope.querySelectorAll(actionSelector));
+
+                    actions.forEach(function (action) {
+                        const form = action.closest('form');
+                        const formDetails = form ? [
+                            form.getAttribute('onsubmit'),
+                            form.getAttribute('action'),
+                            ...Array.from(form.querySelectorAll('input[type="hidden"]'), function (input) {
+                                return input.name + ' ' + input.value;
+                            })
+                        ] : [];
+                        const label = [
+                            action.textContent,
+                            action.value,
+                            action.getAttribute('aria-label'),
+                            action.getAttribute('title'),
+                            ...formDetails
+                        ].join(' ');
+
+                        if (deleteActionPattern.test(label)) action.classList.add('table-delete-reveal');
+                    });
+                }
+
+                markDeleteActions(document);
+                new MutationObserver(function (records) {
+                    records.forEach(function (record) {
+                        record.addedNodes.forEach(function (node) {
+                            if (node instanceof Element) markDeleteActions(node);
+                        });
+                    });
+                }).observe(document.body, { childList: true, subtree: true });
+            })();
+        </script>
+
     <style>
         #fab-menu.fab-menu-wide { width: min(36rem, calc(100vw - 2rem)); }
         #fab-menu-links.fab-menu-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem; }
         #fab-menu-links.fab-menu-grid > a { min-width: 0; }
+        .table-delete-reveal { transition: opacity 150ms ease, transform 150ms ease; }
+        @media (hover: hover) and (pointer: fine) {
+            table tbody tr:not(:hover):not(:focus-within) .table-delete-reveal {
+                opacity: 0;
+                pointer-events: none;
+                transform: translateY(2px);
+            }
+            table tbody tr:hover .table-delete-reveal,
+            table tbody tr:focus-within .table-delete-reveal {
+                opacity: 1;
+                pointer-events: auto;
+                transform: translateY(0);
+            }
+        }
+        @media print {
+            .table-delete-reveal { opacity: 1 !important; pointer-events: auto !important; transform: none !important; }
+        }
         .fade-out {
             opacity: 0;
             transform: translateY(-10px);

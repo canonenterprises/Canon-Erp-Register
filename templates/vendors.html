@@ -76,11 +76,10 @@
 
                     <div>
                         <label class="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600">
-                            Vendor Code
+                            Vendor Code · Auto-generated
                         </label>
-                        <input type="text" name="vendor_code"
-                               placeholder="e.g. VEN-001"
-                               class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                        <input type="text" value="{{ next_vendor_code }}" readonly
+                               class="w-full cursor-not-allowed rounded-xl border border-slate-300 bg-slate-100 px-3 py-2.5 text-sm font-bold text-slate-600">
                     </div>
 
                     <div>
@@ -96,9 +95,13 @@
                         <label class="mb-1.5 block text-xs font-black uppercase tracking-wide text-slate-600">
                             Phone
                         </label>
-                        <input type="tel" name="phone"
-                               placeholder="+92 3XX XXXXXXX"
-                               class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                        <div class="flex min-w-0 gap-2" data-vendor-phone-fields>
+                            <select name="phone_country_code" data-phone-country-code aria-label="Phone country code" class="w-16 shrink-0 rounded-xl border border-slate-300 bg-white px-2 py-2.5 text-sm">
+                                {% for code, country in phone_country_codes %}<option value="{{ code }}" {% if code == '+92' %}selected{% endif %}>{{ code }}</option>{% endfor %}
+                            </select>
+                            <input type="tel" name="phone_number" data-phone-local-number inputmode="numeric" pattern="3[0-9]{9}" maxlength="10" placeholder="3XXXXXXXXX" aria-describedby="vendor-phone-hint" class="w-full min-w-0 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100">
+                        </div>
+                        <p id="vendor-phone-hint" class="mt-1 text-[10px] font-medium text-slate-500">Pakistan numbers: 10 digits starting with 3.</p>
                     </div>
 
                     <div>
@@ -284,5 +287,29 @@
     search.addEventListener('input', applyVendorFilter);
     filter.addEventListener('change', applyVendorFilter);
 })();
+</script>
+<script>
+document.querySelectorAll('[data-vendor-phone-fields]').forEach(function (fields) {
+    const countryCode = fields.querySelector('[data-phone-country-code]');
+    const localNumber = fields.querySelector('[data-phone-local-number]');
+    function updatePhoneRule() {
+        const isPakistan = countryCode.value === '+92';
+        localNumber.pattern = isPakistan ? '3[0-9]{9}' : '[0-9]{4,15}';
+        localNumber.maxLength = isPakistan ? 10 : 15;
+        localNumber.placeholder = isPakistan ? '3XXXXXXXXX' : 'Local number';
+        const hint = fields.parentElement.querySelector('[id="vendor-phone-hint"]');
+        if (hint) hint.textContent = isPakistan
+            ? 'Pakistan numbers: 10 digits starting with 3.'
+            : 'Enter 4 to 15 digits, without the country code.';
+        if (isPakistan && localNumber.value.startsWith('03') && localNumber.value.length === 11) {
+            localNumber.value = localNumber.value.slice(1);
+        }
+    }
+    localNumber.addEventListener('input', function () {
+        localNumber.value = localNumber.value.replace(/\D/g, '').slice(0, Number(localNumber.maxLength));
+    });
+    countryCode.addEventListener('change', updatePhoneRule);
+    updatePhoneRule();
+});
 </script>
 {% endblock %}

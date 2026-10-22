@@ -1,21 +1,21 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="print-page-container">
-    
-    <!-- Top Right Serial Number -->
-    <div class="serial-header">
-        <span class="serial-label">Serial No:</span>
-        <span class="serial-value">{{ challan.serial_no or '-' }}</span>
-    </div>
 
-    <!-- Company Logo & Header Info -->
-    <div class="company-header">
-        <img src="{{ url_for('static', filename='canon logo black.webp') }}" alt="Canon Logo" class="print-logo">
-        <p class="company-address">
-            Akhter & Iqbal Compound, Block-C, Ground Floor, L/3, Block-22,<br>
-            F.B. Industrial Area, Opp.Edhi Home, Karachi.<br>
-            Ph. 36342557
-        </p>
+    <div class="challan-print-header">
+        <div class="company-header">
+            <img src="{{ url_for('static', filename='canon logo black.webp') }}" alt="Canon Logo" class="print-logo">
+            <p class="company-address">
+                Akhter & Iqbal Compound, Block-C, Ground Floor, L/3, Block-22,<br>
+                F.B. Industrial Area, Opp.Edhi Home, Karachi.<br>
+                Ph. 36342557
+            </p>
+        </div>
+
+        <div class="serial-header">
+            <span class="serial-label">Serial No:</span>
+            <span class="serial-value">{{ challan.serial_no or '-' }}</span>
+        </div>
     </div>
 
     <h2 class="challan-title">Receiving Challan - Canon Copy</h2>
@@ -23,16 +23,23 @@
     <!-- Styled & Bordered Print Table -->
 <table class="canon-print-table">
         <tr>
-            <td rowspan="4" colspan="2" class="fabric-sample-cell">
+            <td rowspan="{{ 3 if challan.is_direct_cutting_pcs else 4 }}" colspan="2" class="fabric-sample-cell">
                 <div class="fabric-sample-text">FABRIC SAMPLE</div>
             </td>
+            {% if challan.is_direct_cutting_pcs %}
+            <td class="label-cell">REQUIRED CTN / BAILS</td>
+            <td class="value-cell">{{ challan.required_ctn_bails or '-' }}</td>
+            {% else %}
             <td class="label-cell">PER DOZ CONSUMPTION</td>
             <td class="value-cell">{{ challan.per_dozen_consumption or '-' }}</td>
+            {% endif %}
         </tr>
+        {% if not challan.is_direct_cutting_pcs %}
         <tr>
             <td class="label-cell">REQUIRED CTN / BAILS</td>
             <td class="value-cell">{{ challan.required_ctn_bails or '-' }}</td>
         </tr>
+        {% endif %}
         <tr>
             <td class="label-cell">RECEIVED FROM.</td>
             <td class="value-cell">{{ challan.received_from or '-' }}</td>
@@ -43,28 +50,43 @@
         </tr>
         <tr>
             <td class="label-cell">RECEIVED DATE :</td>
+            {% if challan.is_direct_cutting_pcs %}
+            <td class="value-cell" colspan="3">{{ challan.recv_date|format_ddmmyyyy if challan.recv_date else '-' }}</td>
+            {% else %}
             <td class="value-cell">{{ challan.recv_date|format_ddmmyyyy if challan.recv_date else '-' }}</td>
             <td class="label-cell">METER = 100 CM.</td>
             <td class="value-cell">{{ challan.meter_to_cm or '-' }}</td>
+            {% endif %}
         </tr>
         <tr>
             <td class="label-cell">MESSERS.</td>
             <td class="value-cell">{{ challan.suppliers or '-' }}</td>
+            {% if challan.is_direct_cutting_pcs %}
+            <td colspan="2" rowspan="2" class="direct-cutting-pcs-box">
+                <div class="direct-cutting-pcs-label">DIRECT CUTTING PCS</div>
+                <div class="direct-cutting-pcs-value">{{ challan.direct_cutting_pcs }}</div>
+            </td>
+            {% else %}
             <td class="label-cell">FABRIC QUANTITY A.</td>
             <td class="value-cell">{{ challan.fabric_qty_a or '-' }}</td>
+            {% endif %}
         </tr>
         <tr>
             <td class="label-cell">FABRIC QUALITY.</td>
             <td class="value-cell">{{ challan.fabric_quality or '-' }}</td>
+            {% if not challan.is_direct_cutting_pcs %}
             <td class="label-cell">FABRIC QUANTITY B.</td>
             <td class="value-cell">{{ challan.fabric_qty_b or '-' }}</td>
+            {% endif %}
         </tr>
+        {% if not challan.is_direct_cutting_pcs %}
         <tr>
             <td class="label-cell">WIDTH.</td>
             <td class="value-cell">{{ challan.width or '-' }}</td>
             <td class="label-cell">RECEIVED CUT PCS.</td>
             <td class="value-cell">{{ challan.received_cut_pcs or '-' }}</td>
         </tr>
+        {% endif %}
         <tr>
             <td class="label-cell">FABRIC FOR.</td>
             <td class="value-cell">{{ challan.fabric_for or '-' }}</td>
@@ -74,7 +96,7 @@
         <tr>
             <td class="label-cell">USED FILE NO.</td>
             <td class="value-cell">{{ challan.used_file_no or '-' }}</td>
-            <td class="label-cell">ROLLS.</td>
+            <td class="label-cell">BUNDLES.</td>
             <td class="value-cell">{{ challan.rolls or '-' }}</td>
         </tr>
         <tr>
@@ -101,7 +123,8 @@
     </table>
 
     <!-- Footer Signatures & Print timestamp -->
-    <div class="print-footer-info">
+    <div class="print-footer-info{% if challan.is_direct_cutting_pcs %} direct-pcs-print-footer{% endif %}">
+        <p class="receiver-sign-line pt-2">Prepared By: {{ session.get('name', '') | upper }}</p>
         <p class="receiver-sign-line pt-2">Signature: ______________________</p>
         <p>Printed on: <span id="print-time"></span></p>
     </div>
@@ -144,8 +167,15 @@ body {
     justify-content: flex-end;
     align-items: center;
     gap: 6px;
-    margin-bottom: 2px;
     font-size: 11px;
+}
+
+.challan-print-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 4px;
 }
 
 .serial-label {
@@ -160,7 +190,7 @@ body {
 }
 
 .company-header {
-    margin-bottom: 4px;
+    min-width: 0;
 }
 
 .print-logo {
@@ -219,6 +249,26 @@ body {
     background-color: #ffffff;
 }
 
+.direct-cutting-pcs-box {
+    border: 2px solid #0f172a !important;
+    background: #f1f5f9;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.direct-cutting-pcs-label {
+    font-size: 16px;
+    font-weight: 800;
+}
+
+.direct-cutting-pcs-value {
+    margin-top: 6px;
+    font-size: 36px;
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+}
+
 .total-highlight {
     font-weight: 800;
     color: #047857;
@@ -248,6 +298,10 @@ body {
     justify-content: space-between;
     align-items: center;
     font-size: 10px;
+}
+
+.direct-pcs-print-footer {
+    margin-top: 32px !important;
 }
 
 .receiver-sign-line {

@@ -12,17 +12,14 @@
       <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Welcome</a>
     </header>
 
-    <section class="grid gap-4 sm:grid-cols-2">
-      {% if 'credit_debit' in page_access_keys %}
-      <a href="{{ url_for('accounts_credit_debit_ledger') if can_access_accounts else url_for('login', target_role='stock', next=url_for('accounts_credit_debit_ledger')) }}" class="group border-l-4 border-cyan-600 bg-cyan-50 p-5 transition hover:bg-cyan-100">
-        <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-cyan-800">Finance · Parties</p><h2 class="mt-2 text-xl font-black text-slate-950">Party Credit/Debit</h2><p class="mt-2 text-sm text-slate-600">Review credits and debits by customer, supplier, utility provider, or worker.</p></div><i class="fa-solid fa-arrow-right-arrow-left mt-1 text-2xl text-cyan-700" aria-hidden="true"></i></div>
-        <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-cyan-900">Open party ledger <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
-      </a>
-      <a href="{{ url_for('accounts_company_credit_debit') if can_access_accounts else url_for('login', target_role='stock', next=url_for('accounts_company_credit_debit')) }}" class="group border-l-4 border-indigo-600 bg-indigo-50 p-5 transition hover:bg-indigo-100">
-        <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-indigo-800">Finance · Companies</p><h2 class="mt-2 text-xl font-black text-slate-950">Company Credit/Debit</h2><p class="mt-2 text-sm text-slate-600">View separate Canon and Haram credits, debits, and balances.</p></div><i class="fa-solid fa-building-columns mt-1 text-2xl text-indigo-700" aria-hidden="true"></i></div>
-        <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-indigo-900">Open company ledger <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
+    <section class="grid gap-4 sm:grid-cols-3">
+      {% if 'utility_bills' in page_access_keys %}
+      <a href="{{ url_for('accounts_utility_bills') if can_access_accounts else url_for('login', target_role='stock', next=url_for('accounts_utility_bills')) }}" class="group border-l-4 border-sky-600 bg-sky-50 p-5 transition hover:bg-sky-100">
+        <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-sky-800">Operating costs</p><h2 class="mt-2 text-xl font-black text-slate-950">Company Bills &amp; Rent</h2><p class="mt-2 text-sm text-slate-600">Record company bills, rental payments, and other operating expenses.</p></div><i class="fa-solid fa-file-invoice-dollar mt-1 text-2xl text-sky-700" aria-hidden="true"></i></div>
+        <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-sky-900">Open utility ledger <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
       </a>
       {% endif %}
+
 
       {% if 'petty_cash' in page_access_keys %}
       <a href="{{ url_for('accounts_petty_cash') }}" class="group border-l-4 border-rose-600 bg-rose-50 p-5 transition hover:bg-rose-100">
@@ -31,12 +28,14 @@
       </a>
       {% endif %}
 
+
       {% if 'customer_billing' in page_access_keys %}
       <a href="{{ url_for('billing_portal') if can_access_accounts else url_for('login', target_role='stock', next=url_for('billing_portal')) }}" class="group border-l-4 border-emerald-600 bg-emerald-50 p-5 transition hover:bg-emerald-100">
         <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-emerald-800">Customer accounts</p><h2 class="mt-2 text-xl font-black text-slate-950">Billing</h2><p class="mt-2 text-sm text-slate-600">Canon and Haram sales invoices, customer bills, and receipts.</p></div><i class="fa-solid fa-file-invoice-dollar mt-1 text-2xl text-emerald-700" aria-hidden="true"></i></div>
         <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-emerald-900">Open billing <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
       </a>
       {% endif %}
+
 
       {% if 'accessories_billing' in page_access_keys %}
       <a href="{{ url_for('accounts_accessories_billing') if can_access_accounts else url_for('login', target_role='stock', next=url_for('accounts_accessories_billing')) }}" class="group border-l-4 border-amber-500 bg-amber-50 p-5 transition hover:bg-amber-100">
@@ -45,18 +44,42 @@
       </a>
       {% endif %}
 
-      {% if 'utility_bills' in page_access_keys %}
-      <a href="{{ url_for('accounts_utility_bills') if can_access_accounts else url_for('login', target_role='stock', next=url_for('accounts_utility_bills')) }}" class="group border-l-4 border-sky-600 bg-sky-50 p-5 transition hover:bg-sky-100">
-        <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-sky-800">Operating costs</p><h2 class="mt-2 text-xl font-black text-slate-950">Utility Bills</h2><p class="mt-2 text-sm text-slate-600">Record electricity, gas, water, internet, and other utility bills and payments.</p></div><i class="fa-solid fa-bolt mt-1 text-2xl text-sky-700" aria-hidden="true"></i></div>
-        <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-sky-900">Open utility ledger <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
+
+      {% if 'all_vouchers' in page_access_keys %}
+      <a href="{{ url_for('accounts_all_vouchers') }}" class="group border-l-4 border-teal-600 bg-teal-50 p-5 transition hover:bg-teal-100">
+        <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-teal-800">Finance · Register</p><h2 class="mt-2 text-xl font-black text-slate-950">All Vouchers</h2><p class="mt-2 text-sm text-slate-600">Review accessory and utility vouchers with their payment status.</p></div><i class="fa-solid fa-receipt mt-1 text-2xl text-teal-700" aria-hidden="true"></i></div>
+        <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-teal-900">Open voucher register <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
       </a>
       {% endif %}
 
-      <a href="{{ url_for('accounts_yearly_closing') if session.get('role') == 'owner' else url_for('login', target_role='owner', next=url_for('accounts_yearly_closing')) }}" class="group border-l-4 border-slate-800 bg-slate-100 p-5 transition hover:bg-slate-200">
+
+      {% if 'credit_debit' in page_access_keys %}
+      <a href="{{ url_for('accounts_credit_debit_ledger') if can_access_accounts else url_for('login', target_role='stock', next=url_for('accounts_credit_debit_ledger')) }}" class="group border-l-4 border-cyan-600 bg-cyan-50 p-5 transition hover:bg-cyan-100">
+        <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-cyan-800">Finance · Parties</p><h2 class="mt-2 text-xl font-black text-slate-950">Party Credit/Debit</h2><p class="mt-2 text-sm text-slate-600">Review credits and debits by customer, supplier, utility provider, or worker.</p></div><i class="fa-solid fa-arrow-right-arrow-left mt-1 text-2xl text-cyan-700" aria-hidden="true"></i></div>
+        <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-cyan-900">Open party ledger <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
+      </a>
+      {% endif %}
+      {% if 'company_credit_debit' in page_access_keys %}
+      <a href="{{ url_for('accounts_company_credit_debit') if can_access_accounts else url_for('login', target_role='stock', next=url_for('accounts_company_credit_debit')) }}" class="group border-l-4 border-indigo-600 bg-indigo-50 p-5 transition hover:bg-indigo-100">
+        <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-indigo-800">Finance · Companies</p><h2 class="mt-2 text-xl font-black text-slate-950">Company Credit/Debit</h2><p class="mt-2 text-sm text-slate-600">View separate Canon and Haram credits, debits, and balances.</p></div><i class="fa-solid fa-building-columns mt-1 text-2xl text-indigo-700" aria-hidden="true"></i></div>
+        <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-indigo-900">Open company ledger <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
+      </a>
+      {% endif %}
+
+      <a href="{{ url_for('accounts_yearly_closing') if session.get('role') == 'owner' else url_for('login', target_role='owner', next=url_for('accounts_yearly_closing')) }}" class="yearly-closing-card group border-l-4 border-slate-800 bg-slate-100 p-5 transition hover:bg-slate-200">
         <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-slate-600">Annual close</p><h2 class="mt-2 text-xl font-black text-slate-950">Yearly Closing</h2><p class="mt-2 text-sm text-slate-600">Generate, review, finalize, and print annual factory reports.</p></div><i class="fa-solid fa-calendar-check mt-1 text-2xl text-slate-700" aria-hidden="true"></i></div>
         <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-slate-900">Open yearly closing <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
       </a>
     </section>
   </div>
 </div>
+<style>
+  html[data-theme="dark"] .yearly-closing-card {
+    border-left-color: #64748b !important;
+    background-color: #26384c !important;
+  }
+  html[data-theme="dark"] .yearly-closing-card:hover {
+    background-color: #334155 !important;
+  }
+</style>
 {% endblock %}

@@ -64,7 +64,7 @@
                     {% if cutting_sheets %}
                         <select name="cut_no" required class="w-full border border-slate-200 rounded-lg p-2">
                             {% for sheet in cutting_sheets %}
-                                <option value="{{ sheet.cut_no }}" {% if selected_cut and selected_cut == sheet.cut_no %}selected{% endif %}>CUT No: {{ '%02d'|format(sheet.cut_no|int) if sheet.cut_no is number else sheet.cut_no }}</option>
+                                <option value="{{ sheet.cut_no }}" data-accessories-complete="{{ 'true' if accessory_completion_by_cut.get(sheet.cut_no|string) else 'false' }}" data-issue-accessories-url="{{ url_for('order_accessories', job_no=order.job_no, issue_cut_id=sheet.id) }}" {% if selected_cut and selected_cut|string == sheet.cut_no|string %}selected{% endif %}>CUT No: {{ '%02d'|format(sheet.cut_no|int) if sheet.cut_no is number else sheet.cut_no }}</option>
                             {% endfor %}
                         </select>
                     {% else %}
@@ -141,7 +141,7 @@
             </div>
             
             <div class="pt-10">
-                <button type="submit" class="w-full bg-slate-900 text-white font-bold py-3 rounded-lg hover:bg-black transition {% if not cutting_sheets %}opacity-50 cursor-not-allowed{% endif %}" {% if not cutting_sheets %}disabled title="Create a cutting sheet first for this order"{% endif %}>
+                <button id="production-entry-submit" type="submit" class="w-full bg-[#b7955c] text-white font-bold py-3 rounded-lg hover:bg-[#a17f49] transition {% if not cutting_sheets %}opacity-50 cursor-not-allowed{% endif %}" {% if not cutting_sheets %}disabled title="Create a cutting sheet first for this order"{% endif %}>
                     SAVE LOG ENTRY
                 </button>
             </div>
@@ -149,7 +149,21 @@
     </div>
 </div>
 
+<dialog id="cut-accessory-required-modal" class="w-[min(92vw,32rem)] rounded-xl border border-amber-300 bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/60">
+    <div class="p-6">
+        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-amber-700">Production locked</p>
+        <h3 class="mt-2 text-xl font-black">Issue cut accessories first</h3>
+        <p class="mt-2 text-sm text-slate-600">Issue all required accessories for <strong id="blocked-cut-label" class="text-slate-900"></strong> before starting production for this cut.</p>
+        <div class="mt-5 flex flex-col-reverse justify-end gap-2 sm:flex-row">
+            <button type="button" id="close-cut-accessory-required-modal" class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Close</button>
+            <a id="issue-cut-accessories-link" href="#" class="rounded-lg bg-cyan-700 px-4 py-2 text-center text-sm font-bold text-white hover:bg-cyan-800">Issue cut accessories</a>
+        </div>
+    </div>
+</dialog>
+
 <script>
+window.FLASH_DISMISS_MS = 10000;
+
 // Map orders to their details for client-side prefill
 const ordersMap = {
     {% for p in parties %}
@@ -212,6 +226,31 @@ document.addEventListener('DOMContentLoaded', function () {
 
     const cutSelect = document.querySelector('select[name="cut_no"]');
     const operationSelect = document.querySelector('select[name="operation"]');
+    const productionSubmit = document.getElementById('production-entry-submit');
+    const accessoryRequiredDialog = document.getElementById('cut-accessory-required-modal');
+    const blockedCutLabel = document.getElementById('blocked-cut-label');
+    const issueCutAccessoriesLink = document.getElementById('issue-cut-accessories-link');
+    const updateAccessoryGate = function (showPopup) {
+        const selectedCutOption = cutSelect?.selectedOptions?.[0];
+        const accessoriesComplete = selectedCutOption?.dataset.accessoriesComplete === 'true';
+        if (productionSubmit) {
+            productionSubmit.disabled = !accessoriesComplete;
+            productionSubmit.classList.toggle('opacity-50', !accessoriesComplete);
+            productionSubmit.classList.toggle('cursor-not-allowed', !accessoriesComplete);
+            productionSubmit.title = accessoriesComplete ? '' : 'Issue all required accessories before production';
+        }
+        if (!accessoriesComplete && showPopup && selectedCutOption && accessoryRequiredDialog) {
+            blockedCutLabel.textContent = `Cut ${selectedCutOption.value}`;
+            issueCutAccessoriesLink.href = selectedCutOption.dataset.issueAccessoriesUrl || '#';
+            if (!accessoryRequiredDialog.open) accessoryRequiredDialog.showModal();
+        }
+    };
+    document.getElementById('close-cut-accessory-required-modal')?.addEventListener('click', function () {
+        accessoryRequiredDialog?.close();
+    });
+    accessoryRequiredDialog?.addEventListener('click', function (event) {
+        if (event.target === accessoryRequiredDialog) accessoryRequiredDialog.close();
+    });
     const cutPcsInput = document.getElementById('cut_pcs');
     const bqInput = document.getElementById('bq_unstitch');
     const bqStitchedInput = document.getElementById('bq_stitched');
@@ -308,6 +347,7 @@ document.addEventListener('DOMContentLoaded', function () {
             updateBqUnstitchedAccess();
         });
         cutSelect.addEventListener('change', function () {
+            updateAccessoryGate(true);
             updateSpecialOperationChecks();
             updateCutFields();
             updateBqStitchedAccess();
@@ -323,6 +363,7 @@ document.addEventListener('DOMContentLoaded', function () {
     updateBqStitchedAccess();
     updateBqUnstitchedAccess();
     updateUpdatedCutPcs();
+    updateAccessoryGate(true);
 
     const select = document.getElementById('job_select');
     if (select) {

@@ -6,14 +6,14 @@
   <!-- ACTIONS -->
   <div class="mb-5 flex justify-between print:hidden">
     <a href="{{ url_for('billing_portal', invoice_id=invoice.id) }}"
-       class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700">
+      class="print-back-button inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-slate-200 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-300">
       <i class="fa-solid fa-arrow-left"></i>
       Billing
     </a>
 
     <button type="button"
             onclick="window.print()"
-            class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">
+            class="print-gold-button inline-flex items-center gap-2 rounded-lg bg-[#b7955c] px-4 py-2 text-sm font-bold text-white hover:bg-[#9b7e4e]">
       <i class="fa-solid fa-print"></i>
       Print
     </button>
@@ -21,7 +21,7 @@
 
 
   <!-- INVOICE -->
-  <article class="invoice bg-white text-slate-900 shadow-sm print:shadow-none">
+  <article id="billing-invoice-copy" data-company-copy-label="{{ 'HARAM COPY' if selected_shipper == 'Haram' else 'CANON COPY' }}" class="invoice invoice-copy print-light-paper bg-white text-slate-900 shadow-sm print:shadow-none">
 
     <!-- BLUE TITLE -->
     <div class="invoice-title">
@@ -30,11 +30,11 @@
 
 
     <!-- ================= INVOICE DETAILS ================= -->
+    <p class="invoice-copy-label mb-2 text-center text-lg font-black uppercase">CUSTOMER COPY</p>
     <div class="invoice-meta">
       <div><strong>Invoice No:</strong><span>{{ invoice.invoice_no }}</span></div>
       <div><strong>Bill No:</strong><span>{{ bill.bill_no if bill else '-' }}</span></div>
       <div><strong>Invoice Date:</strong><span>{{ invoice.invoice_date | format_ddmmyyyy }}</span></div>
-      <div><strong>Challan(s):</strong><span>{% for challan in invoice.billing_challans %}{{ format_challan_number(challan.challan_no) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></div>
       <div><strong>Challan(s):</strong><span>{% for challan in invoice.billing_challans %}{{ format_challan_number(challan.challan_no) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></div>
     </div>
 
@@ -94,6 +94,7 @@
           <th>Description of Services</th>
           <th class="qty">Qty (PCS)</th>
           <th class="price">Unit Price (Rs.)</th>
+          <th class="packet-weight-column">Weight</th>
           <th class="amount">Value Of Goods (Rs.)</th>
         </tr>
       </thead>
@@ -102,6 +103,7 @@
           <td><strong>Stitching Charges</strong></td>
           <td class="center">{{ '{:,.2f}'.format(total_quantity.value) }}</td>
           <td class="right">{{ '{:,.2f}'.format(invoice.subtotal / total_quantity.value if total_quantity.value else 0) }}</td>
+          <td class="packet-weight-column">{{ packet_weight or '—' }}</td>
           <td class="right">{{ '{:,.2f}'.format(invoice.subtotal) }}</td>
         </tr>
       </tbody>
@@ -197,7 +199,7 @@
     </div>
 
     <div class="print-timestamp">
-      Printed on: <span id="billing-print-timestamp"></span>
+      Printed on: <span data-billing-print-timestamp></span>
     </div>
 
   </article>
@@ -206,11 +208,17 @@
 
 <script>
 (function () {
-  const timestamp = document.getElementById('billing-print-timestamp');
-  if (!timestamp) return;
+  const invoiceArticle = document.getElementById('billing-invoice-copy');
+  const companyCopy = invoiceArticle.cloneNode(true);
+  companyCopy.removeAttribute('id');
+  companyCopy.classList.add('invoice-copy-duplicate', 'company-copy-invoice');
+  companyCopy.setAttribute('aria-hidden', 'true');
+  companyCopy.querySelector('.invoice-copy-label').textContent = invoiceArticle.dataset.companyCopyLabel;
+  companyCopy.querySelectorAll('[id]').forEach(element => element.removeAttribute('id'));
+  invoiceArticle.parentNode.insertBefore(companyCopy, invoiceArticle.nextSibling);
 
   function updatePrintTimestamp() {
-    timestamp.textContent = new Date().toLocaleString('en-US', {
+    const formattedTimestamp = new Date().toLocaleString('en-US', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -218,6 +226,9 @@
       hour: '2-digit',
       minute: '2-digit',
       hour12: true
+    });
+    document.querySelectorAll('[data-billing-print-timestamp]').forEach(timestamp => {
+      timestamp.textContent = formattedTimestamp;
     });
   }
 
@@ -240,6 +251,11 @@
   border: 1px solid #cbd5e1;
   font-family: Arial, Helvetica, sans-serif;
   background: white;
+}
+
+.invoice-copy-duplicate,
+.invoice-copy-label {
+  display: none;
 }
 
 
@@ -282,7 +298,7 @@
 
 .invoice-meta {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   margin-top: 14px;
   padding: 12px 16px;
@@ -374,6 +390,10 @@
 .items-table .price {
   width: 22.5%;
   text-align: center;
+}
+
+.items-table .packet-weight-column {
+  display: none;
 }
 
 .items-table .amount {
@@ -538,6 +558,48 @@
 ========================================================= */
 
 @media print {
+
+  .company-copy-invoice .items-table .packet-weight-column {
+    display: table-cell !important;
+  }
+
+  .company-copy-invoice .items-table th:first-child,
+  .company-copy-invoice .items-table td:first-child {
+    width: 34%;
+  }
+
+  .company-copy-invoice .items-table .qty {
+    width: 13%;
+  }
+
+  .company-copy-invoice .items-table .price,
+  .company-copy-invoice .items-table .amount {
+    width: 20%;
+  }
+
+  .company-copy-invoice .items-table .packet-weight-column {
+    width: 13%;
+  }
+
+  .invoice-copy-label {
+    display: block !important;
+  }
+
+  .invoice-copy {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .invoice-copy-duplicate {
+    display: flex !important;
+    flex-direction: column;
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .company-copy-invoice .invoice-copy-label {
+    display: block !important;
+  }
 
   @page {
     size: A4;

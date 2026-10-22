@@ -10,7 +10,7 @@
 
 <div id="print-area" class="cutting-sheet-page max-w-7xl mx-auto p-6 pt-20 md:pt-20">
     <div id="print-scale">
-    <form id="cutting-sheet-form" method="POST" action="{{ url_for('cutting_sheet') }}" data-transfer-quantity="{{ transfer_origin.quantity if transfer_origin and not transfer_origin.reversed_at else '' }}">
+    <form id="cutting-sheet-form" method="POST" action="{{ url_for('cutting_sheet') }}" data-transfer-quantity="{{ transfer_origin.quantity if transfer_origin and not transfer_origin.reversed_at else '' }}" data-direct-cutting-pcs-mode="{{ 'true' if direct_cutting_pcs_mode else 'false' }}" data-existing-sheet="{{ 'true' if cutting_sheet and cutting_sheet.id else 'false' }}" data-first-edit-used="{{ 'true' if cutting_sheet and cutting_sheet.first_edit_used else 'false' }}" data-can-edit-all="{{ 'true' if session.get('role') in ('owner', 'manager') else 'false' }}">
         <input type="hidden" name="job_no" value="{{ selected_job or '' }}">
         <input type="hidden" name="cutting_sheet_id" value="{{ cutting_sheet.id if cutting_sheet else '' }}">
         <input type="hidden" name="cutting_sheet_serial_no" value="{{ cutting_sheet.serial_no if cutting_sheet and cutting_sheet.serial_no else cutting_sheet_serial_no }}">
@@ -23,6 +23,13 @@
             <p class="mt-2 text-xs font-semibold">The transferred PCS are preserved separately; any new PCS entered in the table are added to the overall cut total.</p>
         </div>
         {% endif %}
+            {% if not cutting_sheet and (current_balance_cutting|float) < 0 %}
+            <div class="mb-5 rounded-lg border border-red-800 bg-red-600 p-4 text-white">
+                <p class="text-sm font-black uppercase">Order PCS Already Exceeded</p>
+                <p class="mt-1 text-lg font-bold">Existing total cutting is {{ '%.0f'|format(current_total_cutting|float) }} PCS for an order of {{ '%.0f'|format((order.new_qty_pcs or order.qty or 0)|float) }} PCS.</p>
+                <p class="text-sm">The previous cuts exceed the order quantity by {{ '%.0f'|format(-(current_balance_cutting|float)) }} PCS.</p>
+            </div>
+            {% endif %}
         <input type="hidden" id="prev_total_cutting" value="{{ previous_total_cutting or 0 }}">
         <input type="hidden" id="prev_total_meter" value="{{ previous_total_meter or 0 }}">
         <input type="hidden" id="prev_balance_fabric" value="{{ previous_balance_fabric or 0 }}">
@@ -86,13 +93,11 @@
                                 <input type="number" id="range_cut_size" value="{{ cutting_size_factor }}" class="w-24 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder=" " readonly />
                                 <span class="text-s font-bold">x</span>
                                 <input type="number" id="pcs_in_row" name="pcs_in_row" step="0.01" value="{{ cutting_sheet.pcs_in_row or '' }}" class="w-24 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder="PCS" required oninput="updateRangeSize()" />
-                                <span class="text-s font-bold">+</span>
-                                <input type="number" id="range_margin" name="range_margin" step="0.01" value="{{ cutting_sheet.range_margin or '' }}" class="w-24 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder="%" required oninput="updateRangeSize()" />
                                 <span class="text-s font-bold">=</span>
                                 <input type="number" id="range_result" name="range_result" step="0.01" value="{{ cutting_sheet.range_result or '' }}" class="w-32 border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" placeholder=" " readonly />
                             </div>
                         </div>
-                        <div id="range_size_print_text" class="range-size-print text-s font-bold print-only">{{ cutting_sheet.cut_size and (cutting_sheet.cut_size ~ ' x ' ~ (cutting_sheet.pcs_in_row or '') ~ ' + ' ~ (cutting_sheet.range_margin or '') ~ ' = ' ~ (cutting_sheet.range_result or '')) or '' }}</div>
+                        <div id="range_size_print_text" class="range-size-print text-s font-bold print-only">{{ cutting_sheet.cut_size and (cutting_sheet.cut_size ~ ' x ' ~ (cutting_sheet.pcs_in_row or '') ~ ' = ' ~ (cutting_sheet.range_result or '')) or '' }}</div>
                     </div>
                 </div>
 
@@ -133,8 +138,8 @@
                         <div>
                             <p class="text-s uppercase text-black-800 font-bold mb-1 pt-2 ">Cutter Name</p>
                             <input type="text" name="cutter_name" value="{{ cutting_sheet.cutter_name or '' }}" class="w-full border-[4px] border-black rounded px-2 py-2 text-s bg-black-50 text-s text-black-800 font-bold" placeholder="Cutter Name" required />
-                            <p class="text-s uppercase text-black-800 font-bold mb-1 pt-2 no-print">Fabric Issue</p>
-                            <input type="number" step="0.01" name="fabric_issue" value="{{ cutting_sheet.fabric_issue or '' }}" required class="w-full border-[4px] border-black rounded px-2 py-2 text-s bg-black-50 text-s text-black-800 font-bold no-print" placeholder="Fabric Issue" />
+                            <p class="text-s uppercase text-black-800 font-bold mb-1 pt-3 ">Asst.Cutter</p>
+                            <input type="text" name="asst_cutter_name" value="{{ cutting_sheet.asst_cutter_name or '' }}" class="w-full border border-black rounded px-2 py-2 text-s bg-black-50 text-s text-black-800 font-bold" placeholder="Asst. Cutter Name" required />
                         </div>
                     </div>
                     <div>
@@ -145,17 +150,17 @@
                                 <option value="">Select serial</option>
                                 {% for serial in inventory_serials %}
                                     {% set status = inventory_statuses.get(serial, {}) %}
-                                    <option value="{{ serial }}" class="{{ status.get('class_name', '') }}" data-status-label="{{ status.get('label', '') }}" data-has-prior-use="{{ 'true' if status.get('has_prior_use') else 'false' }}" data-status-class="{{ status.get('class_name', '') }}" {% if selected_inventory_serial == serial %}selected{% endif %}>{{ serial }}{% if status.get('label') %}  {{ status.get('label') }}{% endif %}</option>
+                                    <option value="{{ serial }}" class="{{ status.get('class_name', '') }}" data-status-label="{{ status.get('label', '') }}" data-has-prior-use="{{ 'true' if status.get('has_prior_use') else 'false' }}" data-status-class="{{ status.get('class_name', '') }}" data-direct-cutting-pcs="{{ 'true' if status.get('is_direct_cutting_pcs') else 'false' }}" {% if selected_inventory_serial == serial %}selected{% endif %}>{{ serial }}{% if status.get('label') %}  {{ status.get('label') }}{% endif %}</option>
                                 {% endfor %}
                                 </select>
                             </div>
-                            <p class="text-s uppercase text-black-800 font-bold mb-1 pt-2">Secondary Inventory #</p>
-                            <div class="inventory-selector-row">
-                                <select id="secondary_fabric_ch_select" name="secondary_inventory_serial" data-selection-confirmed="{{ 'true' if cutting_sheet else 'false' }}" class="w-full border-[4px] border-black rounded px-2 py-1 text-s bg-white text-black-800 font-bold mb-2">
+                            <p id="secondary-inventory-label" class="text-s uppercase text-black-800 font-bold mb-1 pt-2" {% if direct_cutting_pcs_mode %}hidden{% endif %}>Secondary Inventory #</p>
+                            <div id="secondary-inventory-selector" class="inventory-selector-row" {% if direct_cutting_pcs_mode %}hidden{% endif %}>
+                                <select id="secondary_fabric_ch_select" name="secondary_inventory_serial" data-selection-confirmed="{{ 'true' if cutting_sheet else 'false' }}" class="w-full border-[4px] border-black rounded px-2 py-1 text-s bg-white text-black-800 font-bold mb-2" {% if direct_cutting_pcs_mode %}disabled{% endif %}>
                                 <option value="">None</option>
                                 {% for serial in inventory_serials %}
                                     {% set status = inventory_statuses.get(serial, {}) %}
-                                    <option value="{{ serial }}" class="{{ status.get('class_name', '') }}" data-status-label="{{ status.get('label', '') }}" data-has-prior-use="{{ 'true' if status.get('has_prior_use') else 'false' }}" data-status-class="{{ status.get('class_name', '') }}" {% if selected_secondary_inventory_serial == serial %}selected{% endif %}>{{ serial }}{% if status.get('label') %}  {{ status.get('label') }}{% endif %}</option>
+                                    <option value="{{ serial }}" class="{{ status.get('class_name', '') }}" data-status-label="{{ status.get('label', '') }}" data-has-prior-use="{{ 'true' if status.get('has_prior_use') else 'false' }}" data-status-class="{{ status.get('class_name', '') }}" data-direct-cutting-pcs="{{ 'true' if status.get('is_direct_cutting_pcs') else 'false' }}" {% if selected_secondary_inventory_serial == serial %}selected{% endif %}>{{ serial }}{% if status.get('label') %}  {{ status.get('label') }}{% endif %}</option>
                                 {% endfor %}
                                 </select>
                             </div>
@@ -166,9 +171,11 @@
                             <input type="text" id="print_inventory_serial" class="w-full border-[4px] border-black rounded px-2 py-1 text-s text-black-800 font-bold" readonly>
                         </div>
                         <p class="text-s uppercase text-black-800 font-bold mb-1 pt-4 ">Use Fabric CH #</p>
-                        <input type="text" name="use_fabric_ch" value="{{ cutting_sheet.use_fabric_ch or '' }}" class="w-full border-[4px] border-black rounded px-2 py-2 text-s bg-black-50 text-s text-black-800 font-bold" placeholder="CH #" required />
-                        <p class="text-s uppercase text-black-800 font-bold mb-1 pt-3 ">Asst.Cutter</p>
-                        <input type="text" name="asst_cutter_name" value="{{ cutting_sheet.asst_cutter_name or '' }}" class="w-full border border-black rounded px-2 py-2 text-s bg-black-50 text-s text-black-800 font-bold" placeholder="Asst. Cutter Name" required />
+                        <input type="text" name="use_fabric_ch" value="{{ cutting_sheet.use_fabric_ch or '' }}" class="w-full border-[4px] border-black rounded px-2 py-2 text-s bg-black-50 text-s text-black-800 font-bold" placeholder="CH #" readonly required />
+                        <div id="fabric-issue-field" {% if direct_cutting_pcs_mode %}hidden{% endif %}>
+                            <p class="text-s uppercase text-black-800 font-bold mb-1 pt-2">Fabric Issue</p>
+                            <input type="number" step="0.01" name="fabric_issue" value="{{ cutting_sheet.fabric_issue or '' }}" required readonly class="w-full border-[4px] border-black rounded px-2 py-2 text-s bg-black-50 text-s text-black-800 font-bold" placeholder="Fabric Issue" />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -180,8 +187,10 @@
                 </div>
                 <div class="grid gap-3 uppercase tracking-[0.14em] text-black-800 font-bold">
                     <div class="text-4xl flex justify-center"><span>{{ order.job_no or '' }}</span></div>
-                    <div class="text-s flex justify-between pt-2"><span>Total Fabric MTR</span><span id="fabric_meter_display" data-default="{{ '%.1f'|format(inventory_total_meter) if inventory_total_meter else '' }}">{{ '%.1f'|format(inventory_total_meter) if inventory_total_meter else '' }}</span></div>
-                    <div class="text-s flex justify-between"><span>Fabric O/B</span><span id="fabric_opening_balance" data-default="{{ '%.2f'|format(opening_balance_fabric) }}">{{ '%.2f'|format(opening_balance_fabric) }}</span></div>
+                    <div id="fabric-meter-line" class="text-s flex justify-between pt-2" {% if direct_cutting_pcs_mode %}hidden{% endif %}><span>Total Fabric MTR</span><span id="fabric_meter_display" data-default="{{ '%.1f'|format(inventory_total_meter) if inventory_total_meter else '' }}">{{ '%.1f'|format(inventory_total_meter) if inventory_total_meter else '' }}</span></div>
+                    <div id="fabric-opening-line" class="text-s flex justify-between" {% if direct_cutting_pcs_mode %}hidden{% endif %}><span>Fabric O/B</span><span id="fabric_opening_balance" data-default="{{ '%.2f'|format(opening_balance_fabric) }}">{{ '%.2f'|format(opening_balance_fabric) }}</span></div>
+                    <div id="direct-pcs-opening-line" class="text-s flex justify-between" {% if not direct_cutting_pcs_mode %}hidden{% endif %}><span>Total Cutting Pcs</span><span id="direct_pcs_opening_balance">{{ '%.0f'|format(opening_balance_direct_pcs) }}</span></div>
+                    <div id="direct-pcs-balance-line" class="text-s flex justify-between" {% if not direct_cutting_pcs_mode %}hidden{% endif %}><span>Cutting Pcs O/B</span><span id="direct_pcs_balance_display">{{ '%.0f'|format(balance_direct_pcs) }}</span></div>
                     {% if active_b_quality_remaining > 0 %}
                     <div class="text-s flex justify-between text-amber-700 font-black"><span>FABRIC B.Q ACTIVE</span><span>{{ '%.1f'|format(active_b_quality_remaining) }}</span></div>
                     {% endif %}
@@ -206,7 +215,7 @@
             </div>
         </div>
 
-        <div class="overflow-x-auto border-[4px] border-black-300 mb-6">
+        <div id="fabric-cutting-table" class="overflow-x-auto border-[4px] border-black-300 mb-6" {% if direct_cutting_pcs_mode %}hidden{% endif %}>
             <table class="tableinfo w-full border-collapse text-s">
                 <thead>
                     <tr class="bg-slate-100 text-black-800 uppercase text-s font-bold text-center tracking-[0.18em]">
@@ -254,15 +263,20 @@
                             </div>
                         </td>
                     </tr>
-                    {% elif row == 21 or row == 22 %}
-                    <tr>
+                    {% elif row == 21 %}
+                    <tr class="fabric-return-row">
                         <td class="border px-2 py-2 text-s text-black-800 font-bold text-center">{{ row }}</td>
-                        <td class="border px-2 py-2"><input type="number" step="0.01" name="meter_{{ row }}" value="{{ cutting_sheet_row_map[row].meter if row in cutting_sheet_row_map else '' }}" class="w-full border-none outline-none text-s text-black-800 font-bold text-center" oninput="updateTotals()"></td>
+                        <td class="border px-2 py-2"><input type="number" min="0" step="0.01" id="fabric-return-meter" name="meter_21" value="{{ cutting_sheet_row_map[row].meter if row in cutting_sheet_row_map else '' }}" class="fabric-return-input w-full border-none outline-none text-s text-black-800 font-bold text-center" aria-label="Fabric Return" oninput="updateTotals()"></td>
+                    </tr>
+                    {% elif row == 22 %}
+                    <tr class="fabric-return-row">
+                        <td class="border px-2 py-2 text-s text-black-800 font-bold text-center">{{ row }}</td>
+                        <td class="fabric-return-label border px-2 py-2 text-center font-bold">FABRIC RETURN</td>
                     </tr>
                     {% else %}
                     <tr>
                         <td class="border px-2 py-2 text-s text-black-800 font-bold text-center">{{ row }}</td>
-                        <td class="border px-2 py-2"><input type="number" name="meter_{{ row }}" value="{{ cutting_sheet_row_map[row].meter if row in cutting_sheet_row_map else '' }}" class="w-full border-none outline-none text-s text-black-800 font-bold text-center" oninput="updateTotals()"></td>
+                        <td class="border px-2 py-2"><input type="number" step="0.01" name="meter_{{ row }}" value="{{ cutting_sheet_row_map[row].meter if row in cutting_sheet_row_map else '' }}" class="w-full border-none outline-none text-s text-black-800 font-bold text-center" oninput="updateTotals()"></td>
                         <td class="border px-2 py-2"><input type="number" name="palla_{{ row }}" value="{{ cutting_sheet_row_map[row].palla if row in cutting_sheet_row_map else '' }}" class="w-full border-none outline-none text-s text-black-800 font-bold text-center" readonly></td>
                         <td class="border px-2 py-2"><input type="number" name="pcs_{{ row }}" value="{{ cutting_sheet_row_map[row].pcs if row in cutting_sheet_row_map else '' }}" class="w-full border-none outline-none text-s text-black-800 font-bold text-center" readonly></td>
                         <td class="border px-2 py-2"><input type="text" name="cp_{{ row }}" value="{{ cutting_sheet_row_map[row].cp if row in cutting_sheet_row_map else '' }}" class="w-full border-none outline-none text-s text-black-800 font-bold text-center" placeholder="Shortage" aria-label="Shortage for row {{ row }}"></td>
@@ -282,6 +296,23 @@
             </table>
         </div>
 
+        <div id="direct-pcs-cutting-table" class="overflow-x-auto border-[4px] border-black-300 mb-6" {% if not direct_cutting_pcs_mode %}hidden{% endif %}>
+            <table class="tableinfo direct-pcs-table w-full border-collapse text-s">
+                <thead><tr class="bg-slate-100 text-black-800 uppercase text-s font-bold text-center tracking-[0.18em]"><th class="border px-2 py-2">S#</th><th class="border px-2 py-2">PCS</th></tr></thead>
+                <tbody>
+                    {% for row in range(1, 23) %}
+                    <tr>
+                        <td class="border px-2 py-2 text-center font-bold">{{ row }}</td>
+                        <td class="border px-2 py-2"><input type="number" min="0" step="1" name="pcs_{{ row }}" value="{{ cutting_sheet_row_map[row].pcs if row in cutting_sheet_row_map else '' }}" class="w-full border-none outline-none text-s text-black-800 font-bold text-center" oninput="updateTotals()"></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="bg-slate-50 font-bold uppercase"><td class="border px-2 py-2 text-center">TOTAL</td><td class="border px-2 py-2"><input type="text" id="direct_total_pcs" name="total_pcs" value="{% if cutting_sheet and cutting_sheet.total_pcs %}{{ ((cutting_sheet.total_pcs|float) - (transfer_origin.quantity|float)) if transfer_origin and not transfer_origin.reversed_at else cutting_sheet.total_pcs }}{% endif %}" class="w-full border-none bg-transparent text-center" readonly></td></tr>
+                </tfoot>
+            </table>
+        </div>
+
         <div id="print-summary-grid-1" class="leftinfo grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 uppercase tracking-[0.14em]">
             <div class="space-y-2 border-[4px] border-black rounded-2xl p-4">
                 <div class="grid grid-cols-2 gap-3">
@@ -290,27 +321,27 @@
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div class="text-s text-black-800 font-bold">Palla check by</div>
-                    <div><input type="text" name="palla_check_by" value="{{ cutting_sheet.palla_check_by or '' }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" placeholder="Name" required></div>
+                    <div><input type="text" name="palla_check_by" value="{{ cutting_sheet.palla_check_by if cutting_sheet and cutting_sheet.palla_check_by else ('-' if not cutting_sheet else '') }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" placeholder="Name" required></div>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div class="text-s text-black-800 font-bold">Total Pcs</div>
                     <div><input type="text" id="quantity" name="quantity" value="{{ cutting_sheet.quantity or '' }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" readonly></div>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
-                    <div class="text-s text-black-800 font-bold">Average Pcs</div>
+                    <div class="text-s text-black-800 font-bold">Average Per Pcs</div>
                     <div><input type="text" id="summary_avg_pcs" name="summary_avg_pcs" value="{{ (cutting_sheet and cutting_sheet.summary_avg_pcs) or '' }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" oninput="updateAveragePcsColor()"></div>
                 </div>
             </div>
             <div class="border-[4px] border-black rounded-2xl p-4 space-y-3">
-                <div class="text-s text-black-800 font-bold grid grid-cols-2 lg:grid-cols-[1.5fr_1fr] gap-3"><div>Balance Cutting</div><div><input type="text" id="balance_cutting" name="balance_cutting" value="{{ (cutting_sheet and cutting_sheet.balance_cutting) or '' }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" placeholder="" readonly></div></div>
+                <div class="text-s text-black-800 font-bold grid grid-cols-2 lg:grid-cols-[1.5fr_1fr] gap-3"><div>Balance Cutting</div><div><input type="text" id="balance_cutting" name="balance_cutting" value="{{ '%.0f'|format(current_balance_cutting) }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" placeholder="" readonly></div></div>
                 <!-- balance_cutting (computed below) -->
                 <div class="text-s text-black-800 font-bold grid grid-cols-2 lg:grid-cols-[1.5fr_1fr] gap-3">
                     <div>Total Cutting</div>
                     <div>
-                        <input type="text" id="total_cutting" name="total_cutting" value="{% if cutting_sheet and cutting_sheet.total_cutting %}{{ cutting_sheet.total_cutting }}{% else %}{{ (previous_total_cutting or 0) + ((cutting_sheet and cutting_sheet.total_pcs) or 0) }}{% endif %}" data-prev="{{ previous_total_cutting or 0 }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" placeholder="" readonly>
+                        <input type="text" id="total_cutting" name="total_cutting" value="{{ '%.0f'|format(current_total_cutting) }}" data-prev="{{ previous_total_cutting or 0 }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" placeholder="" readonly>
                     </div>
                 </div>
-                <div class="text-s text-black-800 font-bold grid grid-cols-2 lg:grid-cols-[1.5fr_1fr] gap-3">
+                <div id="fabric-balance-summary" class="text-s text-black-800 font-bold grid grid-cols-2 lg:grid-cols-[1.5fr_1fr] gap-3" {% if direct_cutting_pcs_mode %}hidden{% endif %}>
                     <div>Balance Fabric</div>
                     <div>
                         <input type="text" name="balance_fabric" value="{{ '%.2f'|format(balance_fabric) }}" class="w-full border border-black rounded px-2 py-2 text-s text-black-800 font-bold" placeholder="" readonly>
@@ -370,7 +401,7 @@
             <p class="text-[30px] text-black-950 text-right mt-0 pt-0">Printed on: <span id="print-time"></span></p>
         </div>
         <div class="no-print mt-6 flex flex-wrap gap-3 justify-end">
-                    {% if not (read_only_profile and cutting_sheet) %}
+                    {% if session.get('role') in ('owner', 'manager') or direct_cutting_pcs_mode or not (cutting_sheet and cutting_sheet.first_edit_used) %}
                     <button type="submit" class="px-4 py-2 rounded-lg bg-emerald-600 text-white font-bold">Save Cutting Sheet</button>
                     {% endif %}
             <a href="{{ url_for('saved_cutting_sheets', job_no=selected_job) }}" class="px-4 py-2 rounded-lg bg-slate-700 text-white font-bold">View Saved Sheets</a>
@@ -379,19 +410,37 @@
     </div>
     
     </form>
-    {% if read_only_profile and cutting_sheet %}
+    {% if cutting_sheet and cutting_sheet.first_edit_used and not direct_cutting_pcs_mode and session.get('role') not in ('owner', 'manager') %}
     <script>
-        const cuttingSheetForm = document.getElementById('cutting-sheet-form');
-        if (cuttingSheetForm) {
-            cuttingSheetForm.querySelectorAll('input:not([type="hidden"]), select, textarea').forEach(function (control) {
-                control.disabled = true;
-            });
-            cuttingSheetForm.querySelectorAll('button').forEach(function (button) {
-                if (button.getAttribute('onclick') !== 'printCuttingSheet()') {
-                    button.disabled = true;
-                }
-            });
-        }
+    (function () {
+        const form = document.getElementById('cutting-sheet-form');
+        if (!form) return;
+
+        form.querySelectorAll(
+            '#print-top-grid .leftinfo input:not([type="hidden"]), #print-top-grid .rightinfo input, #print-top-grid textarea'
+        ).forEach(function (control) {
+            control.readOnly = true;
+            control.setAttribute('aria-readonly', 'true');
+            control.classList.add('bg-slate-100', 'cursor-not-allowed');
+        });
+
+        form.querySelectorAll('#print-top-grid select').forEach(function (select) {
+            const preservedValue = document.createElement('input');
+            preservedValue.type = 'hidden';
+            preservedValue.name = select.name;
+            preservedValue.value = select.value;
+            form.appendChild(preservedValue);
+            select.disabled = true;
+            select.classList.add('cursor-not-allowed');
+        });
+
+        form.querySelectorAll('.tableinfo input').forEach(function (input) {
+            if ((input.name || '').startsWith('mini_')) return;
+            input.readOnly = true;
+            input.setAttribute('aria-readonly', 'true');
+            input.classList.add('cursor-not-allowed');
+        });
+    })();
     </script>
     {% endif %}
     {% if session.get('role') in ('owner', 'manager') and transfer_destination_orders %}
@@ -540,18 +589,16 @@ function enforceAverageChoice(changedInput) {
 function updateRangePrintText() {
     const cutSize = document.getElementById('range_cut_size')?.value.trim();
     const pcsInRow = document.getElementById('pcs_in_row')?.value.trim();
-    const margin = document.getElementById('range_margin')?.value.trim();
     const result = document.getElementById('range_result')?.value.trim();
     const el = document.getElementById('range_size_print_text');
     if (!el) return;
-    if (!cutSize && !pcsInRow && !margin) {
+    if (!cutSize && !pcsInRow) {
         el.textContent = '';
         return;
     }
     let expr = '';
     if (cutSize) expr += cutSize;
     if (pcsInRow) expr += (expr ? ' x ' : '') + pcsInRow;
-    if (margin) expr += (expr ? ' + ' : '') + margin;
     if (result) expr += ' = ' + result;
     el.textContent = expr;
     markNegativeInputs();
@@ -570,23 +617,33 @@ function getFabricOpeningBalance() {
 }
 
 function validateFabricIssue(event) {
+    if (document.getElementById('cutting-sheet-form')?.dataset.directCuttingPcsMode === 'true') {
+        return true;
+    }
     const fabricIssue = parseFloat(document.querySelector("[name='fabric_issue']")?.value);
+    const totalMeter = parseFloat(document.getElementById('total_meter')?.value);
     const openingBalance = getFabricOpeningBalance();
     const secondarySelected = Boolean(document.getElementById('secondary_fabric_ch_select')?.value.trim());
 
-    if (Number.isNaN(fabricIssue) || fabricIssue <= openingBalance + 0.000001) {
-        return true;
+    if (!Number.isNaN(fabricIssue) && fabricIssue > openingBalance + 0.000001) {
+        event.preventDefault();
+        const message = secondarySelected
+            ? 'Insufficient fabric. Fabric issue is more than fabric O/B.'
+            : 'Insufficient fabric. Please select a secondary inventory.';
+        alert(message);
+        if (!secondarySelected) {
+            document.getElementById('secondary_fabric_ch_select')?.focus();
+        }
+        return false;
     }
 
-    event.preventDefault();
-    const message = secondarySelected
-        ? 'Insufficient fabric. Fabric issue cannot be greater than fabric O/B.'
-        : 'Insufficient fabric. Please select secondary inventory.';
-    alert(message);
-    if (!secondarySelected) {
-        document.getElementById('secondary_fabric_ch_select')?.focus();
+    if (!Number.isNaN(totalMeter) && !Number.isNaN(fabricIssue) && totalMeter > fabricIssue + 0.000001) {
+        event.preventDefault();
+        alert('Insufficient fabric. Total meter is more than the fabric issue.');
+        return false;
     }
-    return false;
+
+    return true;
 }
 
 function updateAveragePcsColor() {
@@ -627,6 +684,118 @@ function updateSelectedInventoryDisplay() {
     updateInventorySelectStatus('secondary_fabric_ch_select');
 }
 
+function setDirectCuttingPcsMode(enabled) {
+    const form = document.getElementById('cutting-sheet-form');
+    const fabricTable = document.getElementById('fabric-cutting-table');
+    const directTable = document.getElementById('direct-pcs-cutting-table');
+    const fabricIssueField = document.getElementById('fabric-issue-field');
+    const fabricIssue = document.querySelector("input[name='fabric_issue']");
+    const fabricMeterLine = document.getElementById('fabric-meter-line');
+    const fabricOpeningLine = document.getElementById('fabric-opening-line');
+    const directOpeningLine = document.getElementById('direct-pcs-opening-line');
+    const directBalanceLine = document.getElementById('direct-pcs-balance-line');
+    const fabricBalanceSummary = document.getElementById('fabric-balance-summary');
+    const secondaryLabel = document.getElementById('secondary-inventory-label');
+    const secondarySelector = document.getElementById('secondary-inventory-selector');
+    const secondarySelect = document.getElementById('secondary_fabric_ch_select');
+    if (!form) return;
+
+    const modeFields = [
+        'calc_cut_size', 'calc_factor_1', 'range_cut_size', 'pcs_in_row',
+        'range_result', 'pcs_in_range', 'avg_99', 'avg_100', 'avg_other',
+        'cutter_name', 'asst_cutter_name', 'issued_by', 'palla_check_by',
+    ].map(id => form.querySelector(`#${id}`) || form.querySelector(`[name='${id}']`)).filter(Boolean);
+    const wasDirectCuttingPcs = form.dataset.directCuttingPcsMode === 'true';
+    if (form.dataset.modeFieldsInitialized !== 'true') {
+        modeFields.forEach(input => {
+            input.dataset.fabricModeValue = input.value;
+            input.dataset.fabricModeReadOnly = input.readOnly ? 'true' : 'false';
+        });
+        form.dataset.modeFieldsInitialized = 'true';
+    }
+    if (enabled && !wasDirectCuttingPcs) {
+        modeFields.forEach(input => { input.dataset.fabricModeValue = input.value; });
+    }
+    if (enabled) {
+        const directModeValues = {
+            calc_cut_size: '0',
+            calc_factor_1: '0',
+            range_cut_size: '0',
+            pcs_in_row: '0',
+            range_result: '0',
+            pcs_in_range: '0',
+            avg_99: '',
+            avg_100: '100',
+            avg_other: '0',
+            cutter_name: '-',
+            asst_cutter_name: '-',
+            issued_by: '-',
+            palla_check_by: '-',
+        };
+        Object.entries(directModeValues).forEach(([name, value]) => {
+            const input = form.querySelector(`#${name}`) || form.querySelector(`[name='${name}']`);
+            if (input) input.value = value;
+        });
+        modeFields.forEach(input => { input.readOnly = true; });
+    } else if (wasDirectCuttingPcs) {
+        modeFields.forEach(input => {
+            input.value = input.dataset.fabricModeValue || '';
+            input.readOnly = input.dataset.fabricModeReadOnly === 'true';
+        });
+    }
+
+    form.dataset.directCuttingPcsMode = enabled ? 'true' : 'false';
+    if (fabricTable) {
+        fabricTable.hidden = enabled;
+        fabricTable.querySelectorAll('input').forEach(input => { input.disabled = enabled; });
+    }
+    if (directTable) {
+        directTable.hidden = !enabled;
+        directTable.querySelectorAll('input').forEach(input => { input.disabled = !enabled; });
+    }
+    if (fabricIssueField) fabricIssueField.hidden = enabled;
+    if (fabricMeterLine) {
+        fabricMeterLine.hidden = enabled;
+        fabricMeterLine.classList.toggle('hidden', enabled);
+    }
+    if (fabricOpeningLine) {
+        fabricOpeningLine.hidden = enabled;
+        fabricOpeningLine.classList.toggle('hidden', enabled);
+    }
+    if (directOpeningLine) {
+        directOpeningLine.hidden = !enabled;
+        directOpeningLine.classList.toggle('hidden', !enabled);
+    }
+    if (directBalanceLine) {
+        directBalanceLine.hidden = !enabled;
+        directBalanceLine.classList.toggle('hidden', !enabled);
+    }
+    if (fabricBalanceSummary) {
+        fabricBalanceSummary.hidden = enabled;
+        fabricBalanceSummary.classList.toggle('hidden', enabled);
+    }
+    if (fabricIssue) {
+        fabricIssue.disabled = enabled;
+        fabricIssue.required = !enabled;
+    }
+    if (secondaryLabel) secondaryLabel.hidden = enabled;
+    if (secondarySelector) secondarySelector.hidden = enabled;
+    if (secondarySelect) {
+        secondarySelect.disabled = enabled;
+        if (enabled) secondarySelect.value = '';
+    }
+    const fabricBalance = document.querySelector("input[name='balance_fabric']");
+    if (fabricBalance) fabricBalance.disabled = enabled;
+
+    if (enabled || wasDirectCuttingPcs) {
+        setAvgLabelColor('avg_99', document.querySelector("[name='avg_99']")?.value.trim() ? 'avg-active-red' : '');
+        setAvgLabelColor('avg_100', document.querySelector("[name='avg_100']")?.value.trim() ? 'avg-active-green' : '');
+        setAvgLabelColor('avg_other', document.querySelector("[name='avg_other']")?.value.trim() ? 'avg-active-grey' : '');
+        updateCalculation();
+        updateRangeSize();
+    }
+}
+
 function updateInventorySelectStatus(selectId) {
     const select = document.getElementById(selectId);
     if (!select) return;
@@ -647,10 +816,13 @@ function updateInventorySelectStatus(selectId) {
         option.style.borderColor = '#000000';
         if (option.value) {
             const baseLabel = option.dataset.statusLabel || '';
-            const isFinished = baseLabel === 'FINISHED';
-            const displayLabel = isFinished
-                ? 'FINISHED'
-                : (option.dataset.hasPriorUse === 'true' ? baseLabel : 'NOT IN USE');
+            const isDirectCuttingPcs = option.dataset.directCuttingPcs === 'true';
+            const isFinished = baseLabel.includes('FINISHED');
+            const displayLabel = isDirectCuttingPcs
+                ? baseLabel
+                : isFinished
+                    ? 'FINISHED'
+                    : (option.dataset.hasPriorUse === 'true' ? baseLabel : 'NOT IN USE');
             option.textContent = `${option.value}${displayLabel ? `  ${displayLabel}` : ''}`;
             if (isFinished) {
                 option.style.backgroundColor = '#22c55e';
@@ -683,7 +855,8 @@ function updateInventorySelectStatus(selectId) {
 
     const option = select.selectedOptions?.[0];
     const baseLabel = option?.dataset.statusLabel || '';
-    const isFinished = baseLabel === 'FINISHED';
+    const isDirectCuttingPcs = option?.dataset.directCuttingPcs === 'true';
+    const isFinished = baseLabel.includes('FINISHED');
     if (!option?.value || (select.dataset.selectionConfirmed !== 'true' && !isFinished)) {
         select.style.color = '#000000';
         select.style.backgroundColor = '#ffffff';
@@ -691,13 +864,15 @@ function updateInventorySelectStatus(selectId) {
         return;
     }
 
-    const inUseLabel = isFinished
-        ? 'FINISHED'
-        : baseLabel.includes('RE-ACTIVE')
-            ? 'RE-ACTIVE + IN USE'
-            : baseLabel.includes('REJ')
-                ? 'REJ + IN USE'
-                : 'IN USE';
+    const inUseLabel = isDirectCuttingPcs
+        ? baseLabel
+        : isFinished
+            ? 'FINISHED'
+            : baseLabel.includes('RE-ACTIVE')
+                ? 'RE-ACTIVE + IN USE'
+                : baseLabel.includes('REJ')
+                    ? 'REJ + IN USE'
+                    : 'IN USE';
     option.textContent = `${option.value}  ${inUseLabel}`;
     option.style.color = '#000000';
     option.style.backgroundColor = '#90ee90';
@@ -728,12 +903,18 @@ function updateMiniRow22Calculation() {
         const greyPcsEl = document.getElementById('mini_pcs_22_grey');
         const greyCpEl = document.getElementById('mini_cp_22_grey');
 
-        const cpVal = parseFloat((miniCpEl?.value || '').toString().replace(/[^0-9.-]/g, '')) || 0;
+        const cpRaw = (miniCpEl?.value || '').toString().trim();
+        const cpVal = parseFloat(cpRaw.replace(/[^0-9.-]/g, ''));
         const adjustedCp = cpVal * getMeterAdjustmentFactor();
         const rangeResult = parseFloat(document.getElementById('range_result')?.value) || 0;
         const pcsInRange = parseFloat(document.getElementById('pcs_in_range')?.value) || 0;
 
-        if (adjustedCp && !Number.isNaN(rangeResult) && rangeResult !== 0) {
+        if (cpRaw && Number.isFinite(cpVal) && cpVal === 0) {
+            if (miniPallaEl) miniPallaEl.value = '0.00';
+            if (miniPcsEl) miniPcsEl.value = '0';
+            if (hiddenPalla22) hiddenPalla22.value = '0.00';
+            if (hiddenPcs22) hiddenPcs22.value = '0';
+        } else if (cpRaw && Number.isFinite(cpVal) && Number.isFinite(rangeResult) && rangeResult !== 0) {
             const sign = cpVal < 0 ? 1 : -1;
             const pallaVal = Math.abs((adjustedCp * 39.35) / rangeResult) * sign;
             const pcsVal = (pallaVal && !Number.isNaN(pcsInRange) && pcsInRange !== 0) ? (Math.abs(pallaVal * pcsInRange) * sign) : 0;
@@ -827,6 +1008,52 @@ function updateTotals() {
     const rangeResult = parseFloat(document.getElementById('range_result').value) || 0;
     const pcsInRange = parseFloat(document.getElementById('pcs_in_range').value) || 0;
 
+    const cuttingForm = document.getElementById('cutting-sheet-form');
+    if (cuttingForm?.dataset.directCuttingPcsMode === 'true') {
+        for (let row = 1; row <= rows; row++) {
+            const pcsInput = document.querySelector(`#direct-pcs-cutting-table [name='pcs_${row}']`);
+            const pcs = parseFloat(pcsInput?.value) || 0;
+            totalPcs += pcs;
+            if (pcsInput?.value) filledRows += 1;
+        }
+
+        const directTotal = document.getElementById('direct_total_pcs');
+        const pcsTotal = document.getElementById('total_pcs');
+        const transferQuantity = parseFloat(cuttingForm.dataset.transferQuantity || '') || 0;
+        const combinedTotalPcs = totalPcs + transferQuantity;
+        if (directTotal) directTotal.value = totalPcs ? totalPcs.toFixed(0) : '';
+        if (pcsTotal) pcsTotal.value = totalPcs ? totalPcs.toFixed(0) : '';
+        document.getElementById('total_meter').value = '';
+        document.getElementById('total_palla').value = '';
+        document.getElementById('summary_total_pcs').value = combinedTotalPcs ? combinedTotalPcs.toFixed(0) : '';
+        document.getElementById('quantity').value = combinedTotalPcs ? combinedTotalPcs.toFixed(0) : '';
+        document.getElementById('summary_avg_pcs').value = '';
+        document.getElementById('fabric_meter').value = '';
+        updateReqPkt();
+
+        const inventoryBalances = JSON.parse('{{ inventory_balances|tojson }}');
+        const selectedInventorySerial = (document.getElementById('fabric_ch_select')?.value || '').trim();
+        const openingBalance = Number(inventoryBalances[selectedInventorySerial]) || 0;
+        const directOpening = document.getElementById('direct_pcs_opening_balance');
+        const directRemaining = document.getElementById('direct_pcs_balance_display');
+        if (directOpening) directOpening.textContent = openingBalance.toFixed(0);
+        if (directRemaining) directRemaining.textContent = (openingBalance - totalPcs).toFixed(0);
+
+        const previousTotal = parseFloat(document.getElementById('prev_total_cutting')?.value) || 0;
+        const totalCutting = document.getElementById('total_cutting');
+        const balanceCutting = document.getElementById('balance_cutting');
+        if (totalCutting) totalCutting.value = (previousTotal + combinedTotalPcs).toFixed(0);
+        if (balanceCutting) {
+            const orderPcs = parseFloat(document.getElementById('order_pcs')?.value) || 0;
+            balanceCutting.value = (orderPcs - previousTotal - combinedTotalPcs).toFixed(0);
+        }
+        updateRangePrintText();
+        updatePcsInRangePrintText();
+        updateAveragePcsColor();
+        markNegativeInputs();
+        return;
+    }
+
     updateMiniRow22Calculation();
 
     const miniPalla22 = parseFloat(document.querySelector("input[name='mini_palla_22']")?.value) || 0;
@@ -881,7 +1108,30 @@ function updateTotals() {
     const transferQuantity = parseFloat(document.getElementById('cutting-sheet-form')?.dataset.transferQuantity || '') || 0;
     const combinedTotalPcs = totalPcs + transferQuantity;
 
+    const fabricIssueMeter = totalMeter;
+    const returnInput = document.getElementById('fabric-return-meter');
+    const returnAdjustmentFactor = getMeterAdjustmentFactor();
+    const fabricReturnMeter = Math.min(
+        fabricIssueMeter,
+        Math.max(0, parseFloat(returnInput?.value || '') || 0) * returnAdjustmentFactor
+    );
+    if (returnInput) {
+        returnInput.max = returnAdjustmentFactor > 0
+            ? (fabricIssueMeter / returnAdjustmentFactor).toFixed(2)
+            : '0';
+    }
+    totalMeter = Math.max(0, fabricIssueMeter - fabricReturnMeter);
     document.getElementById('total_meter').value = totalMeter ? totalMeter.toFixed(2) : '';
+    const selectedInventoryOption = document.getElementById('fabric_ch_select')?.selectedOptions[0];
+    const fabricIssueInput = document.querySelector("input[name='fabric_issue']");
+    if (
+        cuttingForm?.dataset.directCuttingPcsMode !== 'true'
+        && selectedInventoryOption?.value
+        && selectedInventoryOption.dataset.directCuttingPcs !== 'true'
+        && fabricIssueInput
+    ) {
+        fabricIssueInput.value = fabricIssueMeter ? fabricIssueMeter.toFixed(2) : '';
+    }
     // Update fabric meter hidden field only when it is empty (preserve user/inventory value)
     const fabricMeterEl = document.getElementById('fabric_meter');
     if (fabricMeterEl) {
@@ -898,7 +1148,7 @@ function updateTotals() {
     document.getElementById('total_pcs').value = totalPcs ? totalPcs.toFixed(0) : '';
     document.getElementById('summary_total_pcs').value = combinedTotalPcs ? combinedTotalPcs.toFixed(0) : '';
     updateReqPkt();
-    document.getElementById('summary_avg_pcs').value = totalMeter ? ((totalMeter / totalPcs) * 39.35).toFixed(2) : '';
+    document.getElementById('summary_avg_pcs').value = fabricIssueMeter ? ((fabricIssueMeter / totalPcs) * 39.35).toFixed(2) : '';
     // Cutting quantity remains the full cut quantity; B/Q is recorded in production entry.
     try {
         const summary = combinedTotalPcs;
@@ -1020,13 +1270,21 @@ function printCuttingSheet() {
 }
 
 function updateRangeSize() {
+    const cuttingForm = document.getElementById('cutting-sheet-form');
     const cutSize = parseFloat(document.getElementById('range_cut_size').value) || 0;
     const pcsInRow = parseFloat(document.getElementById('pcs_in_row').value) || 0;
-    const margin = parseFloat(document.getElementById('range_margin').value) || 0;
     const result = document.getElementById('range_result');
 
+    if (cuttingForm?.dataset.directCuttingPcsMode === 'true') {
+        result.value = '0';
+        updateRangePrintText();
+        updateTotals();
+        markNegativeInputs();
+        return;
+    }
+
     if (cutSize && pcsInRow) {
-        result.value = ((cutSize * pcsInRow) + margin).toFixed(2);
+        result.value = (cutSize * pcsInRow).toFixed(2);
     } else {
         result.value = '';
     }
@@ -1073,9 +1331,21 @@ function onMiniGreyInput() {
         const greyCpEl = document.getElementById('mini_cp_22_grey');
         const hiddenPalla22 = document.querySelector("input[name='palla_22']");
         const hiddenPcs22 = document.querySelector("input[name='pcs_22']");
+        const greyCpRaw = (greyCpEl?.value || '').trim();
+        const greyCpValue = parseFloat(greyCpRaw.replace(/[^0-9.-]/g, ''));
+
+        if (greyCpRaw && Number.isFinite(greyCpValue) && greyCpValue === 0) {
+            if (greyPallaEl) greyPallaEl.value = '0.00';
+            if (greyPcsEl) greyPcsEl.value = '0';
+            if (hiddenPalla22) hiddenPalla22.value = '0.00';
+            if (hiddenPcs22) hiddenPcs22.value = '0';
+            markNegativeInputs();
+            updateTotals();
+            return;
+        }
 
         // try CP-driven calculation first if user entered a CP in grey cell
-        const cpVal = parseFloat((greyCpEl?.value || '').toString().replace(/[^0-9.-]/g, '')) || 0;
+        const cpVal = greyCpValue || 0;
         const adjustedCp = cpVal * getMeterAdjustmentFactor();
         const rangeResult = parseFloat(document.getElementById('range_result')?.value) || 0;
         const pcsInRange = parseFloat(document.getElementById('pcs_in_range')?.value) || 0;
@@ -1099,8 +1369,8 @@ function onMiniGreyInput() {
         const greyPcs = (greyPcsEl?.value || '').toString();
         const pallaNum = parseFloat(greyPalla.replace(/[^0-9.-]/g, '')) || 0;
         const pcsNum = parseFloat(greyPcs.replace(/[^0-9.-]/g, '')) || 0;
-        if (hiddenPalla22) hiddenPalla22.value = pallaNum ? pallaNum.toFixed(2) : '';
-        if (hiddenPcs22) hiddenPcs22.value = pcsNum ? roundPCS(pcsNum).toString() : '';
+        if (hiddenPalla22) hiddenPalla22.value = greyPalla.trim() ? pallaNum.toFixed(2) : '';
+        if (hiddenPcs22) hiddenPcs22.value = greyPcs.trim() ? roundPCS(pcsNum).toString() : '';
     } catch (e) {
         // ignore
     }
@@ -1116,7 +1386,7 @@ function getCutDefaultsKey() {
 
 function saveCutDefaults() {
     try {
-        const fields = ['calc_cut_size','calc_factor_1','pcs_in_row','range_margin','pcs_in_range','avg_other','cutter_name','inventory_serial_no','use_fabric_ch','asst_cutter_name','palla_check_by'];
+        const fields = ['calc_cut_size','calc_factor_1','pcs_in_row','pcs_in_range','avg_other','cutter_name','inventory_serial_no','use_fabric_ch','asst_cutter_name','palla_check_by'];
         const data = {};
         fields.forEach(name => {
             const el = document.querySelector(`[name='${name}']`) || document.getElementById(name);
@@ -1182,14 +1452,24 @@ function syncSecondaryInventoryOptions() {
     if (!primarySelect || !secondarySelect) return;
 
     const primaryValue = (primarySelect.value || '').trim();
+    const primaryIsDirect = primarySelect.selectedOptions[0]?.dataset.directCuttingPcs === 'true';
     const currentSecondaryValue = (secondarySelect.value || '').trim();
+    const currentSecondaryIsDirect = secondarySelect.selectedOptions[0]?.dataset.directCuttingPcs === 'true';
+    secondarySelect.disabled = primaryIsDirect;
 
     Array.from(secondarySelect.options).forEach(option => {
         const optionValue = (option.value || '').trim();
-        option.disabled = !!primaryValue && optionValue && optionValue === primaryValue;
+        const optionIsDirect = option.dataset.directCuttingPcs === 'true';
+        option.disabled = Boolean(
+            primaryValue
+            && optionValue
+            && (optionValue === primaryValue || optionIsDirect !== primaryIsDirect)
+        );
     });
 
-    if (primaryValue && currentSecondaryValue && currentSecondaryValue === primaryValue) {
+    if (primaryIsDirect || (primaryValue && currentSecondaryValue && (
+        currentSecondaryValue === primaryValue || currentSecondaryIsDirect !== primaryIsDirect
+    ))) {
         secondarySelect.value = '';
     }
 }
@@ -1203,19 +1483,16 @@ function onFabricChSelection() {
     updateSelectedInventoryDisplay();
 
     if (!serial) {
+        setDirectCuttingPcsMode(false);
         setFabricMeterDefault();
         return;
     }
 
     fetchInventoryBySerial(serial)
         .then(data => {
-            const fm = data && (data.fabric_meter_total ?? data.fabric_meter_total);
-            const hiddenEl = document.getElementById('fabric_meter');
-            if (hiddenEl) {
-                // store inventory-provided fabric meter for persistence
-                hiddenEl.value = fm !== undefined && fm !== null ? String(fm) : hiddenEl.value || '';
-            }
-            // populate use_fabric_ch from inventory challan no if provided
+            const isDirectCuttingPcs = Boolean(data && data.is_direct_cutting_pcs);
+            setDirectCuttingPcsMode(isDirectCuttingPcs);
+
             try {
                 const useChEl = document.querySelector("input[name='use_fabric_ch']");
                 const challan = data && (data.challan_no ?? data.challanNo ?? data.challan);
@@ -1226,6 +1503,16 @@ function onFabricChSelection() {
                 // ignore
             }
 
+            if (isDirectCuttingPcs) {
+                updateTotals();
+                return;
+            }
+            const fm = data && (data.fabric_meter_total ?? data.fabric_meter_total);
+            const hiddenEl = document.getElementById('fabric_meter');
+            if (hiddenEl) {
+                // store inventory-provided fabric meter for persistence
+                hiddenEl.value = fm !== undefined && fm !== null ? String(fm) : hiddenEl.value || '';
+            }
             if (typeof fm === 'number' || (fm && !Number.isNaN(parseFloat(fm)))) {
                 updateFabricMeterTotal(fm);
                 updateTotals();
@@ -1258,6 +1545,47 @@ function onSecondaryFabricChSelection() {
         });
 }
 
+function applyCuttingSheetEditLocks() {
+    const form = document.getElementById('cutting-sheet-form');
+    if (!form) return;
+    if (form.dataset.canEditAll === 'true') return;
+    if (form.dataset.directCuttingPcsMode === 'true') return;
+
+    const isEditing = form.dataset.existingSheet === 'true';
+    const firstEditUsed = form.dataset.firstEditUsed === 'true';
+    const editableAfterSave = /^(?:cp_\d+|mini_cp_22|mini_palla_22_grey|mini_pcs_22_grey|mini_cp_22_grey|bundle|meter_21|palla_check_by)$/;
+    const lockOnFirstSave = editableAfterSave;
+
+    if (!isEditing) {
+        const pallaCheckBy = form.querySelector("input[name='palla_check_by']");
+        if (pallaCheckBy && !pallaCheckBy.value.trim()) pallaCheckBy.value = '-';
+    }
+
+    form.querySelectorAll('input:not([type="hidden"]), textarea, select').forEach(function (control) {
+        const name = control.name || '';
+        const shouldLock = isEditing
+            ? firstEditUsed || !editableAfterSave.test(name)
+            : lockOnFirstSave.test(name);
+        if (!shouldLock) return;
+
+        if (control instanceof HTMLSelectElement) {
+            if (!control.dataset.editLockPreserved) {
+                const preservedValue = document.createElement('input');
+                preservedValue.type = 'hidden';
+                preservedValue.name = control.name;
+                preservedValue.value = control.value;
+                form.appendChild(preservedValue);
+                control.dataset.editLockPreserved = 'true';
+            }
+            control.disabled = true;
+        } else {
+            control.readOnly = true;
+            control.setAttribute('aria-readonly', 'true');
+        }
+        control.classList.add('bg-slate-100', 'cursor-not-allowed');
+    });
+}
+
 window.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('wheel', function (event) {
         if (event.target.matches("input[name^='meter_']")) {
@@ -1265,6 +1593,10 @@ window.addEventListener('DOMContentLoaded', function () {
         }
     }, { passive: false });
 
+    setDirectCuttingPcsMode(
+        document.getElementById('cutting-sheet-form')?.dataset.directCuttingPcsMode === 'true'
+    );
+    applyCuttingSheetEditLocks();
     updateCalculation();
     updateRangeSize();
     updateTotals();
@@ -1334,6 +1666,10 @@ window.addEventListener('DOMContentLoaded', function () {
             form.addEventListener('submit', function (event) {
                 if (!validateAverageChoice(event)) return;
                 updateTotals();
+                const balanceCutting = parseFloat(document.getElementById('balance_cutting')?.value);
+                if (!Number.isNaN(balanceCutting) && balanceCutting < 0) {
+                    alert('The total cutting PCS have exceeded the order PCS.');
+                }
                 if (!validateFabricIssue(event)) return;
                 const balance = parseFloat(document.querySelector("[name='balance_fabric']")?.value);
                 if (!Number.isNaN(balance) && balance < 0) {
@@ -1511,6 +1847,39 @@ function initAvgLabelColors() {
     display: none;
 }
 
+.fabric-return-row td:nth-child(2) {
+    background-color: #fef3c7;
+}
+
+.fabric-return-input {
+    border: 2px solid #d97706 !important;
+    border-radius: 4px;
+    background-color: #fffbeb;
+}
+
+.fabric-return-label {
+    color: #92400e;
+    font-weight: 800;
+}
+
+@media screen {
+    html[data-theme="dark"] #fabric-cutting-table .fabric-return-row td:nth-child(2) {
+        background-color: #422006 !important;
+        color: #fef3c7 !important;
+    }
+
+    html[data-theme="dark"] #fabric-cutting-table .fabric-return-input {
+        border-color: #fbbf24 !important;
+        background-color: #1c1917 !important;
+        color: #fffbeb !important;
+    }
+
+    html[data-theme="dark"] #fabric-cutting-table .fabric-return-label {
+        background-color: #422006 !important;
+        color: #fcd34d !important;
+    }
+}
+
 @media screen {
     [class~="border-[4px]"] {
         border-width: 2px !important;
@@ -1646,8 +2015,27 @@ function initAvgLabelColors() {
         font-size: 16px !important;
         line-height: 1.15 !important;
     }
+    #fabric-cutting-table .fabric-return-row td:nth-child(2) {
+        background-color: #fef3c7 !important;
+    }
+    #fabric-cutting-table .fabric-return-input {
+        border: 4px solid #b45309 !important;
+        background-color: #fffbeb !important;
+        color: #000000 !important;
+        font-size: 34px !important;
+        font-weight: 800 !important;
+        line-height: 1.1 !important;
+    }
+    #fabric-cutting-table .fabric-return-label {
+        color: #000000 !important;
+        background-color: #fef3c7 !important;
+        font-size: 34px !important;
+        font-weight: 800 !important;
+        line-height: 1.1 !important;
+        white-space: nowrap;
+    }
     .cutting_serial-print .serial-box label {
-        font-size: 48px !important;
+        font-size: 40px !important;
         line-height: 1.1 !important;
     }
     #print-top-grid .leftinfo > .flex p {
@@ -1704,6 +2092,21 @@ function initAvgLabelColors() {
     }
     .tableinfo .text-s {
         font-size: 42px !important;
+    }
+    #cutting-sheet-form[data-direct-cutting-pcs-mode="true"] .cutting_serial-print .serial-box label {
+        font-size: 42px !important;
+        line-height: 1.1 !important;
+    }
+    #cutting-sheet-form[data-direct-cutting-pcs-mode="true"] #direct-pcs-cutting-table tbody td:first-child {
+        font-size: 42px !important;
+        font-weight: 800 !important;
+        line-height: 1.1 !important;
+    }
+    #cutting-sheet-form[data-direct-cutting-pcs-mode="true"] #direct-pcs-cutting-table tfoot td,
+    #cutting-sheet-form[data-direct-cutting-pcs-mode="true"] #direct-pcs-cutting-table tfoot input {
+        font-size: 42px !important;
+        font-weight: 800 !important;
+        line-height: 1.1 !important;
     }
     .tableinfo [class*="border-[2px]"] {
         border-width: 4px !important;

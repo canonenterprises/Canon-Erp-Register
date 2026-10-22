@@ -1,25 +1,74 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
-  <div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-8">
+  <div class="mx-auto max-w-6xl space-y-6 rounded-2xl border border-slate-300 bg-white p-6 shadow-sm sm:p-8">
     <header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
-      <div><p class="text-xs font-bold uppercase text-amber-700">Accounts · Purchases</p><h1 class="mt-1 text-3xl font-black text-slate-950">Accessories Billing</h1><p class="mt-2 text-sm text-slate-500">Accessory bill amounts recorded on purchase requirements.</p></div>
+      <div>
+        <p class="text-xs font-bold uppercase text-amber-700">Accounts · Purchases</p>
+        <h1 class="mt-1 text-3xl font-black text-slate-950">Accessories Billing</h1>
+        <p class="mt-2 text-sm text-slate-500">Vendors and their accessory purchase orders.</p>
+      </div>
       <a href="{{ url_for('accounts_portal') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Accounts</a>
     </header>
+
     <section class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div><p class="text-xs font-bold uppercase text-slate-500">Visible bill total</p><p class="mt-1 text-2xl font-black text-amber-800">PKR {{ '{:,.2f}'.format(total_billed) }}</p></div>
-      <form method="get" class="flex w-full gap-2 sm:max-w-md"><input type="search" name="q" value="{{ search }}" placeholder="Supplier, item, order or PO" class="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"><button class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white">Search</button></form>
+      <div><p class="text-xs font-bold uppercase text-slate-500">Visible accessory bills</p><p id="accessory-billing-total" class="mt-1 text-2xl font-black text-amber-800">PKR {{ '{:,.2f}'.format(total_billed) }}</p></div>
+      <form id="accessory-billing-search-form" class="w-full sm:max-w-md"><label for="accessory-billing-search" class="sr-only">Search vendors and suppliers</label><input id="accessory-billing-search" type="search" value="{{ search }}" placeholder="Search vendors and suppliers" autocomplete="off" class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm"></form>
     </section>
-    <div class="overflow-x-auto border-y border-slate-200">
-      <table class="w-full min-w-[950px] text-left text-sm">
-        <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-3 py-3">Bill Date</th><th class="px-3 py-3">Supplier</th><th class="px-3 py-3">Purchase Order</th><th class="px-3 py-3">Order</th><th class="px-3 py-3">Item</th><th class="px-3 py-3 text-right">Quantity</th><th class="px-3 py-3 text-right">Rate</th><th class="px-3 py-3 text-right">Bill Amount</th><th class="px-3 py-3"></th></tr></thead>
+
+    <section class="overflow-x-auto border-y border-slate-200">
+      <table class="w-full min-w-[760px] text-left text-sm">
+        <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-3 py-3">Vendor / Supplier</th><th class="px-3 py-3 text-right">POs</th><th class="px-3 py-3 text-right">Unpaid</th><th class="px-3 py-3 text-right">Paid</th><th class="px-3 py-3 text-right">Accessory Bills (PKR)</th><th class="px-3 py-3"></th></tr></thead>
         <tbody class="divide-y divide-slate-100">
-          {% for row in rows %}
-          <tr class="hover:bg-slate-50"><td class="px-3 py-3">{{ row.requirement.date or '—' }}</td><td class="px-3 py-3 font-semibold">{{ row.requirement.supplier or '—' }}</td><td class="px-3 py-3">{{ row.requirement.po_no or '—' }}</td><td class="px-3 py-3">{{ row.requirement.order_id or '—' }}</td><td class="px-3 py-3">{{ row.requirement.item or '—' }}{% if row.requirement.size %}<span class="block text-xs text-slate-500">{{ row.requirement.size }} · {{ row.requirement.quality or '' }}</span>{% endif %}</td><td class="px-3 py-3 text-right">{{ row.requirement.qty or '—' }} {{ row.requirement.unit or '' }}</td><td class="px-3 py-3 text-right">{{ row.requirement.rate or '—' }}</td><td class="px-3 py-3 text-right font-black text-slate-900">PKR {{ '{:,.2f}'.format(row.bill_amount) }}</td><td class="px-3 py-3 text-right text-slate-500">{% if row.requirement.order_id and row.requirement.po_no %}PO {{ row.requirement.po_no }}{% endif %}</td></tr>
-          {% else %}<tr><td colspan="9" class="px-3 py-10 text-center text-slate-500">No accessory bill amounts found. Add bill amounts on a saved requirement slip.</td></tr>{% endfor %}
+          {% for vendor in suppliers %}
+          <tr class="hover:bg-amber-50" data-accessory-supplier-row data-supplier="{{ vendor.supplier|e }}" data-total-billed="{{ vendor.total_billed }}"><td class="px-3 py-3 font-bold"><a href="{{ url_for('accounts_accessories_billing_vendor', supplier=vendor.supplier) }}" class="text-slate-900 underline decoration-slate-300 underline-offset-4 hover:text-amber-800">{{ vendor.supplier }}</a></td><td class="px-3 py-3 text-right">{{ vendor.po_count }}</td><td class="px-3 py-3 text-right">{{ vendor.unpaid_count }}</td><td class="px-3 py-3 text-right">{{ vendor.paid_count }}</td><td class="px-3 py-3 text-right font-black">{{ '{:,.2f}'.format(vendor.total_billed) }}</td><td class="px-3 py-3 text-right"><a href="{{ url_for('accounts_accessories_billing_vendor', supplier=vendor.supplier) }}" aria-label="View POs for {{ vendor.supplier|e }}" class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 text-slate-700 hover:bg-white"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a></td></tr>
+          {% else %}<tr id="accessory-billing-empty"><td colspan="6" class="px-3 py-10 text-center text-slate-500">No accessory suppliers found.</td></tr>{% endfor %}
+          {% if suppliers %}<tr id="accessory-billing-no-results" hidden><td colspan="6" class="px-3 py-10 text-center text-slate-500">No matching accessory suppliers.</td></tr>{% endif %}
         </tbody>
       </table>
-    </div>
+    </section>
   </div>
 </div>
+<script>
+  const accessoryBillingSearch = document.getElementById('accessory-billing-search');
+  const accessoryBillingForm = document.getElementById('accessory-billing-search-form');
+  const accessoryBillingRows = Array.from(document.querySelectorAll('[data-accessory-supplier-row]'));
+  const accessoryBillingTotal = document.getElementById('accessory-billing-total');
+  const accessoryBillingNoResults = document.getElementById('accessory-billing-no-results');
+
+  function filterAccessoryBilling() {
+    const query = (accessoryBillingSearch.value || '').trim().toLocaleLowerCase();
+    let visibleCount = 0;
+    let visibleTotal = 0;
+    accessoryBillingRows.forEach(function (row) {
+      const matches = (row.dataset.supplier || '').toLocaleLowerCase().includes(query);
+      row.hidden = !matches;
+      if (matches) {
+        visibleCount += 1;
+        visibleTotal += Number(row.dataset.totalBilled || 0);
+      }
+    });
+    if (accessoryBillingNoResults) accessoryBillingNoResults.hidden = visibleCount > 0;
+    if (accessoryBillingTotal) {
+      accessoryBillingTotal.textContent = 'PKR ' + new Intl.NumberFormat(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(visibleTotal);
+    }
+
+    const url = new URL(window.location.href);
+    if (query) url.searchParams.set('q', accessoryBillingSearch.value.trim());
+    else url.searchParams.delete('q');
+    window.history.replaceState({}, '', url);
+  }
+
+  if (accessoryBillingSearch && accessoryBillingForm) {
+    accessoryBillingSearch.addEventListener('input', filterAccessoryBilling);
+    accessoryBillingForm.addEventListener('submit', function (event) {
+      event.preventDefault();
+      filterAccessoryBilling();
+    });
+    filterAccessoryBilling();
+  }
+</script>
 {% endblock %}
