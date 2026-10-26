@@ -150,7 +150,7 @@
                                 <option value="">Select serial</option>
                                 {% for serial in inventory_serials %}
                                     {% set status = inventory_statuses.get(serial, {}) %}
-                                    <option value="{{ serial }}" class="{{ status.get('class_name', '') }}" data-status-label="{{ status.get('label', '') }}" data-has-prior-use="{{ 'true' if status.get('has_prior_use') else 'false' }}" data-status-class="{{ status.get('class_name', '') }}" data-direct-cutting-pcs="{{ 'true' if status.get('is_direct_cutting_pcs') else 'false' }}" {% if selected_inventory_serial == serial %}selected{% endif %}>{{ serial }}{% if status.get('label') %}  {{ status.get('label') }}{% endif %}</option>
+                                    <option value="{{ serial }}" class="{{ status.get('class_name', '') }}" data-status-label="{{ status.get('label', '') }}" data-has-prior-use="{{ 'true' if status.get('has_prior_use') else 'false' }}" data-status-class="{{ status.get('class_name', '') }}" data-direct-cutting-pcs="{{ 'true' if status.get('is_direct_cutting_pcs') else 'false' }}" {% if selected_inventory_serial == serial %}selected{% elif 'FINISHED' in status.get('label', '') %}disabled{% endif %}>{{ serial }}{% if status.get('label') %}  {{ status.get('label') }}{% endif %}</option>
                                 {% endfor %}
                                 </select>
                             </div>
@@ -160,7 +160,7 @@
                                 <option value="">None</option>
                                 {% for serial in inventory_serials %}
                                     {% set status = inventory_statuses.get(serial, {}) %}
-                                    <option value="{{ serial }}" class="{{ status.get('class_name', '') }}" data-status-label="{{ status.get('label', '') }}" data-has-prior-use="{{ 'true' if status.get('has_prior_use') else 'false' }}" data-status-class="{{ status.get('class_name', '') }}" data-direct-cutting-pcs="{{ 'true' if status.get('is_direct_cutting_pcs') else 'false' }}" {% if selected_secondary_inventory_serial == serial %}selected{% endif %}>{{ serial }}{% if status.get('label') %}  {{ status.get('label') }}{% endif %}</option>
+                                    <option value="{{ serial }}" class="{{ status.get('class_name', '') }}" data-status-label="{{ status.get('label', '') }}" data-has-prior-use="{{ 'true' if status.get('has_prior_use') else 'false' }}" data-status-class="{{ status.get('class_name', '') }}" data-direct-cutting-pcs="{{ 'true' if status.get('is_direct_cutting_pcs') else 'false' }}" {% if selected_secondary_inventory_serial == serial %}selected{% elif 'FINISHED' in status.get('label', '') %}disabled{% endif %}>{{ serial }}{% if status.get('label') %}  {{ status.get('label') }}{% endif %}</option>
                                 {% endfor %}
                                 </select>
                             </div>
@@ -818,6 +818,7 @@ function updateInventorySelectStatus(selectId) {
             const baseLabel = option.dataset.statusLabel || '';
             const isDirectCuttingPcs = option.dataset.directCuttingPcs === 'true';
             const isFinished = baseLabel.includes('FINISHED');
+            option.disabled = isFinished && !option.selected;
             const displayLabel = isDirectCuttingPcs
                 ? baseLabel
                 : isFinished
@@ -1460,7 +1461,10 @@ function syncSecondaryInventoryOptions() {
     Array.from(secondarySelect.options).forEach(option => {
         const optionValue = (option.value || '').trim();
         const optionIsDirect = option.dataset.directCuttingPcs === 'true';
+        const optionIsFinished = (option.dataset.statusLabel || '').includes('FINISHED');
         option.disabled = Boolean(
+            optionIsFinished && !option.selected
+        ) || Boolean(
             primaryValue
             && optionValue
             && (optionValue === primaryValue || optionIsDirect !== primaryIsDirect)

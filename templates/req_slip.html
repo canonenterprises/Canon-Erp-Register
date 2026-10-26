@@ -50,7 +50,7 @@
                 <span class="px-3 py-1 rounded-full bg-emerald-100 text-black-700 text-m font-bold">P.O No: {{ po_no }}</span>
             </div>
 
-            <fieldset class="mb-4 flex w-full max-w-md rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Company">
+            <fieldset class="mb-4 flex w-full max-w-md rounded-lg border border-slate-200 bg-slate-100 p-1 no-print" aria-label="Company">
                 <legend class="sr-only">Company</legend>
                 <label class="flex-1 cursor-pointer">
                     <input type="radio" name="company" value="Canon" class="peer sr-only" {% if prefill.company == 'Canon' %}checked{% endif %} required>

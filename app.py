@@ -1048,8 +1048,16 @@ def accessory_required_qty_for_cut(item, order, cutting_pcs):
     if order.article_id:
         spec = article_material_spec_for_item(order, item.item)
         if spec:
+            original_order_pcs = get_effective_order_quantity(order)
+            accessory_order_pcs = get_accessory_order_quantity(order)
+            margin_pcs_factor = (
+                accessory_order_pcs / original_order_pcs
+                if original_order_pcs > 0 else 1.0
+            )
             required_qty = accessory_usage_stock_qty(
-                item, cutting_pcs * parse_numeric(spec.qty_per_piece), spec.unit
+                item,
+                cutting_pcs * margin_pcs_factor * parse_numeric(spec.qty_per_piece),
+                spec.unit
             )
             factor = parse_numeric(item.issue_unit_factor)
             if is_roll_unit(item.unit) and parse_numeric(item.roll_length_m) > 0:
@@ -1059,13 +1067,13 @@ def accessory_required_qty_for_cut(item, order, cutting_pcs):
             if required_qty > 0:
                 return required_qty
         return 0.0
-    order_pcs = get_effective_order_quantity(order)
+    order_pcs = get_accessory_order_quantity(order)
     return parse_numeric(item.qty) * cutting_pcs / order_pcs if order_pcs > 0 else 0.0
 
 
 def build_cut_accessory_rows(order, cutting_sheet):
     cutting_pcs = accessory_cut_pcs(cutting_sheet)
-    order_pcs = get_effective_order_quantity(order)
+    order_pcs = get_accessory_order_quantity(order)
     groups = {}
 
     def get_group(item, size, quality, unit, sort_order, roll_length_m=0, issue_unit='', issue_unit_factor=1):
@@ -1713,6 +1721,15 @@ def get_effective_order_quantity(order):
     if not pieces:
         pieces = parse_numeric(order.qty)
     return pieces
+
+
+def get_accessory_order_quantity(order):
+    order_pcs = get_effective_order_quantity(order)
+    margin_percent = parse_numeric(order.margin)
+    if order_pcs <= 0 or margin_percent <= 0:
+        return order_pcs
+    excess_pcs = round(order_pcs * margin_percent / 100)
+    return order_pcs + excess_pcs
 
 
 def get_completed_cut_pieces(order):
@@ -2738,6 +2755,13 @@ def is_read_only_profile():
     return (
         session.get('role') == 'assistant_manager'
         or session.get('profile_role') == 'operations_manager'
+    )
+
+
+def has_page_write_access(access_key):
+    return owner_only() or (
+        bool(session.get('user'))
+        and access_key in getattr(g, 'page_access_keys', set())
     )
 
 
@@ -4009,6 +4033,7 @@ class Worker(db.Model):
     employment_type = db.Column(db.String(50))
     department = db.Column(db.String(100))
     status = db.Column(db.String(20), nullable=False, default='Active')
+    is_permanent = db.Column(db.Boolean, nullable=False, default=False)
     education_entries = db.relationship('EducationBackground', backref='worker', cascade='all, delete-orphan')
     advances = db.relationship('WorkerAdvance', backref='worker', cascade='all, delete-orphan')
 
@@ -4928,6 +4953,28 @@ def ensure_vendor_schema(engine):
 with app.app_context():
     print("Creating tables...")
     db.create_all()
+    worker_columns = {column['name'] for column in inspect(db.engine).get_columns('worker')}
+    if 'is_permanent' not in worker_columns:
+        with db.engine.begin() as conn:
+            conn.execute(text('ALTER TABLE worker ADD COLUMN is_permanent BOOLEAN NOT NULL DEFAULT 0'))
+
+    permanent_worker = Worker.query.filter(
+        (func.lower(func.trim(Worker.name)) == 'canon')
+        | (Worker.is_permanent.is_(True))
+    ).first()
+    if permanent_worker:
+        permanent_worker.is_permanent = True
+    else:
+        db.session.add(Worker(
+            name='CANON',
+            worker_code='CANON',
+            employment_type='salaried',
+            salary=0.0,
+            attendance_allowance=0.0,
+            status='Active',
+            is_permanent=True,
+        ))
+
     for table_name in ('billing_invoice_line', 'customer_bill_line'):
         columns = {
             column['name'] for column in inspect(db.engine).get_columns(table_name)
@@ -8803,7 +8850,7 @@ def order_accessories(job_no):
             ))
         return redirect(url_for('order_accessories', job_no=job_no))
 
-    order_qty = get_effective_order_quantity(order)
+    order_qty = get_accessory_order_quantity(order)
 
     accessory_groups = {}
     issue_rows = AccessoryIssue.query.filter_by(order_id=job_no).order_by(AccessoryIssue.id.asc()).all()
@@ -9549,7 +9596,7 @@ def logout():
 
 @app.route('/activity-log')
 def activity_log():
-    if not owner_only():
+    if session.get('role') not in ('owner', 'manager'):
         return redirect(url_for('index'))
 
     search = (request.args.get('q') or '').strip()
@@ -9909,7 +9956,8 @@ PAGE_ACCESS_OPTIONS = [
     ('worker_management', 'Worker Management', ('manager', 'operations', 'assistant_manager')),
     ('worker_advance', 'Worker Advance Management', ('manager', 'operations', 'assistant_manager')),
     ('worker_attendance', 'Worker Attendance', ('manager', 'operations', 'assistant_manager')),
-    ('vendors', 'Vendors & Items', ('manager', 'operations', 'assistant_manager')),
+    ('vendor_rates', 'Vendor & Their Rates', ('manager', 'operations', 'assistant_manager')),
+    ('item_list', 'Item List', ('manager', 'operations', 'assistant_manager')),
     ('departments', 'Departments', ('manager', 'operations')),
     ('factory_ledger', 'Factory In/Out Ledger', ('manager', 'operations', 'assistant_manager')),
     ('stock_home', 'Stock Portal', ('stock',)),
@@ -9933,6 +9981,8 @@ SPECIAL_ACCESS_OPTIONS = [
     ('fabric_reports', 'Fabric report sections', ('stock',)),
     ('cut_wise_accessory_issue', 'Cut-wise accessory issue', ('manager', 'operations', 'assistant_manager')),
     ('local_po_generation', 'Local PO generation', ('manager', 'operations', 'assistant_manager', 'stock')),
+    ('allow_full_access_vendors', 'Allow Full Access of Vendors', ('manager', 'operations', 'assistant_manager')),
+    ('allow_full_access_item_list', 'Allow Full Access of Item List', ('manager', 'operations', 'assistant_manager')),
 ]
 PAGE_ACCESS_KEYS = {
     page_key
@@ -9978,10 +10028,16 @@ def account_page_access(account):
     except (TypeError, ValueError):
         configured_pages = None
     if configured_pages is None:
-        return available_pages - {'fabric_reports', 'local_po_generation'}
+        return available_pages - {
+            'fabric_reports', 'local_po_generation',
+            'allow_full_access_vendors', 'allow_full_access_item_list',
+        }
     if not isinstance(configured_pages, list):
         return set()
     configured_page_keys = set(configured_pages)
+    if 'vendors' in configured_page_keys:
+        configured_page_keys.discard('vendors')
+        configured_page_keys.update(('vendor_rates', 'item_list'))
     if 'workers' in configured_page_keys:
         configured_page_keys.update(('worker_management', 'worker_advance', 'worker_attendance'))
     if 'fabric' not in configured_page_keys:
@@ -9990,6 +10046,10 @@ def account_page_access(account):
         configured_page_keys.discard('cut_wise_accessory_issue')
     if 'accessories' not in configured_page_keys:
         configured_page_keys.discard('local_po_generation')
+    if 'vendor_rates' not in configured_page_keys:
+        configured_page_keys.discard('allow_full_access_vendors')
+    if 'item_list' not in configured_page_keys:
+        configured_page_keys.discard('allow_full_access_item_list')
     return {page for page in configured_page_keys if page in available_pages}
 
 
@@ -10025,8 +10085,10 @@ def required_page_for_request():
         return 'worker_advance'
     if path.startswith(('/manager/workers', '/manager/worker/', '/manager/delete-worker')):
         return 'worker_management'
-    if path.startswith(('/manager/vendors', '/manager/item-list', '/manager/api/item-list', '/manager/api/vendor-items')):
-        return 'vendors'
+    if path.startswith(('/manager/vendors', '/manager/api/vendor-items')):
+        return 'vendor_rates'
+    if path.startswith(('/manager/item-list', '/manager/api/item-list')):
+        return 'item_list'
     if path.startswith('/manager/departments'):
         return 'departments'
     if path.startswith('/factory-in-out-ledger'):
@@ -10133,6 +10195,8 @@ def inject_page_access_keys():
     return {
         'page_access_keys': getattr(g, 'page_access_keys', PAGE_ACCESS_KEYS),
         'read_only_profile': is_read_only_profile(),
+        'vendor_full_access': has_page_write_access('allow_full_access_vendors'),
+        'item_list_full_access': has_page_write_access('allow_full_access_item_list'),
     }
 
 
@@ -10178,6 +10242,10 @@ def portal_controls():
             page_access.discard('cut_wise_accessory_issue')
         if 'accessories' not in page_access:
             page_access.discard('local_po_generation')
+        if 'vendor_rates' not in page_access:
+            page_access.discard('allow_full_access_vendors')
+        if 'item_list' not in page_access:
+            page_access.discard('allow_full_access_item_list')
         page_access = sorted(page_access)
 
         if action == 'create':
@@ -10851,7 +10919,7 @@ def req_slip():
         {'item_name': spec.item_name or '', 'qty_per_piece': parse_numeric(spec.qty_per_piece), 'unit': spec.unit or ''}
         for spec in article_specs
     ]
-    order_requirement_qty = get_effective_order_quantity(order) if order else 0.0
+    order_requirement_qty = get_accessory_order_quantity(order) if order else 0.0
 
     edit_req = None
     prefill = {
@@ -14712,6 +14780,8 @@ def vendors():
         return redirect(url_for('index'))
 
     if request.method == 'POST':
+        if not has_page_write_access('allow_full_access_vendors'):
+            return reject_read_only_edit('This profile has read-only access to vendors and vendor rates.')
         vendor_name = (request.form.get('vendor_name') or '').strip()
         if not vendor_name:
             flash('Vendor name is required.', 'danger')
@@ -14764,6 +14834,8 @@ def item_list():
         return redirect(url_for('index'))
 
     if request.method == 'POST':
+        if not has_page_write_access('allow_full_access_item_list'):
+            return reject_read_only_edit('This profile has read-only access to the item list.')
         item_ids = request.form.getlist('item_id')
         item_names = request.form.getlist('item_name')
         materials = request.form.getlist('material')
@@ -14772,12 +14844,6 @@ def item_list():
         issue_units = request.form.getlist('issue_unit')
         returnables = request.form.getlist('returnable')
         refundables = request.form.getlist('refundable')
-        if is_read_only_profile():
-            if any(item_id.strip() for item_id in item_ids) or any(
-                ItemMaster.query.filter(func.lower(func.trim(ItemMaster.item_name)) == name.strip().lower()).first()
-                for name in item_names if name and name.strip()
-            ):
-                return reject_read_only_edit('Saved items cannot be changed.')
         saved_count = 0
         activity_actions = []
 
@@ -14845,7 +14911,11 @@ def item_list():
         return redirect(url_for('item_list'))
 
     items = ItemMaster.query.order_by(ItemMaster.item_name.asc()).all()
-    return render_template('item_list.html', items=items, read_only_profile=is_read_only_profile())
+    return render_template(
+        'item_list.html',
+        items=items,
+        read_only_profile=not has_page_write_access('allow_full_access_item_list'),
+    )
 
 
 @app.route('/manager/vendors/<int:vendor_id>', methods=['GET', 'POST'])
@@ -14855,6 +14925,8 @@ def vendor_detail(vendor_id):
 
     vendor = Vendor.query.get_or_404(vendor_id)
     if request.method == 'POST':
+        if not has_page_write_access('allow_full_access_vendors'):
+            return reject_read_only_edit('This profile has read-only access to vendors and vendor rates.')
         action = (request.form.get('action') or 'add_item').strip()
         if action == 'update_vendor':
             vendor_name = (request.form.get('vendor_name') or '').strip()
@@ -16515,6 +16587,14 @@ def workers(job_no=None):
     if request.method == 'POST':
         # Get form data
         worker_id = request.form.get('worker_id')
+        if worker_id:
+            existing_worker = Worker.query.get(worker_id)
+            if not existing_worker:
+                flash('Worker not found.', 'danger')
+                return redirect(url_for('workers'))
+            if existing_worker.is_permanent:
+                flash('The permanent CANON worker cannot be edited.', 'danger')
+                return redirect(url_for('workers'))
         name = request.form.get('name')
         email = request.form.get('email')
         phone = request.form.get('phone')
@@ -16684,8 +16764,21 @@ def workers(job_no=None):
             editing_worker = Worker.query.get(int(query_worker_id))
         except Exception:
             editing_worker = None
+        if editing_worker and editing_worker.is_permanent:
+            flash('The permanent CANON worker cannot be edited.', 'danger')
+            return redirect(url_for('workers'))
 
-    workers_list = Worker.query.order_by(Worker.id.desc()).all()
+    can_view_permanent_worker = (
+        session.get('role') in ('owner', 'manager')
+        and not is_read_only_profile()
+    )
+    workers_query = Worker.query
+    if not can_view_permanent_worker:
+        workers_query = workers_query.filter(or_(
+            Worker.is_permanent.is_(False),
+            Worker.is_permanent.is_(None),
+        ))
+    workers_list = workers_query.order_by(Worker.id.desc()).all()
     advance_summaries = []
     for worker in workers_list:
         advance_entries = [a for a in worker.advances if a.record_type == 'advance']
@@ -16728,6 +16821,8 @@ def worker_print(worker_id):
     if not worker:
         flash('Worker not found.', 'danger')
         return redirect(url_for('workers'))
+    if worker.is_permanent:
+        abort(403)
     return render_template('worker_print.html', worker=worker)
 
 
@@ -17071,6 +17166,9 @@ def delete_worker():
     worker = Worker.query.get(worker_id) if worker_id else None
 
     if worker:
+        if worker.is_permanent:
+            flash('The permanent CANON worker cannot be deleted.', 'danger')
+            return redirect(url_for('workers'))
         # attempt to remove picture file
         if worker.picture:
             try:
