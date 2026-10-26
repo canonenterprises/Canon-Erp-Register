@@ -70,11 +70,11 @@
                 </fieldset>
                 <fieldset data-special-access-group="create" hidden class="sm:col-span-2 rounded-xl border border-amber-200 bg-amber-50/40 p-4">
                     <legend class="px-1 text-sm font-bold text-slate-700">Special access</legend>
-                    <p class="mb-3 text-xs text-slate-500">Grant additional report sections within Fabric Ledger.</p>
+                    <p class="mb-3 text-xs text-slate-500">Grant page-specific actions beyond the standard page access.</p>
                     <div class="flex flex-wrap gap-x-6 gap-y-3">
                         {% for access_key, access_label, access_portals in special_access_options %}
                         <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
-                            <input type="checkbox" name="special_access" value="{{ access_key }}" data-special-access="create" data-special-portals="{{ access_portals|join(',') }}" class="rounded border-slate-300 text-amber-600 focus:ring-amber-500">
+                            <input type="checkbox" name="special_access" value="{{ access_key }}" data-special-access="create" data-special-portals="{{ access_portals|join(',') }}" data-special-page-depends-on="{{ 'fabric' if access_key == 'fabric_reports' else 'order_accessories' if access_key == 'cut_wise_accessory_issue' else 'accessories' if access_key == 'local_po_generation' else '' }}" class="rounded border-slate-300 text-amber-600 focus:ring-amber-500">
                             {{ access_label }}
                         </label>
                         {% endfor %}
@@ -148,7 +148,7 @@
                                     <div class="space-y-2">
                                         {% for access_key, access_label, access_portals in special_access_options %}
                                         <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
-                                            <input form="edit-account-{{ account.id }}" type="checkbox" name="special_access" value="{{ access_key }}" data-special-access="{{ account.id }}" data-special-portals="{{ access_portals|join(',') }}" {% if access_key in account_page_access[account.id] %}checked{% endif %} class="rounded border-slate-300 text-amber-600 focus:ring-amber-500">
+                                            <input form="edit-account-{{ account.id }}" type="checkbox" name="special_access" value="{{ access_key }}" data-special-access="{{ account.id }}" data-special-portals="{{ access_portals|join(',') }}" data-special-page-depends-on="{{ 'fabric' if access_key == 'fabric_reports' else 'order_accessories' if access_key == 'cut_wise_accessory_issue' else 'accessories' if access_key == 'local_po_generation' else '' }}" {% if access_key in account_page_access[account.id] %}checked{% endif %} class="rounded border-slate-300 text-amber-600 focus:ring-amber-500">
                                             {{ access_label }}
                                         </label>
                                         {% endfor %}
@@ -248,21 +248,23 @@
             if (!canAccessPage) checkbox.checked = false;
         });
 
-        const fabricPageEnabled = Array.from(document.querySelectorAll(`[data-page-access="${profileKey}"]`))
-            .some((checkbox) => checkbox.value === 'fabric' && checkbox.checked);
         const specialAccess = Array.from(document.querySelectorAll(`[data-special-access="${profileKey}"]`));
-        const canAccessSpecial = fabricPageEnabled && specialAccess.some((checkbox) =>
-            checkbox.dataset.specialPortals.split(',').some((portal) => grantedPortals.has(portal))
-        );
+        let canAccessSpecial = false;
+        specialAccess.forEach((checkbox) => {
+            const requiredPage = checkbox.dataset.specialPageDependsOn;
+            const pageEnabled = !requiredPage || Array.from(document.querySelectorAll(`[data-page-access="${profileKey}"]`))
+                .some((pageCheckbox) => pageCheckbox.value === requiredPage && pageCheckbox.checked);
+            const portalEnabled = checkbox.dataset.specialPortals.split(',').some((portal) => grantedPortals.has(portal));
+            const available = pageEnabled && portalEnabled;
+            const label = checkbox.closest('label');
+            label.hidden = !available;
+            label.style.display = available ? '' : 'none';
+            checkbox.disabled = !available;
+            if (!available) checkbox.checked = false;
+            if (available) canAccessSpecial = true;
+        });
         document.querySelectorAll(`[data-special-access-group="${profileKey}"]`).forEach((group) => {
             group.hidden = !canAccessSpecial;
-        });
-        specialAccess.forEach((checkbox) => {
-            const label = checkbox.closest('label');
-            label.hidden = !canAccessSpecial;
-            label.style.display = canAccessSpecial ? '' : 'none';
-            checkbox.disabled = !canAccessSpecial;
-            if (!canAccessSpecial) checkbox.checked = false;
         });
     }
 

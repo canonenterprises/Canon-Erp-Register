@@ -175,5 +175,12 @@
     const content = document.querySelector('.cut-accessories-print-content');
     if (content) content.style.removeProperty('--cut-print-scale');
   });
+  if (new URLSearchParams(window.location.search).get('auto_print') === '1') {
+    const triggerPrint = function () {
+      window.setTimeout(function () { window.print(); }, 150);
+    };
+    if (document.readyState === 'complete') triggerPrint();
+    else window.addEventListener('load', triggerPrint, { once: true });
+  }
 </script>
 {% endblock %}

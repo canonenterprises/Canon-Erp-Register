@@ -551,6 +551,13 @@ def get_inventory_status(inventory_obj):
     if not inventory_obj:
         return 'Not Used'
 
+    if getattr(inventory_obj, 'is_direct_cutting_pcs', False):
+        received_pcs = max(0.0, parse_numeric(inventory_obj.direct_cutting_pcs))
+        remaining_pcs = calculate_inventory_direct_cut_pcs_remaining(inventory_obj)
+        if received_pcs <= 0 or remaining_pcs >= received_pcs:
+            return 'Not Used'
+        return 'Finished' if remaining_pcs <= 0 else 'Active'
+
     actual_used = calculate_inventory_actual_used_fabric(inventory_obj)
     balance = calculate_inventory_fabric_balances(inventory_obj)
     rejected_fabric = max(0.0, parse_numeric(getattr(inventory_obj, 'rejected_fabric', 0)))
@@ -664,6 +671,43 @@ def calculate_inventory_consumption_state(inventory_obj, before_cut_no=None, ord
         'reactive_remaining': max(0.0, reactive_remaining),
         'used_fabric': used_fabric,
     }
+
+
+def calculate_inventory_direct_cut_pcs_remaining(
+    inventory_obj, before_cut_no=None, order_id=None, before_date=None, current_sheet_id=None
+):
+    if not inventory_obj:
+        return 0.0
+
+    received_pcs = max(0.0, parse_numeric(getattr(inventory_obj, 'direct_cutting_pcs', 0)))
+    if received_pcs <= 0:
+        return 0.0
+
+    current_sheet = db.session.get(CuttingSheet, current_sheet_id) if current_sheet_id else None
+    effective_order_id = order_id or getattr(inventory_obj, 'order_id', None)
+    current_order = Order.query.filter_by(job_no=effective_order_id).first() if effective_order_id else None
+    current_file_no = (current_order.file_no or '').strip() if current_order else ''
+    usage_rows = InventoryRow.query.filter_by(inventory_id=inventory_obj.id).all()
+    used_pcs = 0.0
+
+    for row in usage_rows:
+        row_usage = max(0.0, parse_numeric(getattr(row, 'direct_pcs_used', 0)))
+        if row_usage <= 0:
+            continue
+        if current_sheet and row.sno == current_sheet.serial_no and row.cut_no == current_sheet.cut_no:
+            continue
+        if before_date and row.date and str(row.date) > str(before_date):
+            continue
+        if before_cut_no is not None and row.file_no == current_file_no:
+            try:
+                row_cut_no = int(str(row.cut_no))
+            except (TypeError, ValueError):
+                row_cut_no = 0
+            if row_cut_no >= int(before_cut_no):
+                continue
+        used_pcs += row_usage
+
+    return max(0.0, received_pcs - used_pcs)
 
 
 def calculate_inventory_b_usage_for_period(inventory_obj, start_date=None, end_date=None, order_id=None):
@@ -855,6 +899,62 @@ def accessory_layer_received_qty(item):
     return max(0.0, received)
 
 
+def accessory_cut_stock_summary(item_name, size, quality, stock_unit):
+    requirements = SavedRequirement.query.filter(
+        func.lower(func.trim(SavedRequirement.item)) == (item_name or '').strip().casefold(),
+    ).all()
+    matching = [
+        requirement for requirement in requirements
+        if (requirement.size or '').strip().casefold() == (size or '').strip().casefold()
+        and (requirement.quality or '').strip().casefold() == (quality or '').strip().casefold()
+        and (requirement.unit or '').strip().casefold() == (stock_unit or '').strip().casefold()
+        and accessory_layer_received_qty(requirement) > 0
+    ]
+    received = sum(accessory_layer_received_qty(requirement) for requirement in matching)
+    available = sum(
+        max(0.0, accessory_layer_received_qty(requirement) - accessory_layer_issued_qty(requirement))
+        for requirement in matching
+    )
+    roll_layers = [
+        requirement for requirement in matching
+        if is_roll_unit(requirement.issue_unit)
+        and parse_numeric(requirement.issue_unit_factor) > 0
+    ]
+    available_roll_layers = [
+        requirement for requirement in roll_layers
+        if max(
+            0.0,
+            accessory_layer_received_qty(requirement) - accessory_layer_issued_qty(requirement),
+        ) > 0.000001
+    ]
+    average_layers = available_roll_layers or roll_layers
+    roll_quantities = []
+    for requirement in average_layers:
+        stock_qty = (
+            max(
+                0.0,
+                accessory_layer_received_qty(requirement) - accessory_layer_issued_qty(requirement),
+            ) if available_roll_layers else accessory_layer_received_qty(requirement)
+        )
+        stock_per_roll = parse_numeric(requirement.issue_unit_factor)
+        roll_length_m = parse_numeric(requirement.roll_length_m)
+        if roll_length_m <= 0:
+            roll_length_m = length_to_meters(stock_per_roll, requirement.unit)
+        if stock_per_roll > 0 and roll_length_m > 0:
+            roll_quantities.append((roll_length_m, stock_qty / stock_per_roll))
+    roll_count = sum(quantity for _, quantity in roll_quantities)
+    average_meters_per_roll = (
+        sum(length * quantity for length, quantity in roll_quantities) / roll_count
+        if roll_count > 0 else 0.0
+    )
+    return {
+        'received': received,
+        'available': available,
+        'average_meters_per_roll': average_meters_per_roll,
+        'roll_unit': (roll_layers[0].issue_unit or '').strip() if roll_layers else '',
+    }
+
+
 def accessory_receipt_unit_rate(item):
     rate = parse_numeric(item.rate)
     if rate > 0:
@@ -948,8 +1048,16 @@ def accessory_required_qty_for_cut(item, order, cutting_pcs):
     if order.article_id:
         spec = article_material_spec_for_item(order, item.item)
         if spec:
+            original_order_pcs = get_effective_order_quantity(order)
+            accessory_order_pcs = get_accessory_order_quantity(order)
+            margin_pcs_factor = (
+                accessory_order_pcs / original_order_pcs
+                if original_order_pcs > 0 else 1.0
+            )
             required_qty = accessory_usage_stock_qty(
-                item, cutting_pcs * parse_numeric(spec.qty_per_piece), spec.unit
+                item,
+                cutting_pcs * margin_pcs_factor * parse_numeric(spec.qty_per_piece),
+                spec.unit
             )
             factor = parse_numeric(item.issue_unit_factor)
             if is_roll_unit(item.unit) and parse_numeric(item.roll_length_m) > 0:
@@ -959,13 +1067,13 @@ def accessory_required_qty_for_cut(item, order, cutting_pcs):
             if required_qty > 0:
                 return required_qty
         return 0.0
-    order_pcs = get_effective_order_quantity(order)
+    order_pcs = get_accessory_order_quantity(order)
     return parse_numeric(item.qty) * cutting_pcs / order_pcs if order_pcs > 0 else 0.0
 
 
 def build_cut_accessory_rows(order, cutting_sheet):
     cutting_pcs = accessory_cut_pcs(cutting_sheet)
-    order_pcs = get_effective_order_quantity(order)
+    order_pcs = get_accessory_order_quantity(order)
     groups = {}
 
     def get_group(item, size, quality, unit, sort_order, roll_length_m=0, issue_unit='', issue_unit_factor=1):
@@ -1038,31 +1146,51 @@ def build_cut_accessory_rows(order, cutting_sheet):
             if not stock_requirement:
                 stock_requirement = order_requirement
             if stock_requirement:
-                has_received_stock = accessory_layer_received_qty(stock_requirement) > 0
+                stock_summary = accessory_cut_stock_summary(
+                    spec.item_name, spec.size, spec.material, stock_requirement.unit
+                )
+                has_received_stock = stock_summary['received'] > 0.000001
                 receipt_issue_unit = (stock_requirement.issue_unit or '').strip()
                 display_unit = (
-                    receipt_issue_unit if has_received_stock and receipt_issue_unit
+                    stock_summary['roll_unit'] if has_received_stock and stock_summary['average_meters_per_roll'] > 0
+                    else receipt_issue_unit if has_received_stock and receipt_issue_unit
                     else stock_requirement.unit
                 ) or spec.unit or ''
                 group = get_group(
                     stock_requirement.item, stock_requirement.size, stock_requirement.quality,
                     display_unit, spec.sort_order or 0,
                 )
-                required_qty = accessory_usage_stock_qty(
-                    stock_requirement, cutting_pcs * parse_numeric(spec.qty_per_piece), spec.unit
+                usage_qty = cutting_pcs * parse_numeric(spec.qty_per_piece)
+                required_stock_qty = accessory_usage_stock_qty(
+                    stock_requirement, usage_qty, spec.unit
                 )
-                if is_roll_unit(stock_requirement.unit) and parse_numeric(stock_requirement.roll_length_m) > 0:
-                    required_qty = math.ceil(required_qty - 1e-10)
-                else:
-                    required_qty = round_accessory_qty_to_issue_unit(stock_requirement, required_qty)
-                stock_per_issue_unit = 1.0
+                stock_unit = (stock_requirement.unit or '').strip()
                 if (
                     has_received_stock
-                    and receipt_issue_unit.casefold() == (display_unit or '').strip().casefold()
-                    and receipt_issue_unit.casefold() != (stock_requirement.unit or '').strip().casefold()
+                    and is_roll_unit(display_unit)
+                    and stock_summary['average_meters_per_roll'] > 0
                 ):
-                    stock_per_issue_unit = parse_numeric(stock_requirement.issue_unit_factor) or 1.0
-                group['required'] += required_qty / stock_per_issue_unit
+                    required_meters = length_to_meters(usage_qty, spec.unit)
+                    required_qty = math.ceil(
+                        required_meters / stock_summary['average_meters_per_roll'] - 1e-10
+                    )
+                    stock_per_issue_unit = stock_summary['average_meters_per_roll']
+                elif has_received_stock and display_unit.casefold() != stock_unit.casefold():
+                    stock_per_issue_unit = accessory_issue_stock_qty(
+                        stock_requirement, 1.0, display_unit
+                    )
+                    required_qty = required_stock_qty / stock_per_issue_unit if stock_per_issue_unit > 0 else 0.0
+                    if is_discrete_issue_unit(display_unit):
+                        required_qty = math.ceil(required_qty - 1e-10)
+                else:
+                    required_qty = required_stock_qty
+                    stock_per_issue_unit = 1.0
+                    if is_discrete_issue_unit(stock_unit):
+                        required_qty = math.ceil(required_qty - 1e-10)
+                group['required'] += required_qty
+                group['stock_available'] = stock_summary['available']
+                group['stock_unit'] = stock_unit
+                group['stock_per_display_unit'] = stock_per_issue_unit
                 continue
             display_unit = spec.unit or ''
             group = get_group(
@@ -1076,10 +1204,15 @@ def build_cut_accessory_rows(order, cutting_sheet):
             group['required'] += required_qty
     elif order_pcs > 0 and not order.article_id:
         for requirement in SavedRequirement.query.filter_by(order_id=order.job_no).all():
-            has_received_stock = accessory_layer_received_qty(requirement) > 0
+            stock_summary = accessory_cut_stock_summary(
+                requirement.item, requirement.size, requirement.quality, requirement.unit
+            )
+            has_received_stock = stock_summary['received'] > 0.000001
+            receipt_issue_unit = (requirement.issue_unit or '').strip()
             display_unit = (
-                (requirement.issue_unit or '').strip()
-                if has_received_stock else (requirement.unit or '').strip()
+                stock_summary['roll_unit'] if has_received_stock and stock_summary['average_meters_per_roll'] > 0
+                else receipt_issue_unit if has_received_stock and receipt_issue_unit
+                else (requirement.unit or '').strip()
             ) or requirement.unit or ''
             group = get_group(
                 requirement.item,
@@ -1088,24 +1221,47 @@ def build_cut_accessory_rows(order, cutting_sheet):
                 display_unit,
                 999999,
             )
-            required_qty = parse_numeric(requirement.qty) * cutting_pcs / order_pcs
-            stock_per_issue_unit = (
-                parse_numeric(requirement.issue_unit_factor) or 1.0
-                if has_received_stock and (display_unit or '').strip().casefold() != (requirement.unit or '').strip().casefold()
-                else 1.0
-            )
-            group['required'] += required_qty / stock_per_issue_unit
+            required_stock_qty = parse_numeric(requirement.qty) * cutting_pcs / order_pcs
+            stock_unit = (requirement.unit or '').strip()
+            if (
+                has_received_stock
+                and is_roll_unit(display_unit)
+                and stock_summary['average_meters_per_roll'] > 0
+            ):
+                required_meters = length_to_meters(required_stock_qty, stock_unit)
+                required_qty = math.ceil(
+                    required_meters / stock_summary['average_meters_per_roll'] - 1e-10
+                )
+                group['stock_per_display_unit'] = stock_summary['average_meters_per_roll']
+            elif has_received_stock and display_unit.casefold() != stock_unit.casefold():
+                stock_per_issue_unit = accessory_issue_stock_qty(requirement, 1.0, display_unit)
+                required_qty = required_stock_qty / stock_per_issue_unit if stock_per_issue_unit > 0 else 0.0
+                if is_discrete_issue_unit(display_unit):
+                    required_qty = math.ceil(required_qty - 1e-10)
+                group['stock_per_display_unit'] = stock_per_issue_unit
+            else:
+                required_qty = required_stock_qty
+                if is_discrete_issue_unit(stock_unit):
+                    required_qty = math.ceil(required_qty - 1e-10)
+                group['stock_per_display_unit'] = 1.0
+            group['required'] += required_qty
+            group['stock_available'] = stock_summary['available']
+            group['stock_unit'] = stock_unit
 
     for issue in cut_issues:
         requirement = issue.requirement
         if not requirement:
             continue
-        has_received_stock = accessory_layer_received_qty(requirement) > 0
+        stock_summary = accessory_cut_stock_summary(
+            requirement.item, requirement.size, requirement.quality, requirement.unit
+        )
+        has_received_stock = stock_summary['received'] > 0.000001
         stock_unit = (requirement.unit or '').strip()
         receipt_issue_unit = (requirement.issue_unit or '').strip()
         display_unit = (
-            (receipt_issue_unit or issue.issued_as_unit or stock_unit)
-            if has_received_stock else stock_unit
+            stock_summary['roll_unit'] if has_received_stock and stock_summary['average_meters_per_roll'] > 0
+            else receipt_issue_unit if has_received_stock and receipt_issue_unit
+            else stock_unit
         ) or issue.issued_as_unit or ''
         group = get_group(
             requirement.item,
@@ -1137,6 +1293,12 @@ def build_cut_accessory_rows(order, cutting_sheet):
         group['issued'] += issued_in_display_unit
         group['returned'] += returned_in_display_unit
         group['net_issued'] += max(0.0, issued_in_display_unit - refundable_qty / issue_conversion_factor)
+        group['stock_available'] = stock_summary['available']
+        group['stock_unit'] = stock_unit
+        group['stock_per_display_unit'] = (
+            stock_summary['average_meters_per_roll']
+            if is_roll_unit(display_unit) else 1.0
+        )
 
     result = list(groups.values())
     for group in result:
@@ -1146,12 +1308,29 @@ def build_cut_accessory_rows(order, cutting_sheet):
         group['display_required'] = group['required']
         group['display_net_issued'] = group['net_issued']
         group['display_remaining'] = group['remaining']
+        stock_per_display_unit = parse_numeric(group.get('stock_per_display_unit')) or 1.0
+        available_in_display_unit = parse_numeric(group.get('stock_available')) / stock_per_display_unit
+        group['display_stock_available'] = available_in_display_unit
+        if available_in_display_unit <= 0.000001:
+            group['stock_status'] = 'Out of stock'
+        elif available_in_display_unit + 0.000001 < group['remaining']:
+            group['stock_status'] = 'Low stock'
+        else:
+            group['stock_status'] = 'In stock'
     result.sort(key=lambda row: (
         row['sort_order'],
         row['item'].casefold(),
         row['size'].casefold(),
     ))
     return result
+
+
+def cut_accessories_fully_issued(order, cutting_sheet):
+    required_items = [
+        item for item in build_cut_accessory_rows(order, cutting_sheet)
+        if item['required'] > 0.000001
+    ]
+    return all(item['remaining'] <= 0.000001 for item in required_items)
 
 
 def accessory_layer_issue_entries(item):
@@ -1542,6 +1721,15 @@ def get_effective_order_quantity(order):
     if not pieces:
         pieces = parse_numeric(order.qty)
     return pieces
+
+
+def get_accessory_order_quantity(order):
+    order_pcs = get_effective_order_quantity(order)
+    margin_percent = parse_numeric(order.margin)
+    if order_pcs <= 0 or margin_percent <= 0:
+        return order_pcs
+    excess_pcs = round(order_pcs * margin_percent / 100)
+    return order_pcs + excess_pcs
 
 
 def get_completed_cut_pieces(order):
@@ -3838,6 +4026,7 @@ class Worker(db.Model):
     employment_type = db.Column(db.String(50))
     department = db.Column(db.String(100))
     status = db.Column(db.String(20), nullable=False, default='Active')
+    is_permanent = db.Column(db.Boolean, nullable=False, default=False)
     education_entries = db.relationship('EducationBackground', backref='worker', cascade='all, delete-orphan')
     advances = db.relationship('WorkerAdvance', backref='worker', cascade='all, delete-orphan')
 
@@ -3934,6 +4123,8 @@ class Inventory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     created_by = db.Column(db.String(100), default='')
+    is_direct_cutting_pcs = db.Column(db.Boolean, nullable=False, default=False)
+    direct_cutting_pcs = db.Column(db.Float, nullable=False, default=0.0)
     serial_no = db.Column(db.String(100), unique=True)
     order_id = db.Column(db.String(100))
     recv_date = db.Column(db.String(50))
@@ -4004,6 +4195,7 @@ class InventoryRow(db.Model):
     issue_by = db.Column(db.String(100))
     fabric_return = db.Column(db.String(50))
     fabric_use = db.Column(db.String(50))
+    direct_pcs_used = db.Column(db.Float, nullable=False, default=0.0)
     wastage = db.Column(db.String(50))
     cut_pcs = db.Column(db.Integer)
     balance = db.Column(db.String(50))
@@ -4042,6 +4234,8 @@ class ReceivingChallan(db.Model):
     fabric_qty_a = db.Column(db.String(50))
     fabric_qty_b = db.Column(db.String(50))
     received_cut_pcs = db.Column(db.String(50))
+    is_direct_cutting_pcs = db.Column(db.Boolean, nullable=False, default=False)
+    direct_cutting_pcs = db.Column(db.Float, nullable=False, default=0.0)
     total = db.Column(db.String(50))
     rolls = db.Column(db.String(50))
     vehicle_no = db.Column(db.String(100))
@@ -4099,6 +4293,7 @@ class SavedRequirement(db.Model):
     supplier = db.Column(db.String(200))
     company = db.Column(db.String(20), nullable=False, default='Canon')
     requested_by = db.Column(db.String(100))
+    bought_by = db.Column(db.String(100), default='')
     priority = db.Column(db.String(50))
     date = db.Column(db.String(50))
     for_field = db.Column(db.String(100))
@@ -4250,6 +4445,8 @@ class CuttingSheet(db.Model):
     avg_other = db.Column(db.String(100))
     cutter_name = db.Column(db.String(200))
     fabric_issue = db.Column(db.String(100))
+    is_direct_cutting_pcs = db.Column(db.Boolean, nullable=False, default=False)
+    direct_pcs_balance = db.Column(db.String(100), default='')
     inventory_serial_no = db.Column(db.String(100))
     use_fabric_ch = db.Column(db.String(100))
     asst_cutter_name = db.Column(db.String(200))
@@ -4284,6 +4481,7 @@ class CuttingSheet(db.Model):
     mini_cp_22_grey = db.Column(db.String(100))
     recovered_fabric_usage = db.Column(db.String(500), default='{}')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    first_edit_used = db.Column(db.Boolean, nullable=False, default=False)
     rows = db.relationship('CuttingSheetRow', backref='cutting_sheet', cascade='all, delete-orphan')
     bundle_stickers = db.relationship(
         'BundleStickerEntry',
@@ -4420,11 +4618,25 @@ def ensure_table_columns(engine):
         inspector = inspect(engine)
         existing_tables = set(inspector.get_table_names())
         actor_columns = {
+            'inventory': {
+                'created_by': "VARCHAR(100) NOT NULL DEFAULT ''",
+                'is_direct_cutting_pcs': 'BOOLEAN NOT NULL DEFAULT FALSE',
+                'direct_cutting_pcs': 'FLOAT NOT NULL DEFAULT 0',
+            },
             'factory_manual_movement': {'person_in_charge': "VARCHAR(100) NOT NULL DEFAULT ''"},
-            'inventory': {'created_by': "VARCHAR(100) NOT NULL DEFAULT ''"},
-            'receiving_challan': {'created_by': "VARCHAR(100) NOT NULL DEFAULT ''"},
+            'inventory_row': {'direct_pcs_used': 'FLOAT NOT NULL DEFAULT 0'},
+            'receiving_challan': {
+                'created_by': "VARCHAR(100) NOT NULL DEFAULT ''",
+                'is_direct_cutting_pcs': 'BOOLEAN NOT NULL DEFAULT FALSE',
+                'direct_cutting_pcs': 'FLOAT NOT NULL DEFAULT 0',
+            },
             'saved_requirement': {'received_by': "VARCHAR(100) NOT NULL DEFAULT ''"},
             'accessory_supplier_return': {'created_by': "VARCHAR(100) NOT NULL DEFAULT ''"},
+            'cutting_sheet': {
+                'is_direct_cutting_pcs': 'BOOLEAN NOT NULL DEFAULT FALSE',
+                'direct_pcs_balance': "VARCHAR(100) NOT NULL DEFAULT ''",
+                'first_edit_used': 'BOOLEAN NOT NULL DEFAULT FALSE',
+            },
         }
         with engine.begin() as conn:
             for table_name, columns_to_add in actor_columns.items():
@@ -4685,6 +4897,7 @@ def ensure_vendor_schema(engine):
             'saved_requirement': {
                 'roll_length_m': 'FLOAT NOT NULL DEFAULT 0',
                 'company': "VARCHAR(20) NOT NULL DEFAULT 'Canon'",
+                'bought_by': "VARCHAR(100) NOT NULL DEFAULT ''",
             },
             'accessory_bill_voucher': {
                 'company': "VARCHAR(20) NOT NULL DEFAULT 'Canon'",
@@ -4733,6 +4946,28 @@ def ensure_vendor_schema(engine):
 with app.app_context():
     print("Creating tables...")
     db.create_all()
+    worker_columns = {column['name'] for column in inspect(db.engine).get_columns('worker')}
+    if 'is_permanent' not in worker_columns:
+        with db.engine.begin() as conn:
+            conn.execute(text('ALTER TABLE worker ADD COLUMN is_permanent BOOLEAN NOT NULL DEFAULT 0'))
+
+    permanent_worker = Worker.query.filter(
+        (func.lower(func.trim(Worker.name)) == 'canon')
+        | (Worker.is_permanent.is_(True))
+    ).first()
+    if permanent_worker:
+        permanent_worker.is_permanent = True
+    else:
+        db.session.add(Worker(
+            name='CANON',
+            worker_code='CANON',
+            employment_type='salaried',
+            salary=0.0,
+            attendance_allowance=0.0,
+            status='Active',
+            is_permanent=True,
+        ))
+
     for table_name in ('billing_invoice_line', 'customer_bill_line'):
         columns = {
             column['name'] for column in inspect(db.engine).get_columns(table_name)
@@ -6230,6 +6465,19 @@ def factory_in_out_ledger():
                 'Cut pieces',
                 reference,
                 receipt.received_cut_pcs,
+                'PCS',
+                recorded_at=receipt.created_at,
+                person_in_charge=receipt.created_by,
+            )
+        if receipt.is_direct_cutting_pcs and parse_numeric(receipt.direct_cutting_pcs) > 0:
+            add_movement(
+                receipt.recv_date,
+                'IN',
+                'Direct cutting PCS received',
+                fabric_name,
+                'Usable cut pieces',
+                reference,
+                receipt.direct_cutting_pcs,
                 'PCS',
                 recorded_at=receipt.created_at,
                 person_in_charge=receipt.created_by,
@@ -8363,7 +8611,7 @@ def accessory_cut_data():
     return jsonify({'cuts': cut_rows})
 
 
-@app.route('/order/<job_no>/accessories')
+@app.route('/order/<job_no>/accessories', methods=['GET', 'POST'])
 def order_accessories(job_no):
     if not session.get('role'):
         return redirect(url_for('index'))
@@ -8373,7 +8621,229 @@ def order_accessories(job_no):
         flash('Order not found.', 'danger')
         return redirect(url_for('manager_dashboard'))
 
-    order_qty = get_effective_order_quantity(order)
+    can_issue_cut_wise = (
+        session.get('role') == 'owner'
+        or 'cut_wise_accessory_issue' in getattr(g, 'page_access_keys', set())
+    )
+
+    if request.method == 'POST':
+        if request.form.get('action') != 'issue_cut_accessories':
+            abort(400)
+        if (
+            session.get('role') != 'owner'
+            and 'cut_wise_accessory_issue' not in getattr(g, 'page_access_keys', set())
+        ):
+            abort(403)
+
+        cut_sheet = CuttingSheet.query.filter_by(
+            id=request.form.get('cut_sheet_id', type=int),
+            order_id=job_no,
+        ).first()
+        issue_date = (request.form.get('issue_date') or '').strip()
+        worker_name = (request.form.get('worker_name') or '').strip()
+        if not cut_sheet or accessory_cut_pcs(cut_sheet) <= 0:
+            flash('Choose a valid cut with a positive cutting quantity.', 'danger')
+            return redirect(url_for('order_accessories', job_no=job_no))
+        if not issue_date or not worker_name:
+            flash('Issue date and worker name are required.', 'danger')
+            return redirect(url_for('order_accessories', job_no=job_no))
+        try:
+            datetime.strptime(issue_date, '%Y-%m-%d')
+        except ValueError:
+            flash('Enter a valid issue date.', 'danger')
+            return redirect(url_for('order_accessories', job_no=job_no))
+
+        item_indexes = request.form.getlist('issue_item_index')
+        requirement_ids = request.form.getlist('requirement_id')
+        location_ids = request.form.getlist('storage_location_id')
+        issue_quantities = request.form.getlist('issued_qty')
+        if not (len(item_indexes) == len(requirement_ids) == len(location_ids) == len(issue_quantities)):
+            abort(400)
+
+        cut_items = build_cut_accessory_rows(order, cut_sheet)
+        expected_item_indexes = {
+            index for index, item in enumerate(cut_items)
+            if item['required'] > 0.000001 and item['remaining'] > 0.000001
+        }
+        try:
+            submitted_item_indexes = [int(value) for value in item_indexes]
+        except (TypeError, ValueError):
+            abort(400)
+        if (
+            len(set(submitted_item_indexes)) != len(submitted_item_indexes)
+            or not set(submitted_item_indexes).issubset(expected_item_indexes)
+        ):
+            abort(400)
+
+        pending_issues = []
+        for item_index, requirement_id, location_id, quantity_value in zip(
+            submitted_item_indexes, requirement_ids, location_ids, issue_quantities
+        ):
+            try:
+                issued_as_qty = float(quantity_value or 0)
+            except (TypeError, ValueError):
+                flash('Enter a valid issue quantity for every accessory.', 'danger')
+                return redirect(url_for('order_accessories', job_no=job_no))
+            if issued_as_qty < 0:
+                flash('Issue quantities cannot be negative.', 'danger')
+                return redirect(url_for('order_accessories', job_no=job_no))
+            if issued_as_qty <= 0.000001:
+                continue
+
+            try:
+                requirement = db.session.get(SavedRequirement, int(requirement_id))
+                location = db.session.get(AccessoryStorageLocation, int(location_id))
+            except (TypeError, ValueError):
+                requirement = None
+                location = None
+            if not requirement or not location or location.requirement_id != requirement.id:
+                flash('Choose a valid accessory stock location for each issued item.', 'danger')
+                return redirect(url_for('order_accessories', job_no=job_no))
+            if accessory_layer_received_qty(requirement) <= 0:
+                flash('The selected accessory stock layer is no longer available.', 'danger')
+                return redirect(url_for('order_accessories', job_no=job_no))
+
+            cut_item = cut_items[item_index]
+            issue_unit = (requirement.issue_unit or requirement.unit or 'PCS').strip()
+            if (
+                (requirement.item or '').strip().casefold() != (cut_item['item'] or '').strip().casefold()
+                or (requirement.size or '').strip().casefold() != (cut_item['size'] or '').strip().casefold()
+                or (requirement.quality or '').strip().casefold() != (cut_item['quality'] or '').strip().casefold()
+                or issue_unit.casefold() != (cut_item['unit'] or '').strip().casefold()
+            ):
+                flash('The selected stock does not match this cut accessory.', 'danger')
+                return redirect(url_for('order_accessories', job_no=job_no))
+
+            issue_conversion_factor = parse_numeric(requirement.issue_unit_factor) or 1.0
+            issued_qty = accessory_issue_stock_qty(requirement, issued_as_qty, issue_unit)
+            if is_discrete_issue_unit(issue_unit) and abs(issued_as_qty - round(issued_as_qty)) > 0.000001:
+                flash(f'{issue_unit} must be issued as a whole quantity.', 'danger')
+                return redirect(url_for('order_accessories', job_no=job_no))
+            if issued_as_qty > cut_item['remaining'] + 0.000001:
+                flash(
+                    f"Issue quantity exceeds {cut_item['item']} remaining for this cut "
+                    f"({cut_item['remaining']:g} {issue_unit}).",
+                    'danger',
+                )
+                return redirect(url_for('order_accessories', job_no=job_no))
+            if issued_qty > parse_numeric(location.quantity) + 0.000001:
+                flash(
+                    f'Issue quantity exceeds this location balance '
+                    f'({location.quantity:g} {requirement.unit or "PCS"}).',
+                    'danger',
+                )
+                return redirect(url_for('order_accessories', job_no=job_no))
+
+            if is_accessory_returnable(requirement.item):
+                worker_issues = AccessoryIssue.query.join(SavedRequirement).filter(
+                    func.lower(func.trim(SavedRequirement.item)) == requirement.item.strip().casefold(),
+                    func.lower(func.trim(AccessoryIssue.worker_name)) == worker_name.casefold(),
+                ).all()
+                outstanding_qty = sum(
+                    max(0.0, parse_numeric(entry.issued_qty) - accessory_issue_returned_qty(entry))
+                    for entry in worker_issues
+                )
+                if outstanding_qty > 0.000001:
+                    flash(
+                        f'{worker_name} must return the outstanding {outstanding_qty:g} '
+                        f'{requirement.unit or "units"} of {requirement.item} before another issue.',
+                        'danger',
+                    )
+                    return redirect(url_for('order_accessories', job_no=job_no))
+
+            pending_issues.append({
+                'requirement': requirement,
+                'location': location,
+                'issue_unit': issue_unit,
+                'issue_conversion_factor': issue_conversion_factor,
+                'issued_as_qty': issued_as_qty,
+                'issued_qty': issued_qty,
+                'cut_item': cut_item,
+            })
+
+        if not pending_issues:
+            flash('Select a location and enter a positive quantity for at least one accessory.', 'danger')
+            return redirect(url_for('order_accessories', job_no=job_no))
+
+        returnable_item_names = set()
+        for entry in pending_issues:
+            requirement = entry['requirement']
+            item_key = (requirement.item or '').strip().casefold()
+            if is_accessory_returnable(requirement.item) and item_key in returnable_item_names:
+                flash(
+                    f'{requirement.item} can only be issued once per batch; '
+                    'record its return before issuing it again.',
+                    'danger',
+                )
+                return redirect(url_for('order_accessories', job_no=job_no))
+            if is_accessory_returnable(requirement.item):
+                returnable_item_names.add(item_key)
+
+        location_totals = {}
+        for entry in pending_issues:
+            location_id = entry['location'].id
+            location_totals[location_id] = location_totals.get(location_id, 0.0) + entry['issued_qty']
+        for entry in pending_issues:
+            location = entry['location']
+            if location_totals[location.id] > parse_numeric(location.quantity) + 0.000001:
+                flash(
+                    f'Combined issue quantity exceeds this location balance '
+                    f'({location.quantity:g} {entry["requirement"].unit or "PCS"}).',
+                    'danger',
+                )
+                return redirect(url_for('order_accessories', job_no=job_no))
+
+        cutting_pcs = accessory_cut_pcs(cut_sheet)
+        for entry in pending_issues:
+            requirement = entry['requirement']
+            location = entry['location']
+            db.session.add(AccessoryIssue(
+                requirement_id=requirement.id,
+                storage_location_id=location.id,
+                order_id=job_no,
+                cut_no=cut_sheet.cut_no or str(cut_sheet.id),
+                cut_sheet_id=cut_sheet.id,
+                cutting_pcs=cutting_pcs,
+                issue_date=issue_date,
+                worker_name=worker_name,
+                issued_qty=entry['issued_qty'],
+                issued_as_qty=entry['issued_as_qty'],
+                issued_as_unit=entry['issue_unit'],
+                issue_conversion_factor=entry['issue_conversion_factor'],
+                unit_rate=parse_numeric(requirement.rate),
+            ))
+            location.quantity = max(0.0, parse_numeric(location.quantity) - entry['issued_qty'])
+        db.session.flush()
+        updated_requirements = {entry['requirement'].id: entry['requirement'] for entry in pending_issues}
+        for requirement in updated_requirements.values():
+            db.session.expire(requirement, ['issue_entries'])
+            receipt_issued = accessory_layer_issued_qty(requirement)
+            requirement.issued_qty = str(round(receipt_issued, 4))
+            requirement.used_qty = str(round(max(0.0, accessory_layer_received_qty(requirement) - receipt_issued), 4))
+            requirement.accessory_status = 'USED' if receipt_issued >= accessory_layer_received_qty(requirement) else 'RECEIVED'
+        db.session.commit()
+        issued_summary = '; '.join(
+            '{:g} {} {}'.format(
+                entry['issued_as_qty'], entry['issue_unit'], entry['requirement'].item
+            )
+            for entry in pending_issues
+        ).upper()
+        g.activity_action = f'{issued_summary} ISSUED TO {worker_name} · CUT {cut_sheet.cut_no}'.upper()
+        flash(
+            f'{len(pending_issues)} accessory item(s) issued to {worker_name} '
+            f'for Cut {cut_sheet.cut_no}.',
+            'success',
+        )
+        if cut_accessories_fully_issued(order, cut_sheet):
+            return redirect(url_for(
+                'order_accessories_cut_print',
+                job_no=job_no,
+                cut_sheet_id=cut_sheet.id,
+                auto_print=1,
+            ))
+        return redirect(url_for('order_accessories', job_no=job_no))
+
+    order_qty = get_accessory_order_quantity(order)
 
     accessory_groups = {}
     issue_rows = AccessoryIssue.query.filter_by(order_id=job_no).order_by(AccessoryIssue.id.asc()).all()
@@ -8564,11 +9034,84 @@ def order_accessories(job_no):
         ),
     }
     cut_accessories = []
+    cut_wise_stock_requirements = (
+        [
+            requirement for requirement in SavedRequirement.query.order_by(SavedRequirement.id.asc()).all()
+            if accessory_layer_received_qty(requirement) > 0
+        ]
+        if can_issue_cut_wise else []
+    )
     for sheet in CuttingSheet.query.filter_by(order_id=job_no).order_by(CuttingSheet.id.asc()).all():
         cutting_pcs = accessory_cut_pcs(sheet)
         if cutting_pcs <= 0:
             continue
         cut_items = build_cut_accessory_rows(order, sheet)
+        issue_options = {}
+        if can_issue_cut_wise:
+            for item_index, cut_item in enumerate(cut_items):
+                cut_item['item_index'] = item_index
+                if cut_item['remaining'] <= 0.000001:
+                    continue
+                option_key = tuple(
+                    (value or '').strip().casefold()
+                    for value in (cut_item['item'], cut_item['size'], cut_item['quality'], cut_item['unit'])
+                )
+                combined_issue_option = issue_options.setdefault(option_key, {
+                    'item': cut_item['item'],
+                    'size': cut_item['size'],
+                    'quality': cut_item['quality'],
+                    'unit': cut_item['unit'],
+                    'item_index': item_index,
+                    'required': cut_item['required'],
+                    'issued': cut_item['net_issued'],
+                    'remaining': cut_item['remaining'],
+                    'locations': [],
+                })
+                for requirement in cut_wise_stock_requirements:
+                    if (
+                        (requirement.item or '').strip().casefold() != (cut_item['item'] or '').strip().casefold()
+                        or (requirement.size or '').strip().casefold() != (cut_item['size'] or '').strip().casefold()
+                        or (requirement.quality or '').strip().casefold() != (cut_item['quality'] or '').strip().casefold()
+                    ):
+                        continue
+                    issue_unit = (requirement.issue_unit or requirement.unit or 'PCS').strip()
+                    if issue_unit.casefold() != (cut_item['unit'] or '').strip().casefold():
+                        continue
+                    stock_per_issue_unit = accessory_issue_stock_qty(requirement, 1.0, issue_unit)
+                    if stock_per_issue_unit <= 0:
+                        continue
+                    remaining_stock = accessory_issue_stock_qty(
+                        requirement,
+                        cut_item['remaining'],
+                        cut_item['unit'] or issue_unit,
+                    )
+                    locations = []
+                    for location in requirement.storage_locations:
+                        location_stock = max(0.0, parse_numeric(location.quantity))
+                        max_issue_qty = min(location_stock, remaining_stock) / stock_per_issue_unit
+                        is_discrete = is_discrete_issue_unit(issue_unit)
+                        if is_discrete:
+                            max_issue_qty = math.floor(max_issue_qty + 1e-10)
+                        if max_issue_qty <= 0.000001:
+                            continue
+                        location_option = {
+                            'id': location.id,
+                            'requirement_id': requirement.id,
+                            'label': accessory_storage_location_label(location),
+                            'max_issue_qty': max_issue_qty,
+                            'available_issue_qty': location_stock / stock_per_issue_unit,
+                            'unit': issue_unit,
+                            'discrete': is_discrete,
+                        }
+                        if not any(
+                            existing_location['id'] == location_option['id']
+                            for existing_location in combined_issue_option['locations']
+                        ):
+                            combined_issue_option['locations'].append(location_option)
+            issue_options = {
+                key: option for key, option in issue_options.items()
+                if option['locations']
+            }
         required_items = [item for item in cut_items if item['required'] > 0.000001]
         if required_items and all(item['remaining'] <= 0.000001 for item in required_items):
             cut_status = 'Completed'
@@ -8584,8 +9127,21 @@ def order_accessories(job_no):
             'sheet': sheet,
             'cutting_pcs': cutting_pcs,
             'items': cut_items,
+            'issue_options': list(issue_options.values()),
             'status': cut_status,
+            'accessories_complete': all(
+                item['required'] <= 0.000001 or item['remaining'] <= 0.000001
+                for item in cut_items
+            ),
         })
+    requested_issue_cut_id = request.args.get('issue_cut_id', type=int)
+    auto_open_cut_id = next(
+        (
+            cut['sheet'].id for cut in cut_accessories
+            if cut['sheet'].id == requested_issue_cut_id
+        ),
+        None,
+    )
     return render_template(
         'order_accessories.html',
         order=order,
@@ -8593,6 +9149,9 @@ def order_accessories(job_no):
         accessories=accessories,
         totals=totals,
         cut_accessories=cut_accessories,
+        can_issue_cut_wise=can_issue_cut_wise,
+        cut_issue_today=datetime.now().strftime('%Y-%m-%d'),
+        auto_open_cut_id=auto_open_cut_id,
     )
 
 
@@ -8604,6 +9163,13 @@ def order_accessories_cut_print(job_no, cut_sheet_id):
     cutting_sheet = CuttingSheet.query.filter_by(id=cut_sheet_id, order_id=job_no).first()
     if not order or not cutting_sheet:
         abort(404)
+    if not cut_accessories_fully_issued(order, cutting_sheet):
+        flash('Issue all required accessories for this cut before printing.', 'danger')
+        return redirect(url_for(
+            'order_accessories',
+            job_no=job_no,
+            issue_cut_id=cutting_sheet.id,
+        ))
     return render_template(
         'order_accessories_cut_print.html',
         order=order,
@@ -9023,7 +9589,7 @@ def logout():
 
 @app.route('/activity-log')
 def activity_log():
-    if not owner_only():
+    if session.get('role') not in ('owner', 'manager'):
         return redirect(url_for('index'))
 
     search = (request.args.get('q') or '').strip()
@@ -9405,6 +9971,8 @@ PAGE_ACCESS_OPTIONS = [
 ]
 SPECIAL_ACCESS_OPTIONS = [
     ('fabric_reports', 'Fabric report sections', ('stock',)),
+    ('cut_wise_accessory_issue', 'Cut-wise accessory issue', ('manager', 'operations', 'assistant_manager')),
+    ('local_po_generation', 'Local PO generation', ('manager', 'operations', 'assistant_manager', 'stock')),
 ]
 PAGE_ACCESS_KEYS = {
     page_key
@@ -9450,7 +10018,7 @@ def account_page_access(account):
     except (TypeError, ValueError):
         configured_pages = None
     if configured_pages is None:
-        return available_pages - {'fabric_reports'}
+        return available_pages - {'fabric_reports', 'local_po_generation'}
     if not isinstance(configured_pages, list):
         return set()
     configured_page_keys = set(configured_pages)
@@ -9458,6 +10026,10 @@ def account_page_access(account):
         configured_page_keys.update(('worker_management', 'worker_advance', 'worker_attendance'))
     if 'fabric' not in configured_page_keys:
         configured_page_keys.discard('fabric_reports')
+    if 'order_accessories' not in configured_page_keys:
+        configured_page_keys.discard('cut_wise_accessory_issue')
+    if 'accessories' not in configured_page_keys:
+        configured_page_keys.discard('local_po_generation')
     return {page for page in configured_page_keys if page in available_pages}
 
 
@@ -9642,6 +10214,10 @@ def portal_controls():
         page_access.update(special_access)
         if 'fabric' not in page_access:
             page_access.discard('fabric_reports')
+        if 'order_accessories' not in page_access:
+            page_access.discard('cut_wise_accessory_issue')
+        if 'accessories' not in page_access:
+            page_access.discard('local_po_generation')
         page_access = sorted(page_access)
 
         if action == 'create':
@@ -10315,7 +10891,7 @@ def req_slip():
         {'item_name': spec.item_name or '', 'qty_per_piece': parse_numeric(spec.qty_per_piece), 'unit': spec.unit or ''}
         for spec in article_specs
     ]
-    order_requirement_qty = get_effective_order_quantity(order) if order else 0.0
+    order_requirement_qty = get_accessory_order_quantity(order) if order else 0.0
 
     edit_req = None
     prefill = {
@@ -10691,6 +11267,8 @@ def get_next_serial():
 
 
 def calculate_inventory_received_total(inventory_obj):
+    if getattr(inventory_obj, 'is_direct_cutting_pcs', False):
+        return max(0.0, parse_numeric(getattr(inventory_obj, 'direct_cutting_pcs', 0)))
     return sum(
         parse_numeric(getattr(inventory_obj, field, 0))
         for field in ('fabric_qty_a', 'fabric_qty_b', 'receive_cut_pcs')
@@ -10701,8 +11279,13 @@ def build_inventory_prefill_from_challan(challan, serial_no):
     if not challan:
         return None
 
+    order = Order.query.filter_by(job_no=challan.order_id).first() if challan.order_id else None
+    received_total = calculate_inventory_received_total(challan)
+    consumption = parse_numeric(challan.per_dozen_consumption)
+
     return SimpleNamespace(
         id=None,
+        order_id=challan.order_id or '',
         serial_no=serial_no or challan.serial_no or '',
         recv_date=challan.recv_date or '',
         received_from=challan.received_from or '',
@@ -10715,16 +11298,71 @@ def build_inventory_prefill_from_challan(challan, serial_no):
         fabric_name='',
         fabric_qty_a=challan.fabric_qty_a or '',
         fabric_qty_b=challan.fabric_qty_b or '',
+        is_direct_cutting_pcs=bool(challan.is_direct_cutting_pcs),
+        direct_cutting_pcs=challan.direct_cutting_pcs or 0,
         fabric_quality=challan.fabric_quality or '',
-        cut_size_header='',
+        cut_size_header=(order.cut_size if order else '') or '',
         width=challan.width or '',
-        req_cutting='',
+        req_cutting=(
+            f'{received_total / consumption * 12:.2f}'
+            if not challan.is_direct_cutting_pcs and consumption > 0 else ''
+        ),
         receive_cut_pcs=challan.received_cut_pcs or '',
         fabric_for=challan.fabric_for or '',
         consumption=challan.per_dozen_consumption or '',
-        req_average='',
-        total=calculate_inventory_received_total(challan)
+        req_average=(
+            f'{consumption / 12 * 39.35:.2f}'
+            if not challan.is_direct_cutting_pcs and consumption > 0 else ''
+        ),
+        total=received_total
     )
+
+
+def sync_inventory_from_receiving_challan(challan):
+    if not challan or not challan.serial_no:
+        return None
+
+    inventory = Inventory.query.filter_by(serial_no=challan.serial_no).first()
+    if not inventory:
+        return None
+
+    order = Order.query.filter_by(job_no=challan.order_id).first() if challan.order_id else None
+    received_total = calculate_inventory_received_total(challan)
+    consumption = parse_numeric(challan.per_dozen_consumption)
+    inventory.order_id = challan.order_id
+    inventory.recv_date = challan.recv_date or ''
+    inventory.received_from = challan.received_from or ''
+    inventory.suppliers = challan.suppliers or ''
+    inventory.challan_no = challan.challan_no or ''
+    inventory.place = challan.place or ''
+    inventory.meter_note = challan.meter_to_cm or ''
+    inventory.file_no = challan.used_file_no or ''
+    inventory.fabric_quality = challan.fabric_quality or ''
+    inventory.width = challan.width or ''
+    inventory.fabric_for = challan.fabric_for or ''
+    inventory.cut_size_header = (order.cut_size if order else '') or ''
+    inventory.req_cutting = (
+        f'{received_total / consumption * 12:.2f}'
+        if not challan.is_direct_cutting_pcs and consumption > 0 else ''
+    )
+    inventory.consumption = challan.per_dozen_consumption or ''
+    inventory.req_average = (
+        f'{consumption / 12 * 39.35:.2f}'
+        if not challan.is_direct_cutting_pcs and consumption > 0 else ''
+    )
+    inventory.fabric_qty_a = '' if challan.is_direct_cutting_pcs else (challan.fabric_qty_a or '')
+    inventory.fabric_qty_b = '' if challan.is_direct_cutting_pcs else (challan.fabric_qty_b or '')
+    inventory.receive_cut_pcs = challan.received_cut_pcs or ''
+    inventory.is_direct_cutting_pcs = bool(challan.is_direct_cutting_pcs)
+    inventory.direct_cutting_pcs = (
+        parse_numeric(challan.direct_cutting_pcs)
+        if challan.is_direct_cutting_pcs else 0.0
+    )
+    inventory.total = f'{received_total:.2f}'
+    inventory.created_by = (session.get('name') or session.get('user') or '').strip()
+    if challan.is_direct_cutting_pcs:
+        inventory.fabric_b_enabled = False
+    return inventory
 
 
 def calculate_inventory_cutting_average(serial_no, order_id=None):
@@ -10778,6 +11416,8 @@ def receiving_challan():
         fabric_qty_a_value = request.form.get('fabric_qty_a', '').strip()
         fabric_qty_b_value = request.form.get('fabric_qty_b', '').strip()
         received_cut_pcs_value = request.form.get('received_cut_pcs', '').strip()
+        is_direct_cutting_pcs = request.form.get('is_direct_cutting_pcs') == 'on'
+        direct_cutting_pcs_raw = request.form.get('direct_cutting_pcs', '').strip()
         uploaded_image = request.files.get('image_file')
         image_path = None
         if uploaded_image and uploaded_image.filename:
@@ -10796,11 +11436,25 @@ def receiving_challan():
             except (TypeError, ValueError):
                 return 0.0
 
-        total_value = parse_numeric(fabric_qty_a_value) + parse_numeric(fabric_qty_b_value) + parse_numeric(received_cut_pcs_value)
-        has_any_value = bool(fabric_qty_a_value or fabric_qty_b_value or received_cut_pcs_value)
+        direct_cutting_pcs_value = parse_numeric(direct_cutting_pcs_raw) if is_direct_cutting_pcs else 0.0
+        quantity_error = ''
+        if is_direct_cutting_pcs:
+            if (
+                direct_cutting_pcs_value <= 0
+                or not math.isfinite(direct_cutting_pcs_value)
+                or not direct_cutting_pcs_value.is_integer()
+            ):
+                quantity_error = 'Enter a whole number of usable direct cutting PCS greater than zero.'
+            elif parse_numeric(fabric_qty_a_value) > 0 or parse_numeric(fabric_qty_b_value) > 0:
+                quantity_error = 'Use a separate receiving challan for fabric and direct cutting PCS.'
+            total_value = direct_cutting_pcs_value
+            has_any_value = direct_cutting_pcs_value > 0 or parse_numeric(received_cut_pcs_value) > 0
+        else:
+            total_value = parse_numeric(fabric_qty_a_value) + parse_numeric(fabric_qty_b_value) + parse_numeric(received_cut_pcs_value)
+            has_any_value = bool(fabric_qty_a_value or fabric_qty_b_value or received_cut_pcs_value)
 
-        if not has_any_value or total_value <= 0:
-            flash('Total cannot be zero. Please enter at least one value in Fabric Quantity A, Fabric Quantity B, or Received Cut Pcs.', 'danger')
+        if quantity_error or not has_any_value or total_value <= 0:
+            flash(quantity_error or 'Total cannot be zero. Enter fabric or received cut PCS.', 'danger')
             form_challan = SimpleNamespace(
                 id=challan_id or None,
                 order_id=job_no,
@@ -10821,6 +11475,8 @@ def receiving_challan():
                 fabric_qty_a=fabric_qty_a_value,
                 fabric_qty_b=fabric_qty_b_value,
                 received_cut_pcs=received_cut_pcs_value,
+                is_direct_cutting_pcs=is_direct_cutting_pcs,
+                direct_cutting_pcs=direct_cutting_pcs_value,
                 total=total_value,
                 rolls=request.form.get('rolls', ''),
                 vehicle_no=request.form.get('vehicle_no', ''),
@@ -10836,6 +11492,29 @@ def receiving_challan():
                 editing_challan=form_challan,
                 departments=departments
             )
+
+        linked_inventory = Inventory.query.filter_by(serial_no=serial_no).first()
+        if linked_inventory:
+            linked_inventory_rows = InventoryRow.query.filter_by(
+                inventory_id=linked_inventory.id
+            ).all()
+            fabric_used = any(parse_numeric(row.fabric_use) > 0 for row in linked_inventory_rows)
+            direct_pcs_used = sum(parse_numeric(row.direct_pcs_used) for row in linked_inventory_rows)
+            fabric_stock_exists = any(
+                parse_numeric(value) > 0 for value in (
+                    linked_inventory.fabric_qty_a,
+                    linked_inventory.fabric_qty_b,
+                )
+            )
+            if is_direct_cutting_pcs and (fabric_stock_exists or fabric_used):
+                flash('Direct cutting PCS must use a separate receiving challan from fabric stock.', 'danger')
+                return redirect(url_for('receiving_challan', job_no=job_no, edit_id=challan_id))
+            if not is_direct_cutting_pcs and linked_inventory.is_direct_cutting_pcs and direct_pcs_used > 0:
+                flash('This inventory already has direct-PCS cuts and cannot be changed to fabric mode.', 'danger')
+                return redirect(url_for('receiving_challan', job_no=job_no, edit_id=challan_id))
+            if is_direct_cutting_pcs and direct_cutting_pcs_value + 0.000001 < direct_pcs_used:
+                flash('Direct cutting PCS cannot be reduced below the quantity already cut.', 'danger')
+                return redirect(url_for('receiving_challan', job_no=job_no, edit_id=challan_id))
 
         normalized_challan_no = normalize_challan_number(request.form.get('challan_no', ''))
 
@@ -10860,6 +11539,8 @@ def receiving_challan():
                 editing_challan.fabric_qty_a = fabric_qty_a_value
                 editing_challan.fabric_qty_b = fabric_qty_b_value
                 editing_challan.received_cut_pcs = received_cut_pcs_value
+                editing_challan.is_direct_cutting_pcs = is_direct_cutting_pcs
+                editing_challan.direct_cutting_pcs = direct_cutting_pcs_value
                 editing_challan.total = total_value
                 editing_challan.rolls = request.form.get('rolls', '')
                 editing_challan.vehicle_no = request.form.get('vehicle_no', '')
@@ -10868,6 +11549,7 @@ def receiving_challan():
                 editing_challan.created_by = (session.get('name') or session.get('user') or '').strip()
                 if image_path:
                     editing_challan.image_file = image_path
+                sync_inventory_from_receiving_challan(editing_challan)
                 db.session.commit()
                 g.activity_action = f'Updated Receiving Challan {serial_no}'.upper()
                 flash('Receiving challan updated successfully.', 'success')
@@ -10895,6 +11577,8 @@ def receiving_challan():
             fabric_qty_a=fabric_qty_a_value,
             fabric_qty_b=fabric_qty_b_value,
             received_cut_pcs=received_cut_pcs_value,
+            is_direct_cutting_pcs=is_direct_cutting_pcs,
+            direct_cutting_pcs=direct_cutting_pcs_value,
             total=total_value,
             rolls=request.form.get('rolls', ''),
             vehicle_no=request.form.get('vehicle_no', ''),
@@ -10904,6 +11588,7 @@ def receiving_challan():
             created_by=(session.get('name') or session.get('user') or '').strip(),
         )
         db.session.add(new_challan)
+        sync_inventory_from_receiving_challan(new_challan)
         db.session.commit()
         g.activity_action = f'Submitted Receiving Challan {serial_no}'.upper()
         flash('Receiving challan saved successfully.', 'success')
@@ -11147,6 +11832,15 @@ def cutting_sheet():
         for inv in article_inventories:
             if not inv.serial_no:
                 continue
+            if getattr(inv, 'is_direct_cutting_pcs', False):
+                balances[inv.serial_no] = calculate_inventory_direct_cut_pcs_remaining(
+                    inv,
+                    before_cut_no=current_cut_no,
+                    order_id=job_no,
+                    before_date=current_cut_date,
+                    current_sheet_id=current_sheet_id,
+                )
+                continue
             state = calculate_inventory_consumption_state(
                 inv,
                 before_cut_no=current_cut_no,
@@ -11163,6 +11857,25 @@ def cutting_sheet():
         return balances
 
     if request.method == 'POST':
+        existing_sheet_edit = None
+        if edit_id:
+            existing_sheet_edit = CuttingSheet.query.filter_by(id=edit_id, order_id=job_no).first()
+            if not existing_sheet_edit:
+                flash('Cutting sheet not found.', 'danger')
+                return redirect(url_for('saved_cutting_sheets', job_no=job_no))
+            if (
+                existing_sheet_edit.first_edit_used
+                and not existing_sheet_edit.is_direct_cutting_pcs
+                and session.get('role') not in ('owner', 'manager')
+            ):
+                flash('This cutting sheet has already used its one-time edit and is locked.', 'danger')
+                return redirect(url_for('saved_cutting_sheets', job_no=job_no))
+
+        posted_inventory_serial = (request.form.get('inventory_serial_no') or '').strip()
+        posted_inventory = Inventory.query.filter_by(serial_no=posted_inventory_serial).first()
+        is_direct_cutting_pcs = bool(
+            posted_inventory and posted_inventory.is_direct_cutting_pcs
+        )
         required_left_info_fields = {
             'cut_date': 'Cut date',
             'calc_cut_size': 'Cut size',
@@ -11178,6 +11891,8 @@ def cutting_sheet():
             'issued_by': 'Issued by',
             'palla_check_by': 'Palla check by',
         }
+        if is_direct_cutting_pcs:
+            required_left_info_fields.pop('fabric_issue', None)
         avg_99 = (request.form.get('avg_99') or '').strip()
         avg_100 = (request.form.get('avg_100') or '').strip()
         pcs_in_row = (request.form.get('pcs_in_row') or '').strip()
@@ -11212,9 +11927,15 @@ def cutting_sheet():
             return redirect(url_for('cutting_sheet', **redirect_args))
 
         locked_cut_edit = False
+        first_edit_pending = False
         if edit_id:
-            cutting_sheet = CuttingSheet.query.filter_by(id=edit_id, order_id=job_no).first()
-            locked_cut_edit = bool(cutting_sheet and is_read_only_profile())
+            cutting_sheet = existing_sheet_edit
+            first_edit_pending = bool(
+                cutting_sheet
+                and not cutting_sheet.is_direct_cutting_pcs
+                and session.get('role') not in ('owner', 'manager')
+            )
+            locked_cut_edit = first_edit_pending
             if cutting_sheet and CuttingTransfer.query.filter(
                 CuttingTransfer.source_cutting_sheet_id == cutting_sheet.id
             ).first():
@@ -11227,6 +11948,10 @@ def cutting_sheet():
         elif not locked_cut_edit:
             cutting_sheet.serial_no = request.form.get('cutting_sheet_serial_no') or cutting_sheet.serial_no
             cutting_sheet.cut_no = request.form.get('cut_no') or cutting_sheet.cut_no
+
+        if edit_id and cutting_sheet.is_direct_cutting_pcs != is_direct_cutting_pcs:
+            flash('A saved cutting sheet cannot be changed between fabric and direct-PCS modes.', 'danger')
+            return redirect(url_for('saved_cutting_sheets', job_no=job_no))
 
         incoming_transfer = (
             CuttingTransfer.query.filter_by(
@@ -11262,9 +11987,16 @@ def cutting_sheet():
             'total_meter': 'total_meter',
         }
 
+        first_edit_allowed_fields = {
+            'bundle', 'meter_21', 'palla_check_by', 'mini_cp_22',
+            'mini_palla_22_grey', 'mini_pcs_22_grey', 'mini_cp_22_grey',
+            *(f'cp_{index}' for index in range(1, 20)),
+        }
+
         def cutting_form_value(field_name, default=''):
-            if locked_cut_edit and field_name in locked_cut_fields:
-                value = getattr(cutting_sheet, locked_cut_fields[field_name], default)
+            if locked_cut_edit and field_name not in first_edit_allowed_fields:
+                model_field = locked_cut_fields.get(field_name, field_name)
+                value = getattr(cutting_sheet, model_field, default)
                 return default if value is None else value
             return request.form.get(field_name, default)
 
@@ -11278,7 +12010,7 @@ def cutting_sheet():
         cutting_sheet.range_height = cutting_form_value('range_height')
         cutting_sheet.range_area = cutting_form_value('range_area')
         cutting_sheet.pcs_in_row = cutting_form_value('pcs_in_row')
-        cutting_sheet.range_margin = ''
+        cutting_sheet.range_margin = cutting_form_value('range_margin', '')
         range_size_value = numeric_meter(cutting_sheet.cut_size) * numeric_meter(cutting_sheet.pcs_in_row)
         cutting_sheet.range_result = f'{range_size_value:.2f}' if cutting_sheet.cut_size and cutting_sheet.pcs_in_row else ''
         cutting_sheet.pcs_in_range = cutting_form_value('pcs_in_range')
@@ -11286,23 +12018,40 @@ def cutting_sheet():
         cutting_sheet.avg_100 = cutting_form_value('avg_100')
         cutting_sheet.avg_other = cutting_form_value('avg_other')
         cutting_sheet.cutter_name = cutting_form_value('cutter_name')
-        cutting_sheet.fabric_issue = cutting_form_value('fabric_issue')
+        cutting_sheet.fabric_issue = '' if is_direct_cutting_pcs else cutting_form_value('fabric_issue')
+        cutting_sheet.is_direct_cutting_pcs = is_direct_cutting_pcs
         previous_cut_inventory_serials = split_inventory_serials(cutting_sheet.inventory_serial_no)
         cutting_sheet.inventory_serial_no = cutting_form_value('inventory_serial_no')
         cutting_sheet.use_fabric_ch = cutting_form_value('use_fabric_ch')
         cutting_sheet.asst_cutter_name = cutting_form_value('asst_cutter_name')
         cutting_sheet.palla_check_by = cutting_form_value('palla_check_by')
-        cutting_sheet.summary_total_pcs = request.form.get('summary_total_pcs', '')
-        cutting_sheet.summary_avg_pcs = request.form.get('summary_avg_pcs', '')
-        cutting_sheet.balance_cutting = request.form.get('balance_cutting', '')
-        cutting_sheet.total_cutting = request.form.get('total_cutting', '')
-        cutting_sheet.to_date_production = request.form.get('to_date_production', '')
+        cutting_sheet.summary_total_pcs = cutting_form_value('summary_total_pcs', '')
+        cutting_sheet.summary_avg_pcs = cutting_form_value('summary_avg_pcs', '')
+        cutting_sheet.balance_cutting = cutting_form_value('balance_cutting', '')
+        cutting_sheet.total_cutting = cutting_form_value('total_cutting', '')
+        cutting_sheet.to_date_production = cutting_form_value('to_date_production', '')
         # Save shortage from the mini PCS field on row 22
-        cutting_sheet.shortage = request.form.get('mini_pcs_22', '')
+        cutting_sheet.shortage = cutting_form_value('mini_pcs_22', '')
         # Save shift-to-next-cut using the model's column name
-        cutting_sheet.shift_to_next_cut = request.form.get('shift_to_next_cut', '')
-        # Save total meter (fabric) calculated client-side
-        table_total_meter = numeric_meter(cutting_form_value('total_meter'))
+        cutting_sheet.shift_to_next_cut = cutting_form_value('shift_to_next_cut', '')
+        return_adjustment_factor = 1.0
+        avg_99_for_return = (request.form.get('avg_99') or '').strip()
+        if avg_99_for_return:
+            try:
+                return_adjustment_factor = min(max(float(avg_99_for_return), 0.0), 99.0) / 100.0
+            except (TypeError, ValueError):
+                return_adjustment_factor = 1.0
+        fabric_return_meter = (
+            max(0.0, numeric_meter(request.form.get('meter_21')) * return_adjustment_factor)
+            if not is_direct_cutting_pcs else 0.0
+        )
+        table_total_meter = (
+            0.0 if is_direct_cutting_pcs
+            else max(0.0, numeric_meter(cutting_sheet.fabric_issue) - fabric_return_meter)
+            if locked_cut_edit
+            else numeric_meter(cutting_form_value('total_meter'))
+        )
+        table_fabric_usage_meter = table_total_meter
         requested_inventory_serial = (cutting_form_value('inventory_serial_no') or '').strip()
         stored_inventory_serials = split_inventory_serials(cutting_sheet.inventory_serial_no)
         requested_secondary_serial = (
@@ -11327,6 +12076,14 @@ def cutting_sheet():
             if edit_id:
                 redirect_args['edit_id'] = edit_id
             return redirect(url_for('cutting_sheet', **redirect_args))
+        if secondary_inventory and (
+            is_direct_cutting_pcs or secondary_inventory.is_direct_cutting_pcs
+        ):
+            flash('Direct cutting PCS inventory cannot be combined with fabric or another inventory.', 'danger')
+            redirect_args = {'order_id': job_no}
+            if edit_id:
+                redirect_args['edit_id'] = edit_id
+            return redirect(url_for('cutting_sheet', **redirect_args))
         try:
             current_cut_no = int(str(cutting_sheet.cut_no))
         except (TypeError, ValueError):
@@ -11335,6 +12092,8 @@ def cutting_sheet():
         fallback_inventory = None
         fallback_pool = None
         for inv in article_inventories:
+            if is_direct_cutting_pcs:
+                break
             if not inv.serial_no:
                 continue
             if inv.serial_no in {requested_inventory_serial, requested_secondary_serial}:
@@ -11348,63 +12107,129 @@ def cutting_sheet():
         primary_opening_balance = available_inventory_balances.get(requested_inventory_serial, 0.0)
         secondary_total_meter = available_inventory_balances.get(requested_secondary_serial, 0.0) if secondary_inventory else 0.0
         opening_balance = primary_opening_balance + fallback_total_meter + secondary_total_meter
-        fabric_issue_amount = numeric_meter(cutting_form_value('fabric_issue'))
-        if fabric_issue_amount > opening_balance:
-            message = (
-                'Insufficient fabric. Fabric issue is more than fabric O/B.'
-                if secondary_inventory
-                else 'Insufficient fabric. Please select a secondary inventory.'
-            )
-            flash(message, 'danger')
-            redirect_args = {'order_id': job_no}
-            if edit_id:
-                redirect_args['edit_id'] = edit_id
-            return redirect(url_for('cutting_sheet', **redirect_args))
-        if table_total_meter > fabric_issue_amount + 0.000001:
-            flash('Insufficient fabric. Total meter is more than the fabric issue.', 'danger')
-            redirect_args = {'order_id': job_no}
-            if edit_id:
-                redirect_args['edit_id'] = edit_id
-            return redirect(url_for('cutting_sheet', **redirect_args))
-        balance_after_cut = opening_balance - table_total_meter
-        if balance_after_cut < 0:
-            flash(
-                f'Insufficient fabric. Current opening balance is {opening_balance:.2f} meters, '
-                f'but this cut uses {table_total_meter:.2f} meters. Select a secondary inventory.',
-                'danger'
-            )
-            redirect_args = {'order_id': job_no}
-            if edit_id:
-                redirect_args['edit_id'] = edit_id
-            return redirect(url_for('cutting_sheet', **redirect_args))
+        if is_direct_cutting_pcs:
+            direct_pcs_values = []
+            for row_number in range(1, 23):
+                value = (request.form.get(f'pcs_{row_number}') or '').strip()
+                if not value:
+                    continue
+                try:
+                    pcs_value = float(value)
+                except (TypeError, ValueError):
+                    pcs_value = -1.0
+                if pcs_value < 0 or not math.isfinite(pcs_value) or not pcs_value.is_integer():
+                    flash('Cutting PCS must be entered as whole pieces.', 'danger')
+                    redirect_args = {'order_id': job_no}
+                    if edit_id:
+                        redirect_args['edit_id'] = edit_id
+                    return redirect(url_for('cutting_sheet', **redirect_args))
+                direct_pcs_values.append(pcs_value)
+            direct_pcs_to_use = sum(direct_pcs_values)
+            if direct_pcs_to_use <= 0 and not incoming_transfer:
+                flash('Enter PCS in the direct cutting table before saving.', 'danger')
+                redirect_args = {'order_id': job_no}
+                if edit_id:
+                    redirect_args['edit_id'] = edit_id
+                return redirect(url_for('cutting_sheet', **redirect_args))
+            if direct_pcs_to_use > opening_balance:
+                flash(
+                    f'Insufficient cutting PCS. Current Cutting O/B is {opening_balance:.0f} PCS, '
+                    f'but this cut uses {direct_pcs_to_use:.0f} PCS.',
+                    'danger',
+                )
+                redirect_args = {'order_id': job_no}
+                if edit_id:
+                    redirect_args['edit_id'] = edit_id
+                return redirect(url_for('cutting_sheet', **redirect_args))
+            fabric_issue_amount = 0.0
+            balance_after_cut = opening_balance - direct_pcs_to_use
+        else:
+            fabric_issue_amount = numeric_meter(cutting_form_value('fabric_issue'))
+            issued_meter_total = fabric_issue_amount
+            if fabric_return_meter > fabric_issue_amount + 0.000001:
+                flash('Fabric return cannot exceed the total fabric issued.', 'danger')
+                redirect_args = {'order_id': job_no}
+                if edit_id:
+                    redirect_args['edit_id'] = edit_id
+                return redirect(url_for('cutting_sheet', **redirect_args))
+            if issued_meter_total > opening_balance:
+                message = (
+                    'Insufficient fabric. Fabric issue is more than fabric O/B.'
+                    if secondary_inventory
+                    else 'Insufficient fabric. Please select a secondary inventory.'
+                )
+                flash(message, 'danger')
+                redirect_args = {'order_id': job_no}
+                if edit_id:
+                    redirect_args['edit_id'] = edit_id
+                return redirect(url_for('cutting_sheet', **redirect_args))
+            if table_fabric_usage_meter > fabric_issue_amount + 0.000001:
+                flash('Insufficient fabric. Total meter is more than the fabric issue.', 'danger')
+                redirect_args = {'order_id': job_no}
+                if edit_id:
+                    redirect_args['edit_id'] = edit_id
+                return redirect(url_for('cutting_sheet', **redirect_args))
+            balance_after_cut = opening_balance - table_fabric_usage_meter
+            if balance_after_cut < 0:
+                flash(
+                    f'Insufficient fabric. Current opening balance is {opening_balance:.2f} meters, '
+                    f'but this cut uses {table_fabric_usage_meter:.2f} meters. Select a secondary inventory.',
+                    'danger'
+                )
+                redirect_args = {'order_id': job_no}
+                if edit_id:
+                    redirect_args['edit_id'] = edit_id
+                return redirect(url_for('cutting_sheet', **redirect_args))
         combined_inventory_serial = combine_inventory_serials(requested_inventory_serial, requested_secondary_serial)
         cutting_sheet.inventory_serial_no = combined_inventory_serial
         inventory_total_meter = numeric_meter(inventory.fabric_qty_a if inventory else 0)
         if not locked_cut_edit:
-            cutting_sheet.total_meter = f'{table_total_meter:.2f}' if request.form.get('total_meter') else ''
-        cutting_sheet.total_palla = request.form.get('total_palla', '')
-        table_total_pcs = numeric_meter(request.form.get('total_pcs'))
-        if incoming_transfer:
+            cutting_sheet.total_meter = (
+                '' if is_direct_cutting_pcs
+                else f'{table_fabric_usage_meter:.2f}' if request.form.get('total_meter') else ''
+            )
+            cutting_sheet.total_palla = '' if is_direct_cutting_pcs else request.form.get('total_palla', '')
+        elif first_edit_pending:
+            cutting_sheet.total_meter = f'{table_fabric_usage_meter:.2f}'
+        table_total_pcs = (
+            direct_pcs_to_use if is_direct_cutting_pcs
+            else numeric_meter(request.form.get('total_pcs'))
+        )
+        if is_direct_cutting_pcs:
+            cutting_sheet.total_pcs = f'{table_total_pcs + (incoming_transfer.quantity if incoming_transfer else 0):.0f}'
+        elif incoming_transfer:
             cutting_sheet.total_pcs = f'{table_total_pcs + incoming_transfer.quantity:.0f}'
         else:
             cutting_sheet.total_pcs = request.form.get('total_pcs', '')
-        cutting_sheet.fabric_meter = f'{inventory_total_meter:.2f}' if selected_inventory else request.form.get('fabric_meter', '')
-        cutting_sheet.mini_palla_22 = request.form.get('mini_palla_22', '')
-        cutting_sheet.mini_pcs_22 = request.form.get('mini_pcs_22', '')
-        cutting_sheet.mini_cp_22 = request.form.get('mini_cp_22', '')
-        cutting_sheet.mini_palla_22_grey = request.form.get('mini_palla_22_grey', '')
-        cutting_sheet.mini_pcs_22_grey = request.form.get('mini_pcs_22_grey', '')
-        cutting_sheet.mini_cp_22_grey = request.form.get('mini_cp_22_grey', '')
-        cutting_sheet.remarks = request.form.get('remarks', '')
-        cutting_sheet.issued_by = request.form.get('issued_by', '')
-        cutting_sheet.department = request.form.get('department', '')
-        cutting_sheet.bundle = request.form.get('bundle', '')
-        cutting_sheet.quantity = request.form.get('quantity', '')
-        cutting_sheet.issue_to_sv = request.form.get('issue_to_sv', '')
+        cutting_sheet.fabric_meter = (
+            '' if is_direct_cutting_pcs else f'{inventory_total_meter:.2f}' if selected_inventory
+            else cutting_form_value('fabric_meter', '')
+        )
+        cutting_sheet.mini_palla_22 = cutting_form_value('mini_palla_22', '')
+        cutting_sheet.mini_pcs_22 = cutting_form_value('mini_pcs_22', '')
+        cutting_sheet.mini_cp_22 = cutting_form_value('mini_cp_22', '')
+        cutting_sheet.mini_palla_22_grey = cutting_form_value('mini_palla_22_grey', '')
+        cutting_sheet.mini_pcs_22_grey = cutting_form_value('mini_pcs_22_grey', '')
+        cutting_sheet.mini_cp_22_grey = cutting_form_value('mini_cp_22_grey', '')
+        cutting_sheet.remarks = cutting_form_value('remarks', '')
+        cutting_sheet.issued_by = cutting_form_value('issued_by', '')
+        cutting_sheet.department = cutting_form_value('department', '')
+        cutting_sheet.bundle = cutting_form_value('bundle', '')
+        cutting_sheet.quantity = (
+            f'{table_total_pcs + (incoming_transfer.quantity if incoming_transfer else 0):.0f}'
+            if is_direct_cutting_pcs else cutting_form_value('quantity', '')
+        )
+        cutting_sheet.issue_to_sv = cutting_form_value('issue_to_sv', '')
         cutting_sheet.cut_date = cutting_form_value('cut_date')
-        cutting_sheet.issue_date = request.form.get('issue_date', '')
-        cutting_sheet.time_field = request.form.get('time_field', '')
-        cutting_sheet.balance_fabric = f'{balance_after_cut:.2f}' if selected_inventory else request.form.get('balance_fabric', '')
+        cutting_sheet.issue_date = cutting_form_value('issue_date', '')
+        cutting_sheet.time_field = cutting_form_value('time_field', '')
+        cutting_sheet.balance_fabric = (
+            '' if is_direct_cutting_pcs
+            else f'{balance_after_cut:.2f}' if selected_inventory else request.form.get('balance_fabric', '')
+        )
+        cutting_sheet.direct_pcs_balance = (
+            f'{balance_after_cut:.0f}' if is_direct_cutting_pcs else ''
+        )
 
         if not cutting_sheet.id:
             db.session.add(cutting_sheet)
@@ -11432,18 +12257,53 @@ def cutting_sheet():
                 cutting_sheet_id=cutting_sheet.id,
                 idx=20,
             ).first()
-            mini_palla = (request.form.get('mini_palla_22') or '').strip()
-            mini_pcs = (request.form.get('mini_pcs_22') or '').strip()
+            mini_palla = (cutting_sheet.mini_palla_22 or '').strip()
+            mini_pcs = (cutting_sheet.mini_pcs_22 or '').strip()
+            mini_cp = (cutting_sheet.mini_cp_22 or '').strip()
             if mini_row:
                 mini_row.palla = mini_palla
                 mini_row.pcs = mini_pcs
-            elif mini_palla or mini_pcs:
+                mini_row.cp = mini_cp
+            elif mini_palla or mini_pcs or mini_cp:
                 db.session.add(CuttingSheetRow(
                     cutting_sheet_id=cutting_sheet.id,
                     idx=20,
                     meter='',
                     palla=mini_palla,
                     pcs=mini_pcs,
+                    cp=mini_cp,
+                ))
+            for row_index in range(1, 20):
+                cp_value = (request.form.get(f'cp_{row_index}') or '').strip()
+                saved_row = CuttingSheetRow.query.filter_by(
+                    cutting_sheet_id=cutting_sheet.id,
+                    idx=row_index,
+                ).first()
+                if saved_row:
+                    saved_row.cp = cp_value
+                elif cp_value:
+                    db.session.add(CuttingSheetRow(
+                        cutting_sheet_id=cutting_sheet.id,
+                        idx=row_index,
+                        meter='',
+                        palla='',
+                        pcs='',
+                        cp=cp_value,
+                    ))
+            return_row = CuttingSheetRow.query.filter_by(
+                cutting_sheet_id=cutting_sheet.id,
+                idx=21,
+            ).first()
+            return_value = (request.form.get('meter_21') or '').strip()
+            if return_row:
+                return_row.meter = return_value
+            elif return_value:
+                db.session.add(CuttingSheetRow(
+                    cutting_sheet_id=cutting_sheet.id,
+                    idx=21,
+                    meter=return_value,
+                    palla='',
+                    pcs='',
                     cp='',
                 ))
         else:
@@ -11473,7 +12333,7 @@ def cutting_sheet():
             order_file_no = (order.file_no if order else '') or ''
 
             inventory_allocations = []
-            remaining_usage = table_total_meter
+            remaining_usage = table_fabric_usage_meter
             for allocation_inventory in (selected_inventory, fallback_inventory, secondary_inventory):
                 if not allocation_inventory or not allocation_inventory.id:
                     continue
@@ -11514,19 +12374,19 @@ def cutting_sheet():
             allocated_fabric_issue = 0.0
             for allocation_index, (allocation_inventory, opening_balance, fabric_use) in enumerate(inventory_allocations):
                 is_last_allocation = allocation_index == len(inventory_allocations) - 1
-                usage_ratio = fabric_use / table_total_meter if table_total_meter else 0.0
+                usage_ratio = fabric_use / table_fabric_usage_meter if table_fabric_usage_meter else 0.0
                 if is_last_allocation:
                     row_cutting_pcs = total_cutting_pcs - allocated_cutting_pcs
                     row_cut_pcs = total_cut_pcs - allocated_cut_pcs
                     row_wastage = total_wastage - allocated_wastage
                     row_palla = total_palla - allocated_palla
-                    row_fabric_issue = fabric_issue - allocated_fabric_issue
+                    row_fabric_issue = issued_meter_total - allocated_fabric_issue
                 else:
                     row_cutting_pcs = round(total_cutting_pcs * usage_ratio)
                     row_cut_pcs = round(total_cut_pcs * usage_ratio)
                     row_wastage = round(total_wastage * usage_ratio, 2)
                     row_palla = total_palla * usage_ratio
-                    row_fabric_issue = fabric_issue * usage_ratio
+                    row_fabric_issue = issued_meter_total * usage_ratio
 
                 allocated_cutting_pcs += row_cutting_pcs
                 allocated_cut_pcs += row_cut_pcs
@@ -11562,6 +12422,25 @@ def cutting_sheet():
                     cut_pcs=int(row_cut_pcs) if row_cut_pcs else None,
                     balance=f'{(opening_balance - fabric_use):.2f}',
                 ))
+            if is_direct_cutting_pcs and direct_pcs_to_use > 0:
+                next_idx = max(
+                    [row.idx or 0 for row in InventoryRow.query.filter_by(inventory_id=selected_inventory.id).all()]
+                    or [0]
+                ) + 1
+                db.session.add(InventoryRow(
+                    inventory_id=selected_inventory.id,
+                    idx=next_idx,
+                    date=cutting_sheet.cut_date or None,
+                    item=(order.style if order else '') or None,
+                    sno=cutting_sheet.serial_no or None,
+                    file_no=(order.file_no if order else '') or None,
+                    cut_no=cutting_sheet.cut_no or None,
+                    cutting_pcs=int(direct_pcs_to_use),
+                    direct_pcs_used=direct_pcs_to_use,
+                    balance=f'{balance_after_cut:.0f}',
+                ))
+        if first_edit_pending:
+            cutting_sheet.first_edit_used = True
         db.session.commit()
         g.activity_action = (
             f'Saved Cutting Sheet :{order.file_no} / '
@@ -11569,6 +12448,10 @@ def cutting_sheet():
             f'Cutting Serial {cutting_sheet.serial_no}'
         ).upper()
         flash('Cutting sheet saved successfully.', 'success')
+        if not edit_id:
+            return redirect(url_for('cutting_sheet', job_no=job_no))
+        if first_edit_pending and 'bundle_stickers' in getattr(g, 'page_access_keys', PAGE_ACCESS_KEYS):
+            return redirect(url_for('bundle_stickers', cutting_sheet_id=cutting_sheet.id))
         if 'bundle_stickers' in getattr(g, 'page_access_keys', PAGE_ACCESS_KEYS):
             return redirect(url_for('bundle_stickers', cutting_sheet_id=cutting_sheet.id))
         return redirect(url_for('saved_cutting_sheets', job_no=job_no))
@@ -11744,6 +12627,11 @@ def cutting_sheet():
     inventory_total_meter = (
         numeric_meter(selected_inventory.fabric_qty_a) if selected_inventory else 0.0
     ) + active_b_total_meter
+    direct_cutting_pcs_mode = bool(
+        selected_inventory and selected_inventory.is_direct_cutting_pcs
+    )
+    if direct_cutting_pcs_mode:
+        inventory_total_meter = 0.0
     primary_inventory_total_meter = (
         numeric_meter(selected_inventory.fabric_qty_a)
         if selected_inventory else 0.0
@@ -11764,6 +12652,23 @@ def cutting_sheet():
     opening_balance_fabric = available_inventory_balances.get(selected_inventory_serial, previous_balance_fabric)
     if selected_secondary_inventory_serial:
         opening_balance_fabric += available_inventory_balances.get(selected_secondary_inventory_serial, 0.0)
+    if direct_cutting_pcs_mode:
+        opening_balance_fabric = 0.0
+    opening_balance_direct_pcs = (
+        available_inventory_balances.get(selected_inventory_serial, 0.0)
+        if direct_cutting_pcs_mode else 0.0
+    )
+    current_direct_pcs_used = 0.0
+    if direct_cutting_pcs_mode and cutting_sheet and cutting_sheet.id and selected_inventory:
+        current_direct_pcs_used = sum(
+            parse_numeric(row.direct_pcs_used)
+            for row in InventoryRow.query.filter_by(
+                inventory_id=selected_inventory.id,
+                sno=cutting_sheet.serial_no,
+                cut_no=cutting_sheet.cut_no,
+            ).all()
+        )
+    balance_direct_pcs = max(0.0, opening_balance_direct_pcs - current_direct_pcs_used)
     current_table_total_meter = numeric_meter(cutting_sheet.total_meter) if cutting_sheet else 0.0
     balance_fabric = opening_balance_fabric - current_table_total_meter
     inventory_balances = available_inventory_balances
@@ -11780,6 +12685,21 @@ def cutting_sheet():
     inventory_statuses = {}
     for inv in article_inventories:
         if not inv.serial_no:
+            continue
+        if inv.is_direct_cutting_pcs:
+            direct_remaining = calculate_inventory_direct_cut_pcs_remaining(
+                inv,
+                before_cut_no=display_cut_no,
+                order_id=job_no,
+                current_sheet_id=cutting_sheet.id if cutting_sheet else None,
+            )
+            inventory_statuses[inv.serial_no] = {
+                'label': 'DIRECT PCS · FINISHED' if direct_remaining <= 0 else 'DIRECT PCS · PENDING',
+                'class_name': 'inventory-status-finished' if direct_remaining <= 0 else 'inventory-status-pending',
+                'has_prior_use': direct_remaining < max(0.0, parse_numeric(inv.direct_cutting_pcs)),
+                'is_direct_cutting_pcs': True,
+                'direct_pcs_balance': direct_remaining,
+            }
             continue
         fabric_status = calculate_inventory_fabric_balances(inv)
         status_parts = []
@@ -11800,12 +12720,14 @@ def cutting_sheet():
                 'label': ' + '.join(status_parts),
                 'class_name': status_class,
                 'has_prior_use': fabric_status['used_fabric'] > 0,
+                'is_direct_cutting_pcs': False,
             }
         else:
             inventory_statuses[inv.serial_no] = {
                 'label': 'FINISHED',
                 'class_name': 'inventory-status-finished',
                 'has_prior_use': fabric_status['used_fabric'] > 0,
+                'is_direct_cutting_pcs': False,
             }
 
     default_cut_date = datetime.now().strftime('%Y-%m-%d')
@@ -11833,6 +12755,9 @@ def cutting_sheet():
         previous_inventory_serial_no=previous_inventory_serial_no,
         selected_inventory_serial=selected_inventory_serial,
         inventory_total_meter=inventory_total_meter,
+        direct_cutting_pcs_mode=direct_cutting_pcs_mode,
+        opening_balance_direct_pcs=opening_balance_direct_pcs,
+        balance_direct_pcs=balance_direct_pcs,
         opening_balance_fabric=opening_balance_fabric,
         balance_fabric=balance_fabric,
         active_b_quality_remaining=active_b_quality_remaining,
@@ -11853,6 +12778,20 @@ def saved_cutting_sheets():
     job_no = request.args.get('job_no') or request.args.get('order_id') or request.args.get('auto_job')
     order = Order.query.filter_by(job_no=job_no).first() if job_no else None
     cutting_sheets = CuttingSheet.query.filter_by(order_id=job_no).order_by(CuttingSheet.id.desc()).all() if job_no else []
+    incomplete_cutting_sheet_ids = set()
+    for sheet in cutting_sheets:
+        if sheet.is_direct_cutting_pcs:
+            continue
+        sheet_rows = {row.idx: row for row in sheet.rows}
+        has_return = bool((getattr(sheet_rows.get(21), 'meter', '') or '').strip())
+        has_wastage = bool((sheet.mini_cp_22 or '').strip())
+        has_special_cp = bool((sheet.mini_cp_22_grey or '').strip())
+        has_bundle = bool((sheet.bundle or '').strip())
+        palla_check_by = (sheet.palla_check_by or '').strip()
+        has_palla_check = bool(palla_check_by and palla_check_by != '-')
+        if not all((has_return, has_wastage, has_special_cp, has_bundle, has_palla_check)):
+            incomplete_cutting_sheet_ids.add(sheet.id)
+
     transfer_states = {}
     if order:
         sequence = CuttingSheet.query.filter_by(order_id=job_no).all()
@@ -11878,6 +12817,7 @@ def saved_cutting_sheets():
         selected_job=job_no,
         order=order,
         cutting_sheets=cutting_sheets,
+        incomplete_cutting_sheet_ids=incomplete_cutting_sheet_ids,
         transfer_states=transfer_states,
         transfer_origins=transfer_origins,
         destination_orders=destination_orders,
@@ -11939,7 +12879,11 @@ def bundle_stickers(cutting_sheet_id):
                         db.session.delete(entry)
                 db.session.commit()
                 flash('Bundle PCS saved successfully.', 'success')
-                return redirect(url_for('bundle_stickers', cutting_sheet_id=cutting_sheet.id))
+                return redirect(url_for(
+                    'order_accessories',
+                    job_no=cutting_sheet.order_id,
+                    issue_cut_id=cutting_sheet.id,
+                ))
 
     return render_template(
         'bundle_stickers.html',
@@ -12163,7 +13107,13 @@ def inventory_by_serial():
         "challan_no": inventory.challan_no or '',
         "fabric_qty_a": inventory.fabric_qty_a or '',
         "fabric_qty_b": inventory.fabric_qty_b or '',
-        "fabric_meter_total": total
+        "fabric_meter_total": total,
+        "is_direct_cutting_pcs": bool(inventory.is_direct_cutting_pcs),
+        "direct_cutting_pcs_remaining": calculate_inventory_direct_cut_pcs_remaining(
+            inventory,
+            before_cut_no=requested_cut_no,
+            order_id=request.args.get('order_id'),
+        ),
     })
 
 @app.route('/manager/inventory')
@@ -12230,7 +13180,10 @@ def inventory():
                             + parse_numeric(cutting_row.cp)
                         )
             inventory_total = calculate_inventory_received_total(inventory)
-            running_balance = inventory_total
+            running_balance = (
+                max(0.0, parse_numeric(inventory.direct_cutting_pcs))
+                if inventory.is_direct_cutting_pcs else inventory_total
+            )
             for sheet in related_sheets:
                 if inventory.serial_no not in split_inventory_serials(sheet.inventory_serial_no):
                     continue
@@ -12242,8 +13195,15 @@ def inventory():
                     cut_no=sheet.cut_no,
                 ).first()
                 if mirrored_row:
-                    running_balance -= parse_numeric(mirrored_row.fabric_use)
-                    mirrored_row.balance = f'{running_balance:.2f}'
+                    if inventory.is_direct_cutting_pcs:
+                        running_balance = max(
+                            0.0,
+                            running_balance - parse_numeric(mirrored_row.direct_pcs_used),
+                        )
+                        mirrored_row.balance = f'{running_balance:.0f}'
+                    else:
+                        running_balance -= parse_numeric(mirrored_row.fabric_use)
+                        mirrored_row.balance = f'{running_balance:.2f}'
                     if sheet_file_no:
                         mirrored_row.file_no = sheet_file_no
             db.session.commit()
@@ -12264,11 +13224,7 @@ def inventory():
         inventory.left_over_fabric = f"{max(0.0, fabric_status['left_over_fabric']):.2f}"
         inventory.rejected_fabric = f"{fabric_status['rejected_fabric'] + fabric_status['recovered_fabric']:.2f}"
 
-    total_cutting_pcs = sum(
-        int(parse_numeric(row.cutting_pcs))
-        for row in rows
-        if row.cutting_pcs is not None
-    )
+    total_cutting_pcs = sum(int(parse_numeric(row.cutting_pcs)) for row in rows if row.cutting_pcs is not None)
     total_fabric_use = sum(parse_numeric(row.fabric_use) for row in rows if row.fabric_use is not None)
     total_shortage = sum(
         parse_numeric(row.shortage_total)
@@ -12303,6 +13259,14 @@ def inventory():
     if remaining_fabric_balance and b_quality_applied:
         fabric_balance_status = 'COMPLETED' if parse_numeric(remaining_fabric_balance) == 0 else 'NOT COMPLETED'
     inventory_status = get_inventory_status(inventory) if inventory else 'NOT USED'
+    direct_pcs_remaining = (
+        calculate_inventory_direct_cut_pcs_remaining(inventory)
+        if inventory and inventory.is_direct_cutting_pcs else 0.0
+    )
+    direct_pcs_used = (
+        max(0.0, parse_numeric(inventory.direct_cutting_pcs) - direct_pcs_remaining)
+        if inventory and inventory.is_direct_cutting_pcs else 0.0
+    )
     linked_challan = ReceivingChallan.query.filter_by(serial_no=serial_no).first() if serial_no else None
     inventory_rolls = linked_challan.rolls if linked_challan else ''
     inventory_avg_value = calculate_inventory_cutting_average(
@@ -12318,6 +13282,8 @@ def inventory():
         inventory_rolls=inventory_rolls,
         inventory_avg_value=inventory_avg_value,
         inventory_status=inventory_status,
+        direct_pcs_remaining=direct_pcs_remaining,
+        direct_pcs_used=direct_pcs_used,
         rows=rows,
         second_rows=second_rows,
         total_cutting_pcs=total_cutting_pcs,
@@ -12344,20 +13310,34 @@ def save_inventory():
     job_no = request.args.get('job_no') or request.form.get('job_no') or request.args.get('order_id') or request.args.get('auto_job') or ''
     order = Order.query.filter_by(job_no=job_no).first() if job_no else None
     inventory_id = request.form.get('inventory_id') or request.args.get('inv_id')
-    if inventory_id and (
-        session.get('role') not in ('owner', 'manager') or is_read_only_profile()
-    ):
-        return reject_read_only_edit('Only the owner and manager can update saved inventory records.')
     serial_no = request.form.get('serial_no') or request.args.get('serial_no') or generate_inventory_serial()
     linked_challan = ReceivingChallan.query.filter_by(serial_no=serial_no).first() if serial_no else None
+    mode_inventory = Inventory.query.filter_by(serial_no=serial_no).first() if serial_no else None
     inventory_rolls = linked_challan.rolls if linked_challan else ''
     inventory_avg_value = calculate_inventory_cutting_average(serial_no, job_no)
+    is_direct_cutting_pcs = bool(
+        linked_challan.is_direct_cutting_pcs if linked_challan
+        else mode_inventory and mode_inventory.is_direct_cutting_pcs
+    )
+    direct_cutting_pcs = (
+        parse_numeric(linked_challan.direct_cutting_pcs)
+        if linked_challan and is_direct_cutting_pcs
+        else parse_numeric(mode_inventory.direct_cutting_pcs)
+        if mode_inventory and is_direct_cutting_pcs else 0.0
+    )
 
-    required_header_keys = [
+    required_header_keys = [] if is_direct_cutting_pcs else [
         'recv_date', 'suppliers', 'received_from', 'challan_no', 'place', 'meter_note', 'file_no',
         'fabric_quality', 'cut_size_header', 'width', 'req_cutting', 'fabric_for', 'consumption', 'req_average'
     ]
     form_headers = {k: request.form.get(k, '').strip() for k in required_header_keys}
+    if is_direct_cutting_pcs and (
+        direct_cutting_pcs <= 0
+        or not math.isfinite(direct_cutting_pcs)
+        or not direct_cutting_pcs.is_integer()
+    ):
+        flash('Enter a whole number of direct cutting PCS greater than zero.', 'danger')
+        return redirect(url_for('inventory', job_no=job_no, serial_no=serial_no))
 
     inventory_entry = None
     if inventory_id:
@@ -12376,6 +13356,27 @@ def save_inventory():
     ):
         return reject_read_only_edit('Only the owner and manager can update saved inventory records.')
 
+    if inventory_entry:
+        existing_rows = InventoryRow.query.filter_by(inventory_id=inventory_entry.id).all()
+        has_fabric_usage = any(parse_numeric(row.fabric_use) > 0 for row in existing_rows)
+        direct_pcs_already_used = sum(parse_numeric(row.direct_pcs_used) for row in existing_rows)
+        has_direct_pcs_usage = direct_pcs_already_used > 0
+        has_fabric_stock = any(
+            parse_numeric(value) > 0 for value in (
+                inventory_entry.fabric_qty_a,
+                inventory_entry.fabric_qty_b,
+            )
+        )
+        if is_direct_cutting_pcs and (has_fabric_stock or has_fabric_usage):
+            flash('Direct cutting PCS must use a separate inventory from fabric stock.', 'danger')
+            return redirect(url_for('inventory', job_no=job_no, inv_id=inventory_entry.id))
+        if not is_direct_cutting_pcs and inventory_entry.is_direct_cutting_pcs and has_direct_pcs_usage:
+            flash('This inventory already has direct-PCS cuts and cannot be changed to fabric mode.', 'danger')
+            return redirect(url_for('inventory', job_no=job_no, inv_id=inventory_entry.id))
+        if is_direct_cutting_pcs and direct_cutting_pcs + 0.000001 < direct_pcs_already_used:
+            flash('Direct cutting PCS cannot be reduced below the quantity already cut.', 'danger')
+            return redirect(url_for('inventory', job_no=job_no, inv_id=inventory_entry.id))
+
     supplier_value = request.form.get('suppliers', '')
     received_from_value = request.form.get('received_from', '')
 
@@ -12387,6 +13388,8 @@ def save_inventory():
         inventory_form.rejected_recovered_fabric = request.form.get('re_active_fabric', '0')
         inventory_form.fabric_b_enabled = request.form.get('enable_fabric_b') == 'on'
         inventory_form.fabric_qty_b = request.form.get('fabric_qty_b', '')
+        inventory_form.is_direct_cutting_pcs = is_direct_cutting_pcs
+        inventory_form.direct_cutting_pcs = direct_cutting_pcs
         inventory_form.a_returned_to_party = bool(getattr(inventory_entry, 'a_returned_to_party', False))
         inventory_form.b_returned_to_party = bool(getattr(inventory_entry, 'b_returned_to_party', False))
         return inventory_form
@@ -12482,7 +13485,7 @@ def save_inventory():
         inventory_entry.fabric_for = request.form.get('fabric_for', '')
         inventory_entry.consumption = request.form.get('consumption', '')
         inventory_entry.req_average = request.form.get('req_average', '')
-        inventory_entry.total = f'{total_value:.2f}'
+        inventory_entry.total = f'{direct_cutting_pcs:.2f}' if is_direct_cutting_pcs else f'{total_value:.2f}'
         inventory_entry.used_fabric = f'{used_value:.2f}'
         inventory_entry.left_over_fabric = f'{left_over_value:.2f}'
         inventory_entry.rejected_fabric = f'{updated_rejected_value:.2f}'
@@ -12513,7 +13516,7 @@ def save_inventory():
             fabric_for=request.form.get('fabric_for', ''),
             consumption=request.form.get('consumption', ''),
             req_average=request.form.get('req_average', ''),
-            total=f'{total_value:.2f}',
+            total=f'{direct_cutting_pcs:.2f}' if is_direct_cutting_pcs else f'{total_value:.2f}',
             used_fabric=f'{used_value:.2f}',
             left_over_fabric=f'{left_over_value:.2f}',
             rejected_fabric=f'{updated_rejected_value:.2f}',
@@ -12522,6 +13525,8 @@ def save_inventory():
         db.session.add(inventory_entry)
 
     inventory_entry.created_by = (session.get('name') or session.get('user') or '').strip()
+    inventory_entry.is_direct_cutting_pcs = is_direct_cutting_pcs
+    inventory_entry.direct_cutting_pcs = direct_cutting_pcs
 
     missing = [k for k, v in form_headers.items() if not v]
     if missing:
@@ -12855,14 +13860,33 @@ def production_entry():
         flash('Order not found. Please open a valid order first.', 'danger')
         return redirect(url_for('manager_dashboard'))
 
-    cutting_sheets = CuttingSheet.query.filter_by(order_id=prefill_job).all()
-    cutting_sheets = sorted(
-        cutting_sheets,
+    all_cutting_sheets = CuttingSheet.query.filter_by(order_id=prefill_job).all()
+    all_cutting_sheets = sorted(
+        all_cutting_sheets,
         key=lambda sheet: (
             int(str(sheet.cut_no)) if str(sheet.cut_no).isdigit() else 999999,
             sheet.id
         )
     )
+    accessory_completion_by_sheet = {
+        sheet.id: cut_accessories_fully_issued(order, sheet)
+        for sheet in all_cutting_sheets
+    }
+    if request.method == 'POST' and not request.form.get('save_cut_special_operations'):
+        posted_cut_no = (request.form.get('cut_no') or '').strip()
+        posted_cut_sheet = next(
+            (sheet for sheet in all_cutting_sheets if str(sheet.cut_no) == posted_cut_no),
+            None,
+        )
+        if posted_cut_sheet and not accessory_completion_by_sheet[posted_cut_sheet.id]:
+            flash('Issue all required accessories for this cut before entering production.', 'danger')
+            return redirect(url_for(
+                'production_entry',
+                job_no=prefill_job,
+                cut_no=posted_cut_sheet.cut_no,
+            ))
+
+    cutting_sheets = all_cutting_sheets
     if not selected_cut and cutting_sheets:
         selected_cut = str(cutting_sheets[0].cut_no)
 
@@ -13256,6 +14280,10 @@ def production_entry():
         prefill_job=prefill_job,
         order=order,
         cutting_sheets=cutting_sheets,
+        accessory_completion_by_cut={
+            str(sheet.cut_no): accessory_completion_by_sheet[sheet.id]
+            for sheet in all_cutting_sheets
+        },
         selected_cut=selected_cut,
         selected_operation=selected_operation,
         resume_operations_by_cut=resume_operations_by_cut,
@@ -15882,6 +16910,10 @@ def payroll_overtime_hours(attendance_rows):
 def worker_attendance():
     if session.get('role') not in ('owner', 'manager', 'assistant_manager'):
         return redirect(url_for('index'))
+    attendance_read_only = not (
+        session.get('role') in ('owner', 'manager')
+        or 'worker_attendance' in getattr(g, 'page_access_keys', set())
+    )
 
     current_date = datetime.now()
     # Worker attendance is for workers whose pay is based on attendance.
@@ -15955,7 +16987,7 @@ def worker_attendance():
             new_daily_records = 0
             for row in daily_rows:
                 daily_record = DailyAttendance.query.filter_by(worker_id=selected_worker.id, date=row['date']).first()
-                if daily_record and is_read_only_profile():
+                if daily_record and attendance_read_only:
                     continue
                 if not daily_record:
                     daily_record = DailyAttendance(worker_id=selected_worker.id, date=row['date'])
@@ -15966,7 +16998,7 @@ def worker_attendance():
                 daily_record.early_hours = row['early_hours']
                 daily_record.overtime_hours = row['overtime_hours']
                 daily_record.night_hours = row['night_hours']
-            if is_read_only_profile() and not new_daily_records:
+            if attendance_read_only and not new_daily_records:
                 flash('All attendance dates in this month are already saved.', 'warning')
                 return redirect(url_for('worker_attendance', worker_id=selected_worker.id, year=selected_year, month=selected_month, portal=attendance_portal))
             saved_daily_records = DailyAttendance.query.filter(
@@ -16065,7 +17097,7 @@ def worker_attendance():
     month_options = [(number, calendar.month_name[number]) for number in range(1, 13)]
     if selected_year == current_date.year:
         month_options = month_options[:current_date.month]
-    return render_template('worker_attendance.html', workers=workers, selected_worker=selected_worker, selected_year=selected_year, selected_month=selected_month, days_in_selected_month=days_in_selected_month, existing=existing, daily_records=daily_records, history=history, yearly_by_month=yearly_by_month, yearly_summary=yearly_summary, years=attendance_years(), months=month_options, search=search, readonly=is_read_only_profile(), attendance_portal=attendance_portal, holiday_dates=holiday_dates, sunday_dates=sunday_dates)
+    return render_template('worker_attendance.html', workers=workers, selected_worker=selected_worker, selected_year=selected_year, selected_month=selected_month, days_in_selected_month=days_in_selected_month, existing=existing, daily_records=daily_records, history=history, yearly_by_month=yearly_by_month, yearly_summary=yearly_summary, years=attendance_years(), months=month_options, search=search, readonly=attendance_read_only, attendance_portal=attendance_portal, holiday_dates=holiday_dates, sunday_dates=sunday_dates)
 
 
 @app.route('/manager/delete-worker', methods=['POST'])
@@ -16079,6 +17111,9 @@ def delete_worker():
     worker = Worker.query.get(worker_id) if worker_id else None
 
     if worker:
+        if worker.is_permanent:
+            flash('The permanent CANON worker cannot be deleted.', 'danger')
+            return redirect(url_for('workers'))
         # attempt to remove picture file
         if worker.picture:
             try:
@@ -17259,9 +18294,20 @@ def accessories_portal(portal_page='home'):
         return redirect(url_for('index'))
     if portal_page not in {'home', 'purchase-orders', 'unallocated-stock', 'issuance-store-finder', 'issued-returned-items'}:
         abort(404)
+    can_create_local_po = owner_only() or 'local_po_generation' in getattr(g, 'page_access_keys', set())
+    selected_po_company = (
+        request.args.get('company')
+        or request.form.get('company')
+        or request.form.get('local_company')
+        or 'Canon'
+    ).strip().title()
+    if selected_po_company not in ('Canon', 'Haram'):
+        selected_po_company = 'Canon'
 
     def redirect_to_portal(page=None, **query):
         destination = page or portal_page
+        if destination == 'purchase-orders':
+            query.setdefault('company', selected_po_company)
         if destination == 'home':
             return redirect(url_for('accessories_portal', **query))
         return redirect(url_for('accessories_portal', portal_page=destination, **query))
@@ -17340,15 +18386,16 @@ def accessories_portal(portal_page='home'):
             return redirect_to_portal('purchase-orders')
 
         if action == 'create_local_po':
-            if is_read_only_profile():
-                return reject_read_only_edit('This profile has read-only access to accessory stock.')
+            if not can_create_local_po:
+                abort(403)
 
             supplier = (request.form.get('local_supplier') or '').strip()
             requested_by = (request.form.get('local_requested_by') or '').strip()
+            bought_by = (request.form.get('local_bought_by') or '').strip()
             po_date = (request.form.get('local_date') or '').strip()
             priority = (request.form.get('local_priority') or 'Normal').strip()
-            if not supplier or not requested_by or not po_date:
-                flash('Supplier, requested by, and date are required for a Local PO.', 'danger')
+            if not supplier or not requested_by or not bought_by or not po_date:
+                flash('Supplier, requested by, bought by, and date are required for a Local PO.', 'danger')
                 return redirect_to_portal('purchase-orders')
 
             try:
@@ -17362,7 +18409,12 @@ def accessories_portal(portal_page='home'):
             if company not in ('Canon', 'Haram'):
                 flash('Choose Canon or Haram for this Local PO.', 'danger')
                 return redirect_to_portal('purchase-orders')
-            for row_number in range(1, 7):
+            row_numbers = sorted({
+                int(match.group(1))
+                for field_name in request.form
+                if (match := re.fullmatch(r'local_item_(\d+)', field_name))
+            })
+            for row_number in row_numbers:
                 item_name = (request.form.get(f'local_item_{row_number}') or '').strip()
                 qty_value = (request.form.get(f'local_qty_{row_number}') or '').strip()
                 size = (request.form.get(f'local_size_{row_number}') or '').strip()
@@ -17445,6 +18497,7 @@ def accessories_portal(portal_page='home'):
                     supplier=supplier,
                     company=company,
                     requested_by=requested_by,
+                    bought_by=bought_by,
                     priority=priority,
                     date=po_date,
                     for_field='LOCAL STOCK',
@@ -18239,6 +19292,8 @@ def accessories_portal(portal_page='home'):
     for po_item in SavedRequirement.query.order_by(SavedRequirement.id.desc()).all():
         if is_party_supplied_stock_layer(po_item):
             continue
+        if portal_page == 'purchase-orders' and (po_item.company or 'Canon').strip().title() != selected_po_company:
+            continue
         if not (po_item.issue_unit or '').strip():
             po_item.issue_unit = default_issue_unit_for_item(po_item.item, po_item.unit or 'PCS')
         group_key = (po_item.order_id or '', po_item.po_no or '', po_item.company or 'Canon')
@@ -18261,6 +19316,7 @@ def accessories_portal(portal_page='home'):
             'company': company,
             'po_no': po_no or '-',
             'status': po_status,
+            'bought_by': next(((po_item.bought_by or '').strip() for po_item in group_items if (po_item.bought_by or '').strip()), ''),
             'item_id': group_items[0].id if group_items else '',
             'all_received': all_received,
             'receipt_image': next((po_item.purchase_slip_image for po_item in group_items if po_item.purchase_slip_image), ''),
@@ -18308,6 +19364,7 @@ def accessories_portal(portal_page='home'):
             'supplier': first_item.supplier or '' if first_item else '',
             'date': first_item.date or '' if first_item else '',
             'requested_by': first_item.requested_by or '' if first_item else '',
+            'bought_by': first_item.bought_by or '' if first_item else '',
             'priority': first_item.priority or '' if first_item else '',
             'for_field': first_item.for_field or '' if first_item else '',
             'serial_no': first_item.serial_no or '' if first_item else '',
@@ -18320,6 +19377,8 @@ def accessories_portal(portal_page='home'):
     return render_template(
         'accessories.html', items=items, received_item_groups=received_item_groups,
         portal_page=portal_page,
+        can_create_local_po=can_create_local_po,
+        selected_po_company=selected_po_company,
         status_filter=status_filter, search=search,
         accessory_summary=get_accessory_stock_summary(),
         auto_po_summaries=auto_po_summaries, local_po_summaries=local_po_summaries,
@@ -19210,32 +20269,51 @@ def billing_party_directory():
         return redirect(url_for('index'))
 
     selected_shipper = normalize_challan_shipper(request.values.get('shipper'))
+    add_party_name = (request.values.get('add_party_name') or '').strip()
 
     if request.method == 'POST':
         action = request.form.get('action', '')
         if action == 'save_party':
             party_id = request.form.get('party_id', type=int)
             party_name = (request.form.get('party_name') or '').strip()
+            return_to_billing = request.form.get('return_to_billing') == '1'
+            requested_party_name = (request.form.get('add_party_name') or '').strip()
+
+            def redirect_directory(party_id=None, party_name=''):
+                if return_to_billing and party_name:
+                    return redirect(url_for(
+                        'billing_portal',
+                        shipper=selected_shipper,
+                        party_added=party_name,
+                    ))
+                redirect_args = {'shipper': selected_shipper}
+                if party_id:
+                    redirect_args['party_id'] = party_id
+                if return_to_billing:
+                    redirect_args['return_to_billing'] = '1'
+                    redirect_args['add_party_name'] = requested_party_name or party_name
+                return redirect(url_for('billing_party_directory', **redirect_args))
+
             if not party_name:
                 flash('Party name is required.', 'danger')
-                return redirect(url_for('billing_party_directory', shipper=selected_shipper))
+                return redirect_directory()
             party = BillingParty.query.filter_by(id=party_id).first() if party_id else None
             if party_id and not party:
                 flash('Select a valid party to update.', 'danger')
-                return redirect(url_for('billing_party_directory', shipper=selected_shipper))
+                return redirect_directory()
             duplicate = BillingParty.query.filter(
                 func.lower(BillingParty.party_name) == party_name.casefold(),
                 BillingParty.id != (party.id if party else 0),
             ).first()
             if duplicate:
                 flash('A party with this name is already saved in the global party directory.', 'danger')
-                return redirect(url_for('billing_party_directory', party_id=duplicate.id, shipper=selected_shipper))
+                return redirect_directory(duplicate.id, duplicate.party_name)
             try:
                 party_ntn = normalize_party_ntn(request.form.get('party_ntn'))
                 sales_tax_no = normalize_sales_tax_no(request.form.get('sales_tax_no'))
             except ValueError as exc:
                 flash(str(exc), 'danger')
-                return redirect(url_for('billing_party_directory', shipper=selected_shipper))
+                return redirect_directory()
             if not party:
                 party = BillingParty(shipper=selected_shipper)
             party.party_name = party_name
@@ -19251,6 +20329,12 @@ def billing_party_directory():
             db.session.commit()
             g.activity_action = f'SAVED BILLING PARTY {party.party_name} FOR {selected_shipper}'.upper()
             flash(f'{party.party_name} saved in the global party directory.', 'success')
+            if return_to_billing:
+                return redirect(url_for(
+                    'billing_portal',
+                    shipper=selected_shipper,
+                    party_added=party.party_name,
+                ))
             return redirect(url_for('billing_party_directory', party_id=party.id, shipper=selected_shipper))
         flash('Choose a valid party directory action.', 'danger')
         return redirect(url_for('billing_party_directory', shipper=selected_shipper))
@@ -19278,6 +20362,8 @@ def billing_party_directory():
         party_name_options=party_name_options,
         selected_party=selected_party,
         selected_shipper=selected_shipper,
+        add_party_name=add_party_name,
+        return_to_billing=request.args.get('return_to_billing') == '1',
     )
 
 
@@ -19287,6 +20373,7 @@ def billing_portal():
         return redirect(url_for('index'))
 
     selected_shipper = normalize_challan_shipper(request.values.get('shipper'))
+    party_added_name = (request.args.get('party_added') or '').strip()
     show_billing_notification_cards = (
         request.method == 'GET'
         and not session.get('billing_notification_cards_seen', False)
@@ -19350,6 +20437,20 @@ def billing_portal():
             if any((challan.party_name or '').strip().casefold() != party_name.casefold() for challan in challans):
                 flash('A Bill and Sales Invoice can include challans for only one customer.', 'danger')
                 return redirect(url_for('billing_portal', shipper=selected_shipper))
+            if not party_name:
+                flash('Add the customer to the Party Directory before creating a Bill and Invoice.', 'danger')
+                return redirect(url_for('billing_portal', shipper=selected_shipper))
+            directory_party = BillingParty.query.filter(
+                func.lower(BillingParty.party_name) == party_name.casefold()
+            ).first()
+            if not directory_party:
+                flash(f'Add {party_name} to the Party Directory before creating a Bill and Invoice.', 'danger')
+                return redirect(url_for(
+                    'billing_party_directory',
+                    shipper=selected_shipper,
+                    add_party_name=party_name,
+                    return_to_billing='1',
+                ))
 
             already_invoiced = {
                 challan_id for (challan_id,) in db.session.query(
@@ -19784,6 +20885,7 @@ def billing_portal():
             resolved_at=None,
         ).count(),
         show_billing_notification_cards=show_billing_notification_cards,
+        party_added_name=party_added_name,
         search=request.args.get('q', ''),
         status_filter=status_filter,
         today=today,

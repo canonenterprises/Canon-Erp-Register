@@ -1143,6 +1143,11 @@
             word-break: break-word !important;
         }
 
+        #print-area.attendance-payout .payroll-table th,
+        #print-area.attendance-payout .payroll-table td {
+            text-align: center !important;
+        }
+
         .payroll-table td {
             font-size: 9px !important;
             white-space: normal !important;
@@ -1172,6 +1177,7 @@
 
         #print-area.attendance-payout .payroll-table tbody td {
             font-size: 13px !important;
+            padding: 12px 3px !important;
         }
 
         #print-area.attendance-payout .payroll-table tfoot td,
@@ -1181,7 +1187,7 @@
         }
 
         #print-area.attendance-payout .payroll-table tbody td:nth-child(3) {
-            font-size: 9px !important;
+            font-size: 12px !important;
         }
 
         .payroll-table th:nth-child(1),
@@ -1193,6 +1199,31 @@
         #print-area.attendance-payout .payroll-table th:nth-child(1),
         #print-area.attendance-payout .payroll-table td:nth-child(1) {
             width: 3.5% !important;
+        }
+
+        #print-area.attendance-payout .payroll-table th:nth-child(2),
+        #print-area.attendance-payout .payroll-table td:nth-child(2) {
+            width: 5% !important;
+        }
+
+        #print-area.attendance-payout .payroll-table th:nth-child(3),
+        #print-area.attendance-payout .payroll-table td:nth-child(3) {
+            width: 15% !important;
+        }
+
+        #print-area.attendance-payout .payroll-table th:nth-child(4),
+        #print-area.attendance-payout .payroll-table td:nth-child(4) {
+            width: 6% !important;
+        }
+
+        #print-area[data-payout-portal="salaried"].attendance-payout .payroll-table th:nth-child(5),
+        #print-area[data-payout-portal="salaried"].attendance-payout .payroll-table td:nth-child(5) {
+            width: 6.33% !important;
+        }
+
+        #print-area[data-payout-portal="per_day"].attendance-payout .payroll-table th:nth-child(5),
+        #print-area[data-payout-portal="per_day"].attendance-payout .payroll-table td:nth-child(5) {
+            width: 7% !important;
         }
 
         .payroll-table th:last-child,

@@ -126,8 +126,11 @@
 
   <section id="unbilled-challans" class="space-y-4 border-t border-slate-200 pt-6">
     <div><p class="text-xs font-bold uppercase text-amber-700">{{ selected_shipper }} · Ready to bill</p><h2 class="mt-1 text-xl font-black text-slate-900">Uninvoiced delivery challans</h2><p class="mt-1 text-sm text-slate-500">Only {{ selected_shipper }} challans are shown. Enter the agreed selling rate for each shipped PCS line.</p></div>
+    {% if party_added_name %}
+    <p class="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">{{ party_added_name }} is now in the Party Directory. Continue by selecting challans and creating the Bill and Invoice.</p>
+    {% endif %}
     {% for group in unbilled_party_groups %}
-    <details class="group border-b border-slate-200 py-3">
+    <details class="group border-b border-slate-200 py-3" {% if party_added_name and group.party_name|lower == party_added_name|lower %}open{% endif %}>
       <summary class="flex cursor-pointer list-none flex-wrap items-center justify-between gap-3">
         <span><span class="font-black text-slate-900">{{ group.party_name }}</span><span class="ml-2 text-xs text-slate-500">{{ group.rows|length }} unbilled challan(s)</span></span>
         <span class="inline-flex items-center gap-2 text-sm font-bold text-emerald-800">Create combined Bill &amp; Invoice <i class="fa-solid fa-chevron-down transition group-open:rotate-180" aria-hidden="true"></i></span>

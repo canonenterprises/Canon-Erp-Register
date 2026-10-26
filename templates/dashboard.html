@@ -349,13 +349,13 @@
         </div>
         
         <div class="col-span-1 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Qty Per Bail</label><input type="number" id="qty_bail" name="qty_bail" value="{{ form_order.qty_bail if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Qty Per Bail (PACKETS)</label><input type="number" id="qty_bail" name="qty_bail" value="{{ form_order.qty_bail if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Gross Weight Bail</label><input type="text" name="gross_w_bail" value="{{ form_order.gross_w_bail if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Net Weight Bail</label><input type="text" name="net_w_bail" value="{{ form_order.net_w_bail if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Total Bails</label><input type="number" name="total_bails" value="{{ form_order.total_bails if form_order else '' }}" class="w-full p-2 border rounded-lg bg-slate-100" readonly></div>
         </div>
         <div class="col-span-1 sm:col-span-2 lg:col-span-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Qty Per CTN</label><input type="number" id="qty_ctn" name="qty_ctn" value="{{ form_order.qty_ctn if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
+            <div><label class="text-[15px] font-bold text-slate-600 uppercase">Qty Per CTN (PACKETS)</label><input type="number" id="qty_ctn" name="qty_ctn" value="{{ form_order.qty_ctn if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Gross Weight CTN</label><input type="text" name="gross_w" value="{{ form_order.gross_w if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Net Weight CTN</label><input type="text" name="net_w" value="{{ form_order.net_w if form_order else '' }}" class="w-full p-2 border rounded-lg" required></div>
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Total CTN</label><input type="number" name="total_ctn" value="{{ form_order.total_ctn if form_order else '' }}" class="w-full p-2 border rounded-lg bg-slate-100" readonly></div>
@@ -524,7 +524,6 @@
 
             // Usage/Doz % calculator
             const pcsPerSideInput = document.getElementById('pcs_per_side');
-            const marginPercentInput = document.getElementById('margin_percent');
             const cutSizeLeftInput = document.getElementById('cut_size_left');
             const cutSizeRightInput = document.getElementById('cut_size_right');
             const cutSizeValueInput = document.getElementById('cut_size');
@@ -549,13 +548,10 @@
             function calculateUsage() {
                 const pcsPerSide = parseFloat(pcsPerSideInput && pcsPerSideInput.value || 0) || 0;
                 const cutSize = parseFirstCutSizeFactor(cutSizeLeftInput && cutSizeLeftInput.value);
-                const marginPercent = parseFloat(marginPercentInput && marginPercentInput.value || 0) || 0;
                 if (!cutSize || !pcsPerSide) {
                     return;
                 }
-                const base = (cutSize * pcsPerSide) / 39.35;
-                const usageValue = base + ((base * marginPercent) / 100);
-                const usageRounded = Number(usageValue.toFixed(3));
+                const usageRounded = Number(((cutSize * pcsPerSide) / 39.35).toFixed(3));
 
                 const orderDozens = parseFloat(dozenInput && dozenInput.value || 0) || 0;
                 const reqFab = orderDozens * usageRounded;
@@ -570,7 +566,6 @@
             }
 
             if (pcsPerSideInput) pcsPerSideInput.addEventListener('input', calculateUsage);
-            if (marginPercentInput) marginPercentInput.addEventListener('input', calculateUsage);
             [cutSizeLeftInput, cutSizeRightInput].forEach(function (input) {
                 if (!input) return;
                 input.addEventListener('input', function () {

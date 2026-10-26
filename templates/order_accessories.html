@@ -2,7 +2,7 @@
 {% block content %}
 
 <div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
-<main class="mx-auto max-w-7xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+<main data-auto-open-cut-id="{{ auto_open_cut_id or '' }}" class="mx-auto max-w-7xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
     <header class="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div>
             <p class="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-700">Order Accessories</p>
@@ -15,10 +15,12 @@
         </div>
     </header>
 
+    {% if session.get('role') in ('owner', 'manager') %}
     <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
         <div class="border-l-4 border-cyan-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Estimated Cost</p><p class="mt-2 text-xl font-black text-slate-900">{% if totals.estimated_cost_available %}Rs. {{ '{:,.2f}'.format(totals.estimated_cost) }}{% else %}Rate unavailable{% endif %}</p></div>
         <div class="border-l-4 border-violet-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Net accessory cost</p><p class="mt-2 text-xl font-black text-slate-900">Rs. {{ '{:,.2f}'.format(totals.cost) }}</p></div>
     </section>
+    {% endif %}
 
     <section class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
         <table class="w-full min-w-[900px] text-sm">
@@ -57,12 +59,19 @@
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <span class="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase {% if cut.status == 'Completed' %}bg-emerald-100 text-emerald-800{% elif cut.status == 'Partially Issued' %}bg-amber-100 text-amber-800{% elif cut.status == 'Unplanned' %}bg-rose-100 text-rose-800{% else %}bg-slate-100 text-slate-700{% endif %}">{{ cut.status }}</span>
+                    {% if can_issue_cut_wise %}
+                    <button type="button" data-open-cut-accessory-modal="cut-accessory-modal-{{ cut.sheet.id }}" {% if cut.status in ('Completed', 'Unplanned', 'No Requirements') %}disabled title="No required accessory quantity remains"{% endif %} class="rounded-lg bg-cyan-700 px-4 py-2 text-xs font-bold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:opacity-50">Issue Cut Accessory</button>
+                    {% endif %}
+                    {% if cut.accessories_complete %}
                     <a href="{{ url_for('order_accessories_cut_print', job_no=order.job_no, cut_sheet_id=cut.sheet.id) }}" target="_blank" rel="noopener" class="rounded-lg bg-slate-950 px-4 py-2 text-xs font-bold text-white hover:bg-slate-800">Print Cut A5</a>
+                    {% else %}
+                    <button type="button" disabled title="Issue all required accessories before printing" class="cursor-not-allowed rounded-lg bg-slate-400 px-4 py-2 text-xs font-bold text-white opacity-70">Print Cut A5</button>
+                    {% endif %}
                 </div>
             </header>
             <div class="overflow-x-auto">
-                <table class="w-full min-w-[640px] text-sm">
-                    <thead class="bg-slate-50 text-left text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-3 py-2">Accessory</th><th class="px-3 py-2">Required for cut</th><th class="px-3 py-2">Net issued</th><th class="px-3 py-2">Remaining</th><th class="px-3 py-2">Unit</th></tr></thead>
+                <table class="w-full min-w-[760px] text-sm">
+                    <thead class="bg-slate-50 text-left text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-3 py-2">Accessory</th><th class="px-3 py-2">Required for cut</th><th class="px-3 py-2">Net issued</th><th class="px-3 py-2">Remaining</th><th class="px-3 py-2">Unit</th><th class="px-3 py-2">Stock status</th></tr></thead>
                     <tbody>
                         {% for item in cut['items'] %}
                         <tr class="border-t border-slate-100">
@@ -71,12 +80,84 @@
                             <td class="px-3 py-2">{{ '{:,.2f}'.format(item.display_net_issued) }}</td>
                             <td class="px-3 py-2">{{ '{:,.2f}'.format(item.display_remaining) }}</td>
                             <td class="px-3 py-2">{{ item.display_unit or '—' }}</td>
+                            <td class="px-3 py-2">
+                                <span class="inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-bold uppercase {% if item.stock_status == 'In stock' %}bg-emerald-100 text-emerald-800{% elif item.stock_status == 'Low stock' %}bg-amber-100 text-amber-800{% else %}bg-rose-100 text-rose-800{% endif %}">{{ item.stock_status }}</span>
+                            </td>
                         </tr>
-                        {% else %}<tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No accessory requirements are configured for this cut.</td></tr>{% endfor %}
+                        {% else %}<tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">No accessory requirements are configured for this cut.</td></tr>{% endfor %}
                     </tbody>
                 </table>
             </div>
         </article>
+        {% if can_issue_cut_wise %}
+        <dialog id="cut-accessory-modal-{{ cut.sheet.id }}" class="w-[min(96vw,72rem)] max-w-none rounded-xl border border-slate-300 bg-white p-0 text-slate-900 shadow-2xl backdrop:bg-slate-950/60">
+            <form method="post" data-cut-accessory-batch-form class="max-h-[90vh] overflow-y-auto p-4 sm:p-6">
+                <input type="hidden" name="action" value="issue_cut_accessories">
+                <input type="hidden" name="cut_sheet_id" value="{{ cut.sheet.id }}">
+                <input type="hidden" name="issue_date" value="{{ cut_issue_today }}">
+                <header class="flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+                    <div>
+                        <p class="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-700">Cut {{ cut.sheet.cut_no or cut.sheet.id }}</p>
+                        <h3 class="mt-1 text-xl font-black">Issue cut accessories</h3>
+                        <p class="mt-1 text-xs text-slate-500">Set a location and issue quantity for each remaining item.</p>
+                    </div>
+                    <button type="button" data-close-cut-accessory-modal class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100" aria-label="Close">&times;</button>
+                </header>
+                <label class="mt-4 block max-w-sm text-xs font-bold uppercase text-slate-600">Issued to worker
+                    <input name="worker_name" required class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm normal-case" placeholder="Worker name">
+                </label>
+                <div class="mt-4 overflow-x-auto rounded-lg border border-slate-200">
+                    <table class="w-full min-w-[920px] text-sm">
+                        <thead class="bg-slate-50 text-left text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-3 py-3">Required item</th><th class="px-3 py-3 text-right">Required</th><th class="px-3 py-3">Issue unit</th><th class="px-3 py-3 text-right">Issued</th><th class="px-3 py-3 text-right">Remaining</th><th class="px-3 py-3">Stock location</th><th class="px-3 py-3 text-right">Available at location</th><th class="px-3 py-3 text-right">Issue quantity</th></tr></thead>
+                        <tbody>
+                            {% for item in cut['items'] if item.required > 0.000001 %}
+                            <tr class="border-t border-slate-100" data-cut-accessory-item-row>
+                                <td class="px-3 py-3 font-bold">{{ item.item }}{% if item.size %}<span class="ml-1 font-normal text-slate-500">{{ item.size }}</span>{% endif %}{% if item.quality %}<span class="ml-1 font-normal text-slate-500">{{ item.quality }}</span>{% endif %}</td>
+                                <td class="px-3 py-3 text-right">{{ '{:,.2f}'.format(item.display_required) }}</td>
+                                <td class="px-3 py-3">{{ item.display_unit or '—' }}</td>
+                                <td class="px-3 py-3 text-right">{{ '{:,.2f}'.format(item.display_net_issued) }}</td>
+                                <td class="px-3 py-3 text-right font-bold">{{ '{:,.2f}'.format(item.display_remaining) }}</td>
+                                <td class="min-w-64 px-3 py-3">
+                                    {% set matching_issue_option = cut.issue_options|selectattr('item_index', 'equalto', item.item_index)|first %}
+                                    {% if item.display_remaining > 0.000001 %}
+                                    {% if matching_issue_option %}
+                                    <input type="hidden" name="issue_item_index" value="{{ item.item_index }}">
+                                    <input type="hidden" name="requirement_id" data-cut-accessory-requirement>
+                                    <select name="storage_location_id" required data-cut-accessory-location class="w-full rounded-md border border-slate-300 bg-white px-2 py-2 text-xs">
+                                        <option value="">Select location</option>
+                                        {% for location in matching_issue_option.locations %}
+                                        <option value="{{ location.id }}" data-requirement-id="{{ location.requirement_id }}" data-max-issue-qty="{{ '%.4f'|format(location.max_issue_qty) }}" data-available-issue-qty="{{ '%.4f'|format(location.available_issue_qty) }}" data-issue-unit="{{ location.unit }}" data-discrete="{{ 'true' if location.discrete else 'false' }}">{{ location.label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    {% else %}<p class="text-xs font-semibold text-rose-700">No matching stock location available.</p>{% endif %}
+                                    {% else %}
+                                    <span class="text-xs text-emerald-700">Fully issued</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-3 py-3 text-right" data-cut-accessory-available>—</td>
+                                <td class="min-w-32 px-3 py-3">
+                                    {% if item.display_remaining > 0.000001 and matching_issue_option %}
+                                    <input type="number" name="issued_qty" min="0.01" step="0.01" required data-cut-accessory-quantity data-cut-remaining="{{ '%.4f'|format(item.display_remaining) }}" class="w-full rounded-md border border-slate-300 px-2 py-2 text-right text-sm">
+                                    {% elif item.display_remaining > 0.000001 %}
+                                    <span class="block text-right text-xs text-rose-700">No stock</span>
+                                    {% else %}
+                                    <span class="block text-right text-xs text-slate-400">0</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="8" class="px-3 py-8 text-center text-sm text-slate-500">No required accessory items are listed for this cut.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <footer class="mt-5 flex flex-col-reverse justify-end gap-2 border-t border-slate-200 pt-4 sm:flex-row">
+                    <button type="button" data-close-cut-accessory-modal class="rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Cancel</button>
+                    <button type="submit" class="rounded-lg bg-cyan-700 px-5 py-2 text-sm font-bold text-white hover:bg-cyan-800">Issue all items</button>
+                </footer>
+            </form>
+        </dialog>
+        {% endif %}
         {% else %}
         <p class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">No cutting sheets with a positive cutting quantity are available for this order.</p>
         {% endfor %}
@@ -85,4 +166,54 @@
     <p class="text-xs text-slate-500">Accessory returns are not recorded in the current stock issue system. Issues shown here are the existing stock issue transactions; they do not create a second stock deduction.</p>
 </main>
 </div>
+{% if can_issue_cut_wise %}
+<script>
+document.querySelectorAll('[data-open-cut-accessory-modal]').forEach(function (button) {
+    button.addEventListener('click', function () {
+        document.getElementById(button.dataset.openCutAccessoryModal)?.showModal();
+    });
+});
+
+document.querySelectorAll('dialog[id^="cut-accessory-modal-"]').forEach(function (dialog) {
+    dialog.querySelectorAll('[data-close-cut-accessory-modal]').forEach(function (button) {
+        button.addEventListener('click', function () { dialog.close(); });
+    });
+    dialog.addEventListener('click', function (event) {
+        if (event.target === dialog) dialog.close();
+    });
+});
+
+document.querySelectorAll('[data-cut-accessory-item-row]').forEach(function (row) {
+    const locationSelect = row.querySelector('[data-cut-accessory-location]');
+    const quantityInput = row.querySelector('[data-cut-accessory-quantity]');
+    const requirementInput = row.querySelector('[data-cut-accessory-requirement]');
+    const availableCell = row.querySelector('[data-cut-accessory-available]');
+    if (!locationSelect || !quantityInput || !requirementInput || !availableCell) return;
+    function syncCutAccessoryLocation(resetQuantity) {
+        const selected = locationSelect.selectedOptions[0];
+        const maximum = Number(selected?.dataset.maxIssueQty || 0);
+        requirementInput.value = selected?.dataset.requirementId || '';
+        const available = Number(selected?.dataset.availableIssueQty || 0);
+        const unit = selected?.dataset.issueUnit || '';
+        availableCell.textContent = selected?.value ? `${available.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${unit}` : '—';
+        quantityInput.max = maximum || '';
+        const isDiscrete = selected?.dataset.discrete === 'true';
+        quantityInput.min = isDiscrete ? '1' : '0.01';
+        quantityInput.step = isDiscrete ? '1' : '0.01';
+        if (!selected?.value) {
+            quantityInput.value = '';
+            return;
+        }
+        const safeMaximum = Math.min(maximum, Number(quantityInput.dataset.cutRemaining || maximum));
+        if (resetQuantity || !quantityInput.value || Number(quantityInput.value) > safeMaximum) {
+            quantityInput.value = isDiscrete ? String(Math.floor(safeMaximum)) : safeMaximum.toFixed(2);
+        }
+    }
+    locationSelect.addEventListener('change', function () { syncCutAccessoryLocation(true); });
+    syncCutAccessoryLocation(false);
+});
+const autoOpenCutId = document.querySelector('[data-auto-open-cut-id]')?.dataset.autoOpenCutId;
+if (autoOpenCutId) document.getElementById(`cut-accessory-modal-${autoOpenCutId}`)?.showModal();
+</script>
+{% endif %}
 {% endblock %}

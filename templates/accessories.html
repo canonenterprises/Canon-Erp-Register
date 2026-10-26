@@ -46,7 +46,7 @@
           <h1 class="mt-2 text-3xl font-black">{% if portal_page == 'home' %}Accessories{% elif portal_page == 'purchase-orders' %}Purchase Orders{% elif portal_page == 'unallocated-stock' %}Unallocated Stock{% elif portal_page == 'issuance-store-finder' %}Issuance &amp; Store Finder{% else %}Issued / Returned Items{% endif %}</h1>
         </div>
         <div class="flex flex-wrap gap-2">
-          {% if portal_page == 'home' and not read_only_profile %}<a href="#local-po" class="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600"><i class="fa-solid fa-cart-plus"></i> Local PO</a>{% endif %}
+          {% if portal_page == 'home' and can_create_local_po %}<a href="#local-po" class="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600"><i class="fa-solid fa-cart-plus"></i> Local PO</a>{% endif %}
           {% if portal_page != 'home' %}<a href="{{ url_for('accessories_portal') }}" class="inline-flex items-center rounded-lg border border-violet-300 bg-violet-700 px-3 py-2 text-sm font-bold text-white hover:bg-violet-600">Accessories Home</a>{% endif %}
           <a href="{{ url_for('stock_portal') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Stock Portal</a>
         </div>
@@ -83,6 +83,11 @@
         <label for="purchase-order-search" class="mb-1 block text-xs font-bold uppercase text-slate-500">Search purchase orders</label>
         <input id="purchase-order-search" type="search" autocomplete="off" placeholder="Order, PO, item, supplier, party, or article" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
       </div>
+      <fieldset class="flex w-full max-w-sm rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Filter purchase orders by company">
+        <legend class="sr-only">Purchase order company</legend>
+        <a href="{{ url_for('accessories_portal', portal_page='purchase-orders', company='Canon') }}" {% if selected_po_company == 'Canon' %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2 text-center text-sm font-black {% if selected_po_company == 'Canon' %}bg-[#b7955c] text-white shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Canon</a>
+        <a href="{{ url_for('accessories_portal', portal_page='purchase-orders', company='Haram') }}" {% if selected_po_company == 'Haram' %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2 text-center text-sm font-black {% if selected_po_company == 'Haram' %}bg-slate-900 text-white shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Haram</a>
+      </fieldset>
       <nav class="flex flex-wrap gap-2" aria-label="Purchase order sections">
         <button type="button" data-scroll-target="auto-generated-pos-section" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">Auto Generated POs</button>
         <button type="button" data-scroll-target="local-po" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100">Local POs</button>
@@ -118,36 +123,38 @@
     {% if portal_page in ('home', 'purchase-orders') %}
     <section id="local-po" class="space-y-4 rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p class="text-[10px] font-bold uppercase tracking-wider text-emerald-700">General factory stock</p><h2 class="text-lg font-black text-slate-800">LOCAL POs</h2></div>
-        {% if not read_only_profile %}
+        {% if can_create_local_po %}
         <details class="w-full sm:w-auto">
           <summary class="cursor-pointer rounded-lg bg-emerald-600 px-4 py-2 text-center text-sm font-bold text-white hover:bg-emerald-700">Create Local PO</summary>
           <form id="local-po-create-form" method="post" class="mt-4 space-y-4 rounded-xl border border-slate-200 p-4">
             <input type="hidden" name="action" value="create_local_po">
-            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <label class="text-xs font-bold text-slate-600">Supplier<input name="local_supplier" list="local-vendor-list" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><datalist id="local-vendor-list">{% for vendor in vendors %}<option value="{{ vendor.name }}">{% endfor %}</datalist></label>
               <label class="text-xs font-bold text-slate-600">PO Date<input type="date" name="local_date" value="{{ local_po_today }}" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label>
               <label class="text-xs font-bold text-slate-600">Requested By<input name="local_requested_by" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label>
+              <label class="text-xs font-bold text-slate-600">Bought By<input name="local_bought_by" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></label>
               <label class="text-xs font-bold text-slate-600">Priority<select name="local_priority" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option>Normal</option><option>Urgent</option></select></label>
             </div>
             <fieldset class="flex w-full max-w-md rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Company">
               <legend class="sr-only">Company</legend>
-              <label class="flex-1 cursor-pointer"><input type="radio" name="local_company" value="Canon" class="peer sr-only" checked required><span class="block rounded-md px-4 py-2.5 text-center text-sm font-black text-slate-500 hover:text-slate-900 peer-checked:bg-[#b7955c] peer-checked:text-white peer-checked:shadow-sm">Canon</span></label>
-              <label class="flex-1 cursor-pointer"><input type="radio" name="local_company" value="Haram" class="peer sr-only" required><span class="block rounded-md px-4 py-2.5 text-center text-sm font-black text-slate-500 hover:text-slate-900 peer-checked:bg-slate-900 peer-checked:text-white peer-checked:shadow-sm">Haram</span></label>
+              <label class="flex-1 cursor-pointer"><input type="radio" name="local_company" value="Canon" class="peer sr-only" {% if selected_po_company == 'Canon' %}checked{% endif %} required><span class="block rounded-md px-4 py-2.5 text-center text-sm font-black text-slate-500 hover:text-slate-900 peer-checked:bg-[#b7955c] peer-checked:text-white peer-checked:shadow-sm">Canon</span></label>
+              <label class="flex-1 cursor-pointer"><input type="radio" name="local_company" value="Haram" class="peer sr-only" {% if selected_po_company == 'Haram' %}checked{% endif %} required><span class="block rounded-md px-4 py-2.5 text-center text-sm font-black text-slate-500 hover:text-slate-900 peer-checked:bg-slate-900 peer-checked:text-white peer-checked:shadow-sm">Haram</span></label>
             </fieldset>
             <div class="overflow-x-auto rounded-xl border border-slate-200">
               <table class="w-full min-w-[920px] text-sm">
                 <thead class="bg-slate-50 text-left text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-3 py-2">Item</th><th class="px-3 py-2">Qty</th><th class="px-3 py-2">Unit</th><th class="px-3 py-2">Size</th><th class="px-3 py-2">Quality</th><th class="px-3 py-2">Rate</th><th class="px-3 py-2">Amount</th></tr></thead>
-                <tbody>{% for row_number in range(1, 7) %}<tr class="border-t border-slate-100"><td class="px-2 py-2"><input name="local_item_{{ row_number }}" data-local-row="{{ row_number }}" list="local-item-list" class="local-po-item w-full rounded border border-slate-300 px-2 py-1.5" placeholder="Accessory name"></td><td class="px-2 py-2"><input type="number" name="local_qty_{{ row_number }}" min="0" step="any" class="local-po-qty w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_unit_{{ row_number }}" value="PCS" class="local-po-unit w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_size_{{ row_number }}" class="w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_quality_{{ row_number }}" class="w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input type="number" name="local_rate_{{ row_number }}" min="0" step="0.01" class="local-po-rate w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input type="number" name="local_amount_{{ row_number }}" readonly class="local-po-amount w-full rounded border border-slate-200 bg-slate-50 px-2 py-1.5"></td></tr>{% endfor %}</tbody>
+                <tbody id="local-po-items">{% for row_number in range(1, 7) %}<tr class="border-t border-slate-100"><td class="px-2 py-2"><input name="local_item_{{ row_number }}" data-local-row="{{ row_number }}" list="local-item-list" class="local-po-item w-full rounded border border-slate-300 px-2 py-1.5" placeholder="Accessory name"></td><td class="px-2 py-2"><input type="number" name="local_qty_{{ row_number }}" min="0" step="any" class="local-po-qty w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_unit_{{ row_number }}" value="PCS" class="local-po-unit w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_size_{{ row_number }}" class="w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input name="local_quality_{{ row_number }}" class="w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input type="number" name="local_rate_{{ row_number }}" min="0" step="0.01" class="local-po-rate w-full rounded border border-slate-300 px-2 py-1.5"></td><td class="px-2 py-2"><input type="number" name="local_amount_{{ row_number }}" readonly class="local-po-amount w-full rounded border border-slate-200 bg-slate-50 px-2 py-1.5"></td></tr>{% endfor %}</tbody>
               </table>
             </div>
+            <button type="button" id="add-local-po-row" class="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 hover:bg-emerald-100"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add line</button>
             <datalist id="local-item-list">{% for item in local_po_items %}<option value="{{ item.item_name }}" data-size="{{ item.size or '' }}" data-quality="{{ item.material or '' }}" data-unit="{{ item.unit or '' }}">{% endfor %}</datalist>
             <div class="flex justify-end"><button type="submit" class="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700">Create Local PO</button></div>
           </form>
         </details>
         {% endif %}
       </div>
-      <div class="overflow-x-auto rounded-xl border border-slate-200"><table class="w-full text-center text-sm"><thead class="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500"><tr><th class="px-3 py-3">PO Number</th><th class="px-3 py-3">Status</th><th class="px-3 py-3">Receipt</th></tr></thead><tbody id="local-po-list" {% if portal_page == 'purchase-orders' %}data-load-more-list{% endif %}>
-        {% for po in local_po_summaries %}<tr {% if portal_page == 'purchase-orders' %}data-load-more-row data-po-search-row data-po-search-text="{{ po.order_id }} {{ po.po_no }} {{ po.status }}{% for search_item in po['items'] %} {{ search_item.item }} {{ search_item.size }} {{ search_item.quality }} {{ search_item.supplier }} {{ search_item.date }}{% endfor %}"{% endif %} class="border-y border-slate-200"><td class="px-3 py-3 font-bold text-slate-800">{{ po.po_no }}</td><td class="px-3 py-3"><span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {% if po.all_received %}bg-emerald-100 text-emerald-700{% elif po.status == 'PO_SENT' %}bg-amber-100 text-amber-700{% else %}bg-cyan-100 text-cyan-700{% endif %}">{{ 'RECEIVED' if po.all_received else po.status }}</span></td><td class="px-3 py-3">{% if po.receipt_image %}<a href="{{ po.receipt_image }}" target="_blank" rel="noopener" class="rounded-lg border border-sky-500 bg-sky-50 px-3 py-1.5 text-[10px] font-bold uppercase text-sky-700">View Receipt</a>{% endif %}{% if not po.all_received and po.status == 'PO_SENT' %}{{ receive_po_form(po, 'local-' ~ loop.index) }}{% elif not po.receipt_image and po.all_received %}<span class="text-xs text-slate-500">No receipt image</span>{% endif %}</td></tr>{% else %}<tr data-po-empty-row><td colspan="3" class="px-3 py-6 text-slate-500">No Local POs.</td></tr>{% endfor %}
+      <div class="overflow-x-auto rounded-xl border border-slate-200"><table class="w-full min-w-[640px] text-center text-sm"><thead class="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500"><tr><th class="px-3 py-3">PO Number</th><th class="px-3 py-3">Company</th><th class="px-3 py-3">Bought By</th><th class="px-3 py-3">Status</th><th class="px-3 py-3">Receipt</th></tr></thead><tbody id="local-po-list" {% if portal_page == 'purchase-orders' %}data-load-more-list{% endif %}>
+        {% for po in local_po_summaries %}<tr {% if portal_page == 'purchase-orders' %}data-load-more-row data-po-search-row data-po-search-text="{{ po.order_id }} {{ po.po_no }} {{ po.company }} {{ po.bought_by }} {{ po.status }}{% for search_item in po['items'] %} {{ search_item.item }} {{ search_item.size }} {{ search_item.quality }} {{ search_item.supplier }} {{ search_item.date }}{% endfor %}"{% endif %} class="border-y border-slate-200"><td class="px-3 py-3 font-bold text-slate-800">{{ po.po_no }}</td><td class="px-3 py-3">{{ po.company }}</td><td class="px-3 py-3">{{ po.bought_by or '—' }}</td><td class="px-3 py-3"><span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {% if po.all_received %}bg-emerald-100 text-emerald-700{% elif po.status == 'PO_SENT' %}bg-amber-100 text-amber-700{% else %}bg-cyan-100 text-cyan-700{% endif %}">{{ 'RECEIVED' if po.all_received else po.status }}</span></td><td class="px-3 py-3">{% if po.receipt_image %}<a href="{{ po.receipt_image }}" target="_blank" rel="noopener" class="rounded-lg border border-sky-500 bg-sky-50 px-3 py-1.5 text-[10px] font-bold uppercase text-sky-700">View Receipt</a>{% endif %}{% if not po.all_received and po.status == 'PO_SENT' %}{{ receive_po_form(po, 'local-' ~ loop.index) }}{% elif not po.receipt_image and po.all_received %}<span class="text-xs text-slate-500">No receipt image</span>{% endif %}</td></tr>{% else %}<tr data-po-empty-row><td colspan="5" class="px-3 py-6 text-slate-500">No Local POs.</td></tr>{% endfor %}
       </tbody></table></div>
       {% if portal_page == 'purchase-orders' %}<div class="flex justify-center border-t border-slate-100 p-3"><button type="button" data-load-more-button="local-po-list" class="rounded border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">See more</button></div>{% endif %}
     </section>
@@ -882,26 +889,51 @@
       }
     }
 
-    localPoForm.querySelectorAll('.local-po-item').forEach(function (itemInput) {
+    function bindLocalPoRow(row) {
+      const itemInput = row.querySelector('.local-po-item');
+      if (itemInput) {
       itemInput.addEventListener('input', () => fillItemMasterDetails(itemInput));
       itemInput.addEventListener('change', () => {
         fillItemMasterDetails(itemInput);
         loadLocalVendorCatalog();
       });
-    });
-    localPoForm.querySelectorAll('.local-po-qty, .local-po-rate').forEach(function (input) {
+      }
+      row.querySelectorAll('.local-po-qty, .local-po-rate').forEach(function (input) {
       input.addEventListener('input', () => {
         const rowNumber = input.name.match(/_(\d+)$/)[1];
         if (input.classList.contains('local-po-rate')) input.dataset.manual = 'true';
         updateLocalPoAmount(rowNumber);
       });
-    });
-    localPoForm.querySelectorAll('.local-po-unit').forEach(function (input) {
+      });
+      row.querySelectorAll('.local-po-unit').forEach(function (input) {
       input.addEventListener('change', function () {
         const rowNumber = this.name.match(/_(\d+)$/)[1];
         const itemInput = localPoForm.querySelector(`[name="local_item_${rowNumber}"]`);
         if (itemInput) applyLocalVendorRate(itemInput);
       });
+      });
+    }
+
+    localPoForm.querySelectorAll('#local-po-items tr').forEach(bindLocalPoRow);
+    const localPoItemsBody = localPoForm.querySelector('#local-po-items');
+    const addLocalPoRowButton = localPoForm.querySelector('#add-local-po-row');
+    let localPoRowCount = localPoItemsBody?.querySelectorAll('tr').length || 0;
+    addLocalPoRowButton?.addEventListener('click', function () {
+      const templateRow = localPoItemsBody?.querySelector('tr');
+      if (!templateRow) return;
+      const newRow = templateRow.cloneNode(true);
+      const rowNumber = ++localPoRowCount;
+      newRow.querySelectorAll('input').forEach(function (input) {
+        input.name = input.name.replace(/_\d+$/, `_${rowNumber}`);
+        input.value = input.classList.contains('local-po-unit') ? 'PCS' : '';
+        if (input.classList.contains('local-po-item')) input.dataset.localRow = String(rowNumber);
+        if (input.classList.contains('local-po-rate')) {
+          input.dataset.manual = 'false';
+          delete input.dataset.itemKey;
+        }
+      });
+      localPoItemsBody.appendChild(newRow);
+      bindLocalPoRow(newRow);
     });
     localSupplierInput.addEventListener('input', function () {
       window.clearTimeout(vendorLookupTimer);
@@ -912,7 +944,9 @@
       loadLocalVendorCatalog();
     });
     localPoForm.addEventListener('submit', function () {
-      for (let rowNumber = 1; rowNumber <= 6; rowNumber++) updateLocalPoAmount(rowNumber);
+      localPoForm.querySelectorAll('.local-po-item').forEach(function (itemInput) {
+        updateLocalPoAmount(itemInput.dataset.localRow);
+      });
     });
   }
 </script>
@@ -1355,7 +1389,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const meta = document.getElementById('po-view-meta');
     meta.replaceChildren();
     for (const [label, value] of [
-      ['Order', po.order_id], ['Supplier', po.supplier], ['Date', po.date],
+      ['Order', po.order_id], ['Company', po.company], ['Supplier', po.supplier], ['Date', po.date],
+      ['Bought By', po.bought_by],
       ['Requested By', po.requested_by], ['Priority', po.priority],
       ['For', po.for_field]
     ]) {

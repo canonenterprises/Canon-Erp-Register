@@ -12,8 +12,8 @@
         </div>
 
         {% if cutting_sheets %}
-        <div class="overflow-x-auto rounded-xl border border-slate-200">
-            <table class="w-full text-sm">
+        <div class="overflow-x-hidden rounded-xl border border-slate-200">
+            <table class="saved-cutting-sheets-table w-full table-fixed text-[11px]">
                 <thead class="bg-slate-50">
                     <tr>
                         <th class="border-b border-slate-200 px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-slate-500">Party Name</th>
@@ -32,7 +32,7 @@
                 </thead>
                 <tbody>
                     {% for sheet in cutting_sheets %}
-                    <tr class="group transition-colors hover:bg-slate-50">
+                    <tr class="group transition-colors hover:bg-slate-50 {% if sheet.id in incomplete_cutting_sheet_ids %}cutting-sheet-completion-pending{% endif %}">
                         <td class="border-b border-slate-100 px-4 py-3 font-semibold text-slate-700">{{ order.name or '-' }}</td>
                         <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ order.article_name or '-' }}</td>
                         <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ order.color or '-' }}</td>
@@ -58,9 +58,12 @@
                         </td>
                         <td class="border-b border-slate-100 px-4 py-3 text-slate-600">{{ sheet.created_at.strftime('%Y-%m-%d %H:%M') if sheet.created_at else '-' }}</td>
                         <td class="border-b border-slate-100 px-4 py-3">
-                            <div class="flex justify-end gap-2">
-                                {% if read_only_profile %}
-                                <a href="{{ url_for('cutting_sheet', job_no=selected_job, edit_id=sheet.id) }}" class="inline-flex items-center rounded-lg border border-green-800 bg-green-800 px-3 py-1.5 text-xs font-bold text-white transition hover:border-green-300 hover:bg-green-300 hover:text-black">View</a>
+                            <div class="flex flex-wrap justify-end gap-1">
+                                {% if 'bundle_stickers' in page_access_keys %}
+                                <a href="{{ url_for('bundle_stickers', cutting_sheet_id=sheet.id) }}" class="inline-flex shrink-0 items-center whitespace-nowrap rounded-lg bg-amber-600 px-2 py-1.5 text-[10px] font-bold text-white transition hover:bg-amber-700">Bundle Stickers</a>
+                                {% endif %}
+                                {% if session.get('role') not in ('owner', 'manager') and not sheet.is_direct_cutting_pcs and sheet.first_edit_used %}
+                                <a href="{{ url_for('cutting_sheet', job_no=selected_job, edit_id=sheet.id) }}" class="inline-flex shrink-0 items-center whitespace-nowrap rounded-lg border border-green-800 bg-green-800 px-2 py-1.5 text-[10px] font-bold text-white transition hover:border-green-300 hover:bg-green-300 hover:text-black">View</a>
                                 {% else %}
                                 {% if session.get('role') in ('owner', 'manager') and transfer_state.remaining_transferable > 0 %}
                                 <button type="button" class="transfer-excess-button rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-800"
@@ -73,10 +76,7 @@
                                     data-transferred-pcs="{{ transfer_state.transferred_pcs }}"
                                     data-available-pcs="{{ transfer_state.remaining_transferable }}">Transfer Excess PCS</button>
                                 {% endif %}
-                                {% if 'bundle_stickers' in page_access_keys %}
-                                <a href="{{ url_for('bundle_stickers', cutting_sheet_id=sheet.id) }}" class="inline-flex items-center rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-amber-700">Bundle Stickers</a>
-                                {% endif %}
-                                <a href="{{ url_for('cutting_sheet', job_no=selected_job, edit_id=sheet.id) }}" class="inline-flex items-center rounded-lg border border-slate-400 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 transition hover:border-slate-700 hover:bg-slate-50">View/Edit</a>
+                                <a href="{{ url_for('cutting_sheet', job_no=selected_job, edit_id=sheet.id) }}" class="inline-flex shrink-0 items-center whitespace-nowrap rounded-lg border border-slate-400 bg-white px-2 py-1.5 text-[10px] font-bold text-slate-700 transition hover:border-slate-700 hover:bg-slate-50">View/Edit</a>
                                 {% if session.get('role') in ('owner', 'manager') and not read_only_profile %}
                                 <form method="POST" action="{{ url_for('delete_cutting_sheet') }}" class="inline" onsubmit="return confirm('Delete this cutting sheet?');">
                                     <input type="hidden" name="cutting_sheet_id" value="{{ sheet.id }}">
@@ -97,6 +97,53 @@
         {% endif %}
     </div>
 </div>
+<style>
+.saved-cutting-sheets-table {
+    width: 100%;
+    table-layout: fixed;
+}
+
+.saved-cutting-sheets-table th,
+.saved-cutting-sheets-table td {
+    padding: 0.5rem 0.35rem !important;
+    overflow-wrap: anywhere;
+    vertical-align: middle;
+    text-align: center !important;
+}
+
+.saved-cutting-sheets-table td > div.flex {
+    justify-content: center;
+}
+
+.saved-cutting-sheets-table ol {
+    list-style-position: inside;
+    padding-left: 0;
+}
+
+.saved-cutting-sheets-table th:nth-child(1) { width: 8.5%; }
+.saved-cutting-sheets-table th:nth-child(2) { width: 8%; }
+.saved-cutting-sheets-table th:nth-child(3) { width: 6%; }
+.saved-cutting-sheets-table th:nth-child(4) { width: 10%; }
+.saved-cutting-sheets-table th:nth-child(5) { width: 7%; }
+.saved-cutting-sheets-table th:nth-child(6) { width: 5%; }
+.saved-cutting-sheets-table th:nth-child(7) { width: 7%; }
+.saved-cutting-sheets-table th:nth-child(8) { width: 7%; }
+.saved-cutting-sheets-table th:nth-child(9) { width: 8%; }
+.saved-cutting-sheets-table th:nth-child(10) { width: 9%; }
+.saved-cutting-sheets-table th:nth-child(11) { width: 10%; }
+.saved-cutting-sheets-table th:nth-child(12) { width: 14.5%; }
+
+.saved-cutting-sheets-table .cutting-sheet-completion-pending td {
+    background-color: #fef3c7 !important;
+    color: #78350f !important;
+}
+
+html[data-theme="dark"] .saved-cutting-sheets-table .cutting-sheet-completion-pending td {
+    background-color: #422006 !important;
+    color: #fef3c7 !important;
+    border-color: #854d0e !important;
+}
+</style>
 {% if session.get('role') in ('owner', 'manager') %}
 <div id="cutting-transfer-modal" class="fixed inset-0 z-[70] hidden items-center justify-center bg-slate-950/60 p-4" role="dialog" aria-modal="true" aria-labelledby="transfer-modal-title">
     <div class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white shadow-2xl">

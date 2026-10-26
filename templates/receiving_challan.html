@@ -35,11 +35,18 @@
             <div>
                 <h2 class="text-2xl font-extrabold text-slate-800 mb-2 pt-2">Receiving Challan - Canon Copy</h2>
             </div>
-            <span class="px-3 py-1 rounded-full bg-emerald-100 text-black-700 text-m font-bold no-print">Serial No:  {{ serial_no }}</span>
+            <div class="flex flex-wrap items-center gap-3 no-print">
+                <span class="px-3 py-1 rounded-full bg-emerald-100 text-black-700 text-m font-bold">Serial No:  {{ serial_no }}</span>
+                <label class="flex items-center gap-2 text-xs font-bold text-slate-700">
+                    <input id="direct-cutting-pcs-toggle" form="receiving-challan-form" type="checkbox" name="is_direct_cutting_pcs" value="on" class="peer sr-only" {% if editing_challan and editing_challan.is_direct_cutting_pcs %}checked{% endif %} {% if challan_read_only %}disabled{% endif %}>
+                    <span aria-hidden="true" class="relative h-5 w-9 rounded-full bg-slate-300 transition peer-checked:bg-emerald-600 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-500 peer-focus-visible:ring-offset-2 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-4"></span>
+                    <span>Direct cutting PCS</span>
+                </label>
+            </div>
         </div>
 
         <!-- Top Info -->
-        <form method="POST" enctype="multipart/form-data" action="{{ url_for('receiving_challan', job_no=selected_job) }}" class="space-y-6">
+        <form id="receiving-challan-form" method="POST" enctype="multipart/form-data" action="{{ url_for('receiving_challan', job_no=selected_job) }}" class="space-y-6">
             <input type="hidden" name="challan_id" value="{{ editing_challan.id if editing_challan else '' }}">
             <input type="hidden" name="job_no" value="{{ selected_job or '' }}">
             <input type="hidden" name="serial_no" value="{{ serial_no or '' }}">
@@ -51,8 +58,8 @@
                 <div><label class="block text-sm font-bold text-slate-500">Messers (Supplier)</label><input type="text" name="suppliers" value="{{ editing_challan.suppliers if editing_challan and editing_challan.suppliers else (order.name if order else '') }}" class="w-full border rounded-lg p-2" required></div>
             </div>
 
-            <div class="grid grid-cols-4 gap-4 mb-6">
-                <div><label class="block text-sm font-bold text-slate-500">Width</label><input type="text" name="width" value="{{ editing_challan.width if editing_challan and editing_challan.width else (order.fab_width if order else '') }}" class="w-full border rounded-lg p-2" required></div>
+            <div id="challan-fabric-details-grid" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div id="challan-width-field"><label class="block text-sm font-bold text-slate-500">Width</label><input type="text" name="width" value="{{ editing_challan.width if editing_challan and editing_challan.width else (order.fab_width if order else '') }}" class="w-full border rounded-lg p-2" required></div>
                 <div><label class="block text-sm font-bold text-slate-500">Fabric For</label><input type="text" name="fabric_for" value="{{ editing_challan.fabric_for if editing_challan and editing_challan.fabric_for else (order.style if order else '') }}" class="w-full border rounded-lg p-2" required></div>
                 <div><label class="block text-sm font-bold text-slate-500">Used FILE No</label><input type="text" name="used_file_no" value="{{ editing_challan.used_file_no if editing_challan and editing_challan.used_file_no else (order.file_no if order else '') }}" class="w-full border rounded-lg p-2 bg-slate-50" readonly required></div>
                 <div><label class="block text-sm font-bold text-slate-500">Fabric Quality</label><input type="text" name="fabric_quality" value="{{ editing_challan.fabric_quality if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
@@ -77,8 +84,8 @@
         <div class="grid grid-cols-3 gap-4 mb-6 pt-4"></div>
 
         <!-- Quantities -->
-        <div class="grid grid-cols-5 gap-4 mb-6">
-            <div><label class="block text-sm font-bold text-slate-500">Per Dozen Consumption</label><input type="text" name="per_dozen_consumption" value="{{ editing_challan.per_dozen_consumption if editing_challan and editing_challan.per_dozen_consumption else (order.usage if order else '') }}" class="w-full border rounded-lg p-2" required></div>
+        <div id="challan-quantity-details-grid" class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div id="challan-per-dozen-field"><label class="block text-sm font-bold text-slate-500">Per Dozen Consumption</label><input type="text" name="per_dozen_consumption" value="{{ editing_challan.per_dozen_consumption if editing_challan and editing_challan.per_dozen_consumption else (order.usage if order else '') }}" class="w-full border rounded-lg p-2" required></div>
             {% set required_ctn_parts = editing_challan.required_ctn_bails.split('/') if editing_challan and editing_challan.required_ctn_bails else [] %}
             {% set required_ctn_value = required_ctn_parts[0] if required_ctn_parts else (order.total_ctn if order else '') %}
             {% set required_bails_value = required_ctn_parts[1] if required_ctn_parts|length > 1 else (order.total_bails if order else '') %}
@@ -101,20 +108,26 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-5 gap-4 mb-6">
-            <div><label class="block text-sm font-bold text-slate-500">Meter = 100 CM</label><input type="text" name="meter_to_cm" value="{{ editing_challan.meter_to_cm if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
-            <div>
+        <div id="challan-quantity-grid" class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div id="challan-meter-to-cm-field"><label class="block text-sm font-bold text-slate-500">Meter = 100 CM</label><input type="text" name="meter_to_cm" value="{{ editing_challan.meter_to_cm if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
+            <div id="challan-fabric-a-field">
                 <label class="block text-sm font-bold text-slate-500">Fabric Quantity A</label>
                 <input type="number" id="fabric_qty_a" name="fabric_qty_a" value="{{ editing_challan.fabric_qty_a if editing_challan else '' }}" class="w-full border rounded-lg p-2">
             </div>
-            <div><label class="block text-sm font-bold text-slate-500">Fabric Quantity B</label><input type="number" id="fabric_qty_b" name="fabric_qty_b" value="{{ editing_challan.fabric_qty_b if editing_challan else '' }}" class="w-full border rounded-lg p-2"></div>
-            <div><label class="block text-sm font-bold text-slate-500">Received Cut Pcs</label><input type="number" id="received_cut_pcs" name="received_cut_pcs" value="{{ editing_challan.received_cut_pcs if editing_challan else '' }}" class="w-full border rounded-lg p-2"></div>
+            <div id="challan-fabric-b-field"><label class="block text-sm font-bold text-slate-500">Fabric Quantity B</label><input type="number" id="fabric_qty_b" name="fabric_qty_b" value="{{ editing_challan.fabric_qty_b if editing_challan else '' }}" class="w-full border rounded-lg p-2"></div>
+            <div id="challan-received-cut-pcs-field" {% if editing_challan and editing_challan.is_direct_cutting_pcs %}hidden{% endif %}><label class="block text-sm font-bold text-slate-500">Received Cut PCS</label><input type="number" id="received_cut_pcs" name="received_cut_pcs" value="{{ editing_challan.received_cut_pcs if editing_challan else '' }}" class="w-full border rounded-lg p-2"></div>
+            <div id="challan-direct-cutting-pcs-column" {% if not (editing_challan and editing_challan.is_direct_cutting_pcs) %}hidden{% endif %}>
+                <div id="direct-cutting-pcs-field" {% if not (editing_challan and editing_challan.is_direct_cutting_pcs) %}hidden{% endif %}>
+                    <label class="block text-sm font-bold text-slate-500">Direct Cutting PCS</label>
+                    <input type="number" id="direct_cutting_pcs" name="direct_cutting_pcs" min="1" step="1" value="{{ editing_challan.direct_cutting_pcs if editing_challan and editing_challan.direct_cutting_pcs else '' }}" class="w-full border rounded-lg p-2">
+                </div>
+            </div>
             <div><label class="block text-sm font-bold text-slate-500">Total</label><input type="number" id="total" name="total" value="{{ editing_challan.total if editing_challan else '' }}" class="w-full border rounded-lg p-2 bg-slate-100 cursor-not-allowed" readonly></div>
         </div>
 
         <!-- Delivery Details -->
         <div class="grid grid-cols-4 gap-4 mb-6">
-            <div><label class="block text-sm font-bold text-slate-500">Rolls</label><input type="number" name="rolls" value="{{ editing_challan.rolls if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
+            <div><label class="block text-sm font-bold text-slate-500">Bundles</label><input type="number" name="rolls" value="{{ editing_challan.rolls if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
             <div><label class="block text-sm font-bold text-slate-500">Vehicle No.</label><input type="text" name="vehicle_no" value="{{ editing_challan.vehicle_no if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
             <div><label class="block text-sm font-bold text-slate-500">Delivered By</label><input type="text" name="delivered_by" value="{{ editing_challan.delivered_by if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
             <div><label class="block text-sm font-bold text-slate-500">Driver Cell No.</label><input type="text" name="driver_cell_no" value="{{ editing_challan.driver_cell_no if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
@@ -163,10 +176,18 @@ function getNumericValue(id) {
 }
 
 function calculateAndValidateTotal() {
-    const totalValue = getNumericValue('fabric_qty_a') + getNumericValue('fabric_qty_b') + getNumericValue('received_cut_pcs');
+    const directMode = document.getElementById('direct-cutting-pcs-toggle')?.checked || false;
+    const fabricA = getNumericValue('fabric_qty_a');
+    const fabricB = getNumericValue('fabric_qty_b');
+    const directPcs = getNumericValue('direct_cutting_pcs');
+    const totalValue = directMode
+        ? directPcs
+        : fabricA + fabricB + getNumericValue('received_cut_pcs');
     const totalField = document.getElementById('total');
     const printButton = document.getElementById('print-btn');
-    const isValid = totalValue > 0;
+    const isValid = directMode
+        ? directPcs > 0 && Number.isInteger(directPcs) && fabricA <= 0 && fabricB <= 0
+        : totalValue > 0;
 
     if (totalField) {
         totalField.value = totalValue.toString();
@@ -181,7 +202,10 @@ function calculateAndValidateTotal() {
 
 function validateReceivingChallanForm(event) {
     if (!calculateAndValidateTotal()) {
-        alert('Total cannot be zero. Please enter at least one value in Fabric Quantity A, Fabric Quantity B, or Received Cut Pcs.');
+        const directMode = document.getElementById('direct-cutting-pcs-toggle')?.checked || false;
+        alert(directMode
+            ? 'Enter a whole usable PCS quantity and do not combine it with fabric quantities.'
+            : 'Total cannot be zero. Please enter a fabric quantity or damaged cut PCS.');
         if (event) event.preventDefault();
         return false;
     }
@@ -189,10 +213,7 @@ function validateReceivingChallanForm(event) {
 }
 
 function openReceivingChallanPrint() {
-    if (!calculateAndValidateTotal()) {
-        alert('Total cannot be zero. Please enter at least one value in Fabric Quantity A, Fabric Quantity B, or Received Cut Pcs.');
-        return;
-    }
+    if (!validateReceivingChallanForm()) return;
 
     const jobNo = encodeURIComponent(document.querySelector('input[name="job_no"]')?.value || '');
     const serialNo = encodeURIComponent(document.querySelector('input[name="serial_no"]')?.value || '');
@@ -201,10 +222,7 @@ function openReceivingChallanPrint() {
 }
 
 function printSlip() {
-    if (!calculateAndValidateTotal()) {
-        alert('Total cannot be zero. Please enter at least one value in Fabric Quantity A, Fabric Quantity B, or Received Cut Pcs.');
-        return;
-    }
+    if (!validateReceivingChallanForm()) return;
 
     const now = new Date();
     const options = {
@@ -237,6 +255,66 @@ document.addEventListener('DOMContentLoaded', function () {
         if (el) {
             el.addEventListener('input', calculateAndValidateTotal);
         }
+    });
+
+    const directToggle = document.getElementById('direct-cutting-pcs-toggle');
+    const directField = document.getElementById('direct-cutting-pcs-field');
+    const directColumn = document.getElementById('challan-direct-cutting-pcs-column');
+    const quantityGrid = document.getElementById('challan-quantity-grid');
+    const quantityDetailsGrid = document.getElementById('challan-quantity-details-grid');
+    const fabricDetailsGrid = document.getElementById('challan-fabric-details-grid');
+    const directInput = document.getElementById('direct_cutting_pcs');
+    const fabricAField = document.getElementById('challan-fabric-a-field');
+    const fabricBField = document.getElementById('challan-fabric-b-field');
+    const receivedCutPcsField = document.getElementById('challan-received-cut-pcs-field');
+    const fabricAInput = document.getElementById('fabric_qty_a');
+    const fabricBInput = document.getElementById('fabric_qty_b');
+    const widthField = document.getElementById('challan-width-field');
+    const perDozenField = document.getElementById('challan-per-dozen-field');
+    const meterToCmField = document.getElementById('challan-meter-to-cm-field');
+    const widthInput = document.querySelector("input[name='width']");
+    const perDozenInput = document.querySelector("input[name='per_dozen_consumption']");
+    const meterToCmInput = document.querySelector("input[name='meter_to_cm']");
+    function syncDirectCuttingPcsMode() {
+        const enabled = directToggle?.checked || false;
+        if (directField) directField.hidden = !enabled;
+        if (directColumn) directColumn.hidden = !enabled;
+        if (quantityGrid) {
+            quantityGrid.classList.toggle('md:grid-cols-5', !enabled);
+            quantityGrid.classList.toggle('md:grid-cols-2', enabled);
+        }
+        if (quantityDetailsGrid) {
+            quantityDetailsGrid.classList.toggle('md:grid-cols-5', !enabled);
+            quantityDetailsGrid.classList.toggle('md:grid-cols-4', enabled);
+        }
+        if (fabricDetailsGrid) {
+            fabricDetailsGrid.classList.toggle('md:grid-cols-4', !enabled);
+            fabricDetailsGrid.classList.toggle('md:grid-cols-3', enabled);
+        }
+        if (directInput) directInput.required = enabled;
+        if (fabricAField) fabricAField.hidden = enabled;
+        if (fabricBField) fabricBField.hidden = enabled;
+        if (receivedCutPcsField) receivedCutPcsField.hidden = enabled;
+        [widthField, perDozenField, meterToCmField].forEach(function (field) {
+            if (field) {
+                field.hidden = enabled;
+                field.classList.toggle('hidden', enabled);
+            }
+        });
+        if (widthInput) widthInput.required = !enabled;
+        if (perDozenInput) perDozenInput.required = !enabled;
+        if (meterToCmInput) meterToCmInput.required = !enabled;
+        if (fabricAInput) fabricAInput.disabled = enabled;
+        if (fabricBInput) fabricBInput.disabled = enabled;
+        calculateAndValidateTotal();
+    }
+    directToggle?.addEventListener('change', syncDirectCuttingPcsMode);
+    directInput?.addEventListener('input', calculateAndValidateTotal);
+    syncDirectCuttingPcsMode();
+
+    const receivingForm = document.querySelector('form[enctype="multipart/form-data"]');
+    receivingForm?.addEventListener('submit', function (event) {
+        validateReceivingChallanForm(event);
     });
 
     const requiredBailsInput = document.getElementById('required_bails_input');

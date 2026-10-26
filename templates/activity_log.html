@@ -8,8 +8,8 @@
         <h1 class="mt-1 text-3xl font-black text-slate-950">Activity Log</h1>
         <p class="mt-2 text-sm text-slate-600">{{ total_count }} recorded event(s), newest first.</p>
       </div>
-      <a href="{{ url_for('owner_dashboard') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
-        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Owner dashboard
+      <a href="{{ url_for('owner_dashboard') if session.get('role') == 'owner' else url_for('manager_dashboard') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> {{ 'Owner' if session.get('role') == 'owner' else 'Manager' }} dashboard
       </a>
     </header>
 
