@@ -10,6 +10,15 @@
 {% macro qty_by_unit(item, key) -%}
 {% for amount in item.amounts %}<div>{{ '{:,.2f}'.format(amount[key] or 0) }} {{ amount.unit }}{% for issue_amount in amount.issue_amounts %}<span class="block text-[10px] font-semibold text-purple-700">{{ '{:,.2f}'.format(issue_amount[key] or 0) }} {{ issue_amount.unit }}</span>{% endfor %}</div>{% endfor %}
 {%- endmacro %}
+{% macro accessory_category_pills(filter_id, label, selected_category='*') %}
+<div id="{{ filter_id }}" class="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-3" aria-label="{{ label }}">
+  <span class="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Category</span>
+  <button type="button" data-stock-category="*" aria-pressed="{{ 'true' if selected_category == '*' else 'false' }}" class="rounded-full px-3 py-1.5 text-xs font-bold {% if selected_category == '*' %}bg-emerald-800 text-white{% else %}border border-emerald-200 bg-emerald-50 text-emerald-800{% endif %}">All</button>
+  {% for category in stock_category_options %}
+  <button type="button" data-stock-category="{{ category }}" aria-pressed="{{ 'true' if selected_category == category else 'false' }}" class="rounded-full px-3 py-1.5 text-xs font-bold {% if selected_category == category %}bg-emerald-800 text-white{% else %}border border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100{% endif %}">{{ 'Uncategorized' if category == '__uncategorized__' else category }}</button>
+  {% endfor %}
+</div>
+{% endmacro %}
 {% macro receive_po_form(po, form_id) %}
 <details class="mt-2 text-left">
   <summary class="cursor-pointer rounded-lg border border-emerald-500 bg-emerald-50 px-3 py-1.5 text-center text-[10px] font-bold uppercase text-emerald-700">Receive PO</summary>
@@ -46,6 +55,7 @@
           <h1 class="mt-2 text-3xl font-black">{% if portal_page == 'home' %}Accessories{% elif portal_page == 'purchase-orders' %}Purchase Orders{% elif portal_page == 'unallocated-stock' %}Unallocated Stock{% elif portal_page == 'issuance-store-finder' %}Issuance &amp; Store Finder{% else %}Issued / Returned Items{% endif %}</h1>
         </div>
         <div class="flex flex-wrap gap-2">
+          {% if portal_page == 'home' %}<a href="{{ url_for('item_list') }}" class="inline-flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-700 px-3 py-2 text-sm font-bold text-white hover:bg-violet-600"><i class="fa-solid fa-sitemap" aria-hidden="true"></i> Manage Categories</a>{% endif %}
           {% if portal_page == 'home' and can_create_local_po %}<a href="#local-po" class="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-600"><i class="fa-solid fa-cart-plus"></i> Local PO</a>{% endif %}
           {% if portal_page != 'home' %}<a href="{{ url_for('accessories_portal') }}" class="inline-flex items-center rounded-lg border border-violet-300 bg-violet-700 px-3 py-2 text-sm font-bold text-white hover:bg-violet-600">Accessories Home</a>{% endif %}
           <a href="{{ url_for('stock_portal') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Stock Portal</a>
@@ -59,6 +69,33 @@
       <a href="{{ url_for('accessories_portal', portal_page='issuance-store-finder') }}" class="rounded-xl border border-violet-200 p-4 shadow-sm transition hover:bg-violet-50"><span class="block text-sm font-black text-slate-800">Issuance &amp; Store Finder</span><span class="mt-1 block text-xs text-slate-500">Find rack, shelf, carton · issue from location</span></a>
       <a href="{{ url_for('accessories_portal', portal_page='issued-returned-items') }}" class="rounded-xl border border-cyan-200 p-4 shadow-sm transition hover:bg-cyan-50"><span class="block text-sm font-black text-slate-800">Issued / Returned Items</span><span class="mt-1 block text-xs text-slate-500">View issue history and record returns</span></a>
     </nav>
+
+    {% if portal_page == 'home' %}
+    <section class="space-y-4 rounded-2xl border border-slate-200 border-t-4 border-t-violet-500 bg-slate-50 p-5">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-violet-700">Accessories</p>
+          <h2 class="mt-1 text-xl font-black text-slate-900">Material Categories</h2>
+        </div>
+        <span class="rounded-full border border-violet-200 bg-white px-3 py-1 text-xs font-bold text-violet-800">{{ stock_categories|length }} categories</span>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {% for category in stock_categories %}
+        <div class="rounded-xl border border-slate-200 border-l-4 border-l-violet-500 bg-white p-4 shadow-sm">
+          <div class="flex items-start justify-between gap-3">
+            <h3 class="text-base font-black text-slate-900">{{ category.name }}</h3>
+            <span class="shrink-0 rounded-full bg-violet-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-violet-800">{{ category.item_count }} items</span>
+          </div>
+        </div>
+        {% else %}
+        <div class="rounded-xl border border-dashed border-violet-300 bg-white p-6 text-center text-sm text-slate-600 sm:col-span-2 xl:col-span-3">
+          No material categories are available.
+          <a href="{{ url_for('item_list') }}" class="font-bold text-violet-700 underline decoration-violet-300 underline-offset-2">Manage categories</a>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
 
     {% if portal_page == 'home' %}
     <section class="grid gap-4 md:grid-cols-3">
@@ -203,6 +240,7 @@
     <section class="overflow-hidden rounded-2xl border border-amber-200">
       <h2 class="border-b border-amber-200 bg-amber-50 px-4 py-3 text-lg font-black text-slate-800">PUT AWAY UNLOCATED STOCK</h2>
       <p class="px-4 py-3 text-sm text-slate-600">Choose the department store, then select Rack/Shelf or Floor and enter the stock location details.</p>
+      {{ accessory_category_pills('unallocated-category-filters', 'Filter unallocated stock by category') }}
       <div class="px-4 pb-3">
         <label for="unallocated-stock-search" class="mb-1 block text-xs font-bold uppercase text-slate-500">Search unallocated stock</label>
         <input id="unallocated-stock-search" type="search" autocomplete="off" placeholder="Item, PO, order, supplier, size, or quality" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
@@ -213,7 +251,7 @@
         <thead class="bg-slate-50 text-[9px] uppercase tracking-wide text-slate-500"><tr><th class="px-1 py-2">Item / Receipt</th><th class="px-1 py-2">Unlocated</th><th class="px-1 py-2">Location type</th><th class="px-1 py-2">Department</th><th class="px-1 py-2">Gala</th><th class="px-1 py-2">Store room</th><th class="px-1 py-2">Rack no.</th><th class="px-1 py-2">Shelf no.</th><th class="px-1 py-2">Quantity</th><th class="px-1 py-2">Actions</th></tr></thead>
         <tbody>
           {% for item in put_away_items %}
-          <tr data-unallocated-search="{{ item.item }} {{ item.size }} {{ item.quality }} {{ item.po_no }} {{ item.order_id }} {{ item.supplier }} {{ item.serial_no }} {{ item.received_at }} {{ item.date }}" class="border-t border-slate-200 [&>td]:break-words [&>td]:px-1 [&>td]:py-2">
+          <tr data-unallocated-search="{{ item.item }} {{ item.size }} {{ item.quality }} {{ item.po_no }} {{ item.order_id }} {{ item.supplier }} {{ item.serial_no }} {{ item.received_at }} {{ item.date }}" data-unallocated-category="{{ item.category or '__uncategorized__' }}" class="border-t border-slate-200 [&>td]:break-words [&>td]:px-1 [&>td]:py-2">
             <td class="text-center font-bold">{{ item.item }}{% if item.size or item.quality %}<div class="text-[10px] font-normal text-slate-500">{{ item.size or '' }}{% if item.size and item.quality %} · {% endif %}{{ item.quality or '' }}</div>{% endif %}<div class="text-[10px] font-normal text-slate-500">PO {{ item.po_no or '—' }} · {{ item.unit or 'PCS' }}{% if item.roll_length_m %} ({{ '{:g}'.format(item.roll_length_m) }} m/roll){% endif %}</div></td>
             <td class="font-bold text-amber-700">{{ qty_with_issue_unit(item.unlocated_qty, item) }}</td>
             <td><select form="put-away-{{ item.id }}" name="location_type" required class="w-full min-w-0 rounded border border-slate-300 px-1 py-1.5 text-[10px]"><option value="RACK_SHELF">Rack/Shelf</option><option value="FLOOR">Floor</option><option value="CTN_ON_FLOOR">CTN on Floor</option><option value="BORA_ON_FLOOR">BORA on Floor</option><option value="CABINET">Cabinet</option><option value="CUPBOARD">Cupboard</option></select></td>
@@ -251,11 +289,13 @@
           {% if location_search %}<a href="{{ url_for('accessories_portal', portal_page='issuance-store-finder') }}" class="inline-flex items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50">Clear</a>{% endif %}
         </div>
       </form>
+      {{ accessory_category_pills('store-category-filters', 'Filter store locations by category') }}
       <p id="store-location-search-status" class="hidden px-4 py-2 text-sm text-slate-500" role="status" aria-live="polite"></p>
+      <p id="store-category-empty" hidden role="status" class="px-4 py-3 text-sm text-slate-500">No stored items match this category.</p>
       <table id="store-location-table" class="w-full text-sm">
         <tbody>
           {% for item_group in storage_item_groups %}
-          <tr class="border-t border-slate-200 first:border-t-0">
+          <tr data-store-category-row data-store-category="{{ item_group.category or '__uncategorized__' }}" class="border-t border-slate-200 first:border-t-0">
             <td colspan="6" class="p-0">
               <section>
                 <header class="flex flex-wrap items-center justify-between gap-2 border-l-4 border-violet-500 bg-violet-50 px-4 py-3">
@@ -322,7 +362,7 @@
               </section>
             </td>
           </tr>
-          {% else %}<tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">{% if location_search %}No stored items match “{{ location_search }}”.{% else %}No stock has been assigned to a location yet.{% endif %}</td></tr>{% endfor %}
+          {% else %}<tr data-store-empty-row><td colspan="6" class="px-3 py-6 text-center text-slate-500">{% if location_search %}No stored items match “{{ location_search }}”.{% else %}No stock has been assigned to a location yet.{% endif %}</td></tr>{% endfor %}
         </tbody>
       </table>
     </section>
@@ -331,15 +371,56 @@
     {% if portal_page == 'home' %}
     <section class="overflow-x-auto rounded-2xl border border-slate-200">
       <h2 class="border-b border-slate-200 bg-slate-50 px-4 py-3 text-lg font-black text-slate-800">CONSOLIDATED RECEIVED ACCESSORY STOCK</h2>
+      <div id="stock-category-filters" class="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-3">
+        <span class="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Category</span>
+        <button type="button" data-stock-category="*" aria-pressed="true" class="rounded-full bg-emerald-800 px-3 py-1.5 text-xs font-bold text-white">All</button>
+        {% for category in stock_category_options %}
+        <button type="button" data-stock-category="{{ category }}" aria-pressed="false" class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100">{{ 'Uncategorized' if category == '__uncategorized__' else category }}</button>
+        {% endfor %}
+      </div>
       <table class="w-full text-center text-sm">
         <thead class="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500"><tr><th class="px-3 py-3">Item</th><th class="px-3 py-3">Size</th><th class="px-3 py-3">Quality</th><th class="px-3 py-3">Net Received</th><th class="px-3 py-3">Net Used</th><th class="px-3 py-3">Available</th><th class="px-3 py-3">In Store</th></tr></thead>
         <tbody>
           {% for stock in stock_positions %}
-          <tr class="border-y border-slate-200"><td class="px-3 py-3 font-bold text-slate-800">{{ stock.item }}{% if stock.roll_length_m %}<span class="block text-xs font-normal text-slate-500">{{ '{:g}'.format(stock.roll_length_m) }} m per roll</span>{% endif %}</td><td class="px-3 py-3">{{ stock.size or '-' }}</td><td class="px-3 py-3">{{ stock.quality or '-' }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.received) }} {{ stock.unit }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.issued) }} {{ stock.unit }}</td><td class="px-3 py-3 font-bold text-emerald-700">{{ '{:,.1f}'.format(stock.available) }} {{ stock.unit }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.located) }} {{ stock.unit }}</td></tr>
+          <tr data-consolidated-stock-row data-stock-category="{{ stock.category or '__uncategorized__' }}" class="border-y border-slate-200"><td class="px-3 py-3 font-bold text-slate-800">{{ stock.item }}{% if stock.roll_length_m %}<span class="block text-xs font-normal text-slate-500">{{ '{:g}'.format(stock.roll_length_m) }} m per roll</span>{% endif %}</td><td class="px-3 py-3">{{ stock.size or '-' }}</td><td class="px-3 py-3">{{ stock.quality or '-' }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.received) }} {{ stock.unit }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.issued) }} {{ stock.unit }}</td><td class="px-3 py-3 font-bold text-emerald-700">{{ '{:,.1f}'.format(stock.available) }} {{ stock.unit }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.located) }} {{ stock.unit }}</td></tr>
           {% else %}<tr><td colspan="7" class="px-3 py-6 text-slate-500">No received accessories yet.</td></tr>{% endfor %}
+          {% if stock_positions %}<tr id="stock-category-no-results" hidden><td colspan="7" class="px-3 py-6 text-slate-500">No stock in this category.</td></tr>{% endif %}
         </tbody>
       </table>
     </section>
+    <script>
+      const stockCategoryFilters = document.getElementById('stock-category-filters');
+      if (stockCategoryFilters) {
+        const categoryButtons = Array.from(stockCategoryFilters.querySelectorAll('[data-stock-category]'));
+        const stockRows = Array.from(document.querySelectorAll('[data-consolidated-stock-row]'));
+        const noCategoryResults = document.getElementById('stock-category-no-results');
+
+        stockCategoryFilters.addEventListener('click', function (event) {
+          const selectedButton = event.target.closest('[data-stock-category]');
+          if (!selectedButton) return;
+
+          const selectedCategory = selectedButton.dataset.stockCategory;
+          let visibleRows = 0;
+          categoryButtons.forEach(function (button) {
+            const isSelected = button === selectedButton;
+            button.setAttribute('aria-pressed', String(isSelected));
+            button.classList.toggle('bg-emerald-800', isSelected);
+            button.classList.toggle('text-white', isSelected);
+            button.classList.toggle('border', !isSelected);
+            button.classList.toggle('border-emerald-200', !isSelected);
+            button.classList.toggle('bg-emerald-50', !isSelected);
+            button.classList.toggle('text-emerald-800', !isSelected);
+          });
+
+          stockRows.forEach(function (row) {
+            const matches = selectedCategory === '*' || row.dataset.stockCategory === selectedCategory;
+            row.hidden = !matches;
+            if (matches) visibleRows += 1;
+          });
+          if (noCategoryResults) noCategoryResults.hidden = visibleRows > 0;
+        });
+      }
+    </script>
     {% endif %}
 
     {% if portal_page == 'issued-returned-items' %}
@@ -348,8 +429,10 @@
         <div><label for="issue-history-search" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Search issue history</label><input id="issue-history-search" type="search" name="search" value="{{ search }}" placeholder="Item, supplier, PO, order" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></div>
         <div><label for="issue-history-status" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</label><select id="issue-history-status" name="status" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="">All statuses</option><option value="PENDING" {% if status_filter == 'PENDING' %}selected{% endif %}>PENDING</option><option value="PO_SENT" {% if status_filter == 'PO_SENT' %}selected{% endif %}>PO SENT</option><option value="RECEIVED" {% if status_filter == 'RECEIVED' %}selected{% endif %}>RECEIVED</option><option value="ISSUED" {% if status_filter == 'ISSUED' %}selected{% endif %}>ISSUED</option><option value="USED" {% if status_filter == 'USED' %}selected{% endif %}>USED</option><option value="RETURNED" {% if status_filter == 'RETURNED' %}selected{% endif %}>RETURNED</option></select></div>
         {% if selected_order_id %}<input type="hidden" name="order_id" value="{{ selected_order_id }}">{% endif %}
-        {% if search or status_filter %}<div><a href="{{ url_for('accessories_portal', portal_page='issued-returned-items', order_id=selected_order_id or None) }}" class="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Clear</a></div>{% endif %}
+        <input id="issue-history-category" type="hidden" name="category" value="{{ category_filter }}">
+        {% if search or status_filter or category_filter != '*' %}<div><a href="{{ url_for('accessories_portal', portal_page='issued-returned-items', order_id=selected_order_id or None) }}" class="inline-flex rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Clear</a></div>{% endif %}
       </form>
+      {{ accessory_category_pills('issue-history-category-filters', 'Filter issued and returned items by category', category_filter) }}
     </section>
     {% endif %}
 
@@ -370,7 +453,7 @@
         </thead>
         <tbody>
           {% for item in received_item_groups %}
-          <tr class="border-y border-slate-200" data-issue-history-group="{{ loop.index }}" data-issue-history-search="{{ item.item }}{% for size, quality in item.variants %} {{ size }} {{ quality }}{% endfor %}{% for supplier in item.suppliers %} {{ supplier }}{% endfor %}{% for order_id in item.orders %} {{ order_id }}{% endfor %}{% for slip in item.purchase_slips %} {{ slip.po_no }}{% endfor %}">
+          <tr class="border-y border-slate-200" data-issue-history-group="{{ loop.index }}" data-issue-history-category="{{ item.category or '__uncategorized__' }}" data-issue-history-search="{{ item.item }}{% for size, quality in item.variants %} {{ size }} {{ quality }}{% endfor %}{% for supplier in item.suppliers %} {{ supplier }}{% endfor %}{% for order_id in item.orders %} {{ order_id }}{% endfor %}{% for slip in item.purchase_slips %} {{ slip.po_no }}{% endfor %}">
             <td class="px-3 py-3 font-bold text-slate-800">{{ item.item }}{% for size, quality in item.variants %}<div class="text-xs font-normal text-slate-500">{{ size }}{% if size and quality %} · {% endif %}{{ quality }}</div>{% endfor %}</td>
             <td class="px-3 py-3">{{ qty_by_unit(item, 'qty_value') }}</td>
             <td class="px-3 py-3">{{ qty_by_unit(item, 'received_value') }}</td>
@@ -437,9 +520,15 @@
       const issueHistoryForm = document.getElementById('issue-history-filters');
       const issueHistorySearch = document.getElementById('issue-history-search');
       const issueHistoryStatus = document.getElementById('issue-history-status');
+      const issueHistoryCategory = document.getElementById('issue-history-category');
+      const issueHistoryCategoryFilters = document.getElementById('issue-history-category-filters');
       const issueHistoryEmptyRow = document.getElementById('issue-history-no-results');
 
       if (issueHistoryForm && issueHistorySearch && issueHistoryStatus) {
+        const categoryButtons = issueHistoryCategoryFilters
+          ? Array.from(issueHistoryCategoryFilters.querySelectorAll('[data-stock-category]'))
+          : [];
+        let selectedCategory = issueHistoryCategory ? issueHistoryCategory.value : '*';
         const issueHistoryRows = Array.from(document.querySelectorAll('[data-issue-history-group]'));
         const issueHistoryGroups = new Map();
         issueHistoryRows.forEach(function (row) {
@@ -454,7 +543,9 @@
           let visibleGroups = 0;
           issueHistoryGroups.forEach(function (rows) {
             const searchableText = (rows[0].dataset.issueHistorySearch || '').toLocaleLowerCase();
-            const matches = !query || searchableText.includes(query);
+            const searchMatches = !query || searchableText.includes(query);
+            const categoryMatches = selectedCategory === '*' || rows[0].dataset.issueHistoryCategory === selectedCategory;
+            const matches = searchMatches && categoryMatches;
             rows.forEach(function (row) {
               row.classList.toggle(
                 'hidden',
@@ -468,10 +559,22 @@
           const url = new URL(window.location.href);
           if (query) url.searchParams.set('search', issueHistorySearch.value.trim());
           else url.searchParams.delete('search');
+          if (selectedCategory !== '*') url.searchParams.set('category', selectedCategory);
+          else url.searchParams.delete('category');
           window.history.replaceState({}, '', url);
         }
 
         issueHistorySearch.addEventListener('input', filterIssueHistory);
+        if (issueHistoryCategoryFilters) {
+          issueHistoryCategoryFilters.addEventListener('click', function (event) {
+            const selectedButton = event.target.closest('[data-stock-category]');
+            if (!selectedButton) return;
+            selectedCategory = selectedButton.dataset.stockCategory;
+            if (issueHistoryCategory) issueHistoryCategory.value = selectedCategory;
+            updateCategoryPillStyles(categoryButtons, selectedButton);
+            filterIssueHistory();
+          });
+        }
         issueHistoryStatus.addEventListener('change', function () {
           issueHistoryForm.requestSubmit();
         });
@@ -608,6 +711,18 @@
   const purchaseOrderSearch = document.getElementById('purchase-order-search');
   const purchaseOrderSearchEmpty = document.getElementById('purchase-order-search-empty');
   const purchaseOrderListUpdaters = [];
+  function updateCategoryPillStyles(buttons, selectedButton) {
+    buttons.forEach(function (button) {
+      const isSelected = button === selectedButton;
+      button.setAttribute('aria-pressed', String(isSelected));
+      button.classList.toggle('bg-emerald-800', isSelected);
+      button.classList.toggle('text-white', isSelected);
+      button.classList.toggle('border', !isSelected);
+      button.classList.toggle('border-emerald-200', !isSelected);
+      button.classList.toggle('bg-emerald-50', !isSelected);
+      button.classList.toggle('text-emerald-800', !isSelected);
+    });
+  }
   document.querySelectorAll('[data-scroll-target]').forEach(function (button) {
     button.addEventListener('click', function () {
       document.getElementById(button.dataset.scrollTarget)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -674,17 +789,66 @@
     const rows = Array.from(document.querySelectorAll('[data-unallocated-search]'));
     const emptyRow = document.getElementById('unallocated-stock-empty-row');
     const noMatches = document.getElementById('unallocated-stock-search-empty');
-    unallocatedStockSearch.addEventListener('input', function () {
+    const categoryFilters = document.getElementById('unallocated-category-filters');
+    const categoryButtons = categoryFilters ? Array.from(categoryFilters.querySelectorAll('[data-stock-category]')) : [];
+    let selectedCategory = '*';
+
+    function updateUnallocatedRows() {
       const searchTerm = unallocatedStockSearch.value.trim().toLocaleLowerCase();
       let hasMatches = false;
       rows.forEach(function (row) {
-        const matches = row.dataset.unallocatedSearch.toLocaleLowerCase().includes(searchTerm);
+        const searchMatches = row.dataset.unallocatedSearch.toLocaleLowerCase().includes(searchTerm);
+        const categoryMatches = selectedCategory === '*' || row.dataset.unallocatedCategory === selectedCategory;
+        const matches = searchMatches && categoryMatches;
         row.hidden = !matches;
         hasMatches = hasMatches || matches;
       });
-      if (emptyRow) emptyRow.hidden = Boolean(searchTerm);
-      noMatches.hidden = Boolean(searchTerm) && !hasMatches;
+      const filtersActive = Boolean(searchTerm) || selectedCategory !== '*';
+      if (emptyRow) emptyRow.hidden = filtersActive;
+      noMatches.hidden = !filtersActive || hasMatches;
+    }
+
+    unallocatedStockSearch.addEventListener('input', updateUnallocatedRows);
+    if (categoryFilters) {
+      categoryFilters.addEventListener('click', function (event) {
+        const selectedButton = event.target.closest('[data-stock-category]');
+        if (!selectedButton) return;
+        selectedCategory = selectedButton.dataset.stockCategory;
+        updateCategoryPillStyles(categoryButtons, selectedButton);
+        updateUnallocatedRows();
+      });
+    }
+    updateUnallocatedRows();
+  }
+
+  let updateStoreCategoryRows = function () {};
+  const storeCategoryFilters = document.getElementById('store-category-filters');
+  if (storeCategoryFilters) {
+    const categoryButtons = Array.from(storeCategoryFilters.querySelectorAll('[data-stock-category]'));
+    const noCategoryResults = document.getElementById('store-category-empty');
+    let selectedCategory = '*';
+
+    updateStoreCategoryRows = function () {
+      const rows = Array.from(document.querySelectorAll('[data-store-category-row]'));
+      const emptyRow = document.querySelector('[data-store-empty-row]');
+      let visibleRows = 0;
+      rows.forEach(function (row) {
+        const matches = selectedCategory === '*' || row.dataset.storeCategory === selectedCategory;
+        row.hidden = !matches;
+        if (matches) visibleRows += 1;
+      });
+      if (emptyRow) emptyRow.hidden = selectedCategory !== '*';
+      noCategoryResults.hidden = selectedCategory === '*' || visibleRows > 0;
+    };
+
+    storeCategoryFilters.addEventListener('click', function (event) {
+      const selectedButton = event.target.closest('[data-stock-category]');
+      if (!selectedButton) return;
+      selectedCategory = selectedButton.dataset.stockCategory;
+      updateCategoryPillStyles(categoryButtons, selectedButton);
+      updateStoreCategoryRows();
     });
+    updateStoreCategoryRows();
   }
 
   function updateDepartmentStoreRooms(departmentSelect) {
@@ -756,6 +920,7 @@
         if (!resultsBody || !currentBody) throw new Error('Store search results could not be loaded.');
 
         currentBody.replaceChildren(...Array.from(resultsBody.childNodes));
+        updateStoreCategoryRows();
         window.history.replaceState({}, '', url);
         storeSearchStatus.textContent = '';
         storeSearchStatus.classList.add('hidden');

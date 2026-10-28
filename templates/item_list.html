@@ -12,6 +12,18 @@
             {% if 'vendor_rates' in page_access_keys %}<a href="{{ url_for('vendors') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Vendors</a>{% endif %}
         </div>
 
+        {% set item_categories = [
+            'PRODUCTION ACCESSORIES',
+            'SEWING MATERIALS',
+            'MACHINE MAINTENANCE / SPARE PARTS',
+            'ELECTRICAL MATERIALS',
+            'GENERAL FACTORY MATERIALS',
+            'IT & COMPUTER EQUIPMENTS',
+            'STATIONARY & OFFICE SUPPLIES',
+            'PACKAGING MATERIALS',
+            'FIRE & EMERGENCY SUPPLIES',
+            'CUTTING ACCESSORIES'
+        ] %}
         <form method="POST" class="mt-8">
             <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div><h2 class="text-xl font-black text-slate-900">Item master</h2><p class="mt-1 text-sm text-slate-500">{{ items|length }} standard item(s)</p></div>
@@ -25,6 +37,9 @@
                 <thead class="bg-slate-100 text-slate-700">
                     <tr>
                         <th class="px-3 py-2 font-bold">Item</th>
+                        <th class="px-3 py-2 font-bold">Specification</th>
+                        <th class="px-3 py-2 font-bold">Category</th>
+                        <th class="px-3 py-2 font-bold">SKU</th>
                         <th class="px-3 py-2 font-bold">Material</th>
                         <th class="px-3 py-2 font-bold">Size</th>
                         <th class="px-3 py-2 font-bold">Stock Unit</th>
@@ -36,8 +51,11 @@
                 </thead>
                 <tbody id="item-rows">
                     {% for item in items %}
-                    <tr class="master-item-row border-t border-slate-200" data-search="{{ (item.item_name ~ ' ' ~ (item.material or '') ~ ' ' ~ (item.size or '') ~ ' ' ~ (item.unit or ''))|lower }}">
+                    <tr class="master-item-row border-t border-slate-200" data-search="{{ (item.item_name ~ ' ' ~ (item.specification or '') ~ ' ' ~ (item.category or '') ~ ' ' ~ (item.sku or '') ~ ' ' ~ (item.material or '') ~ ' ' ~ (item.size or '') ~ ' ' ~ (item.unit or ''))|lower }}">
                         <td class="px-3 py-2"><input type="hidden" name="item_id" value="{{ item.id }}" {% if read_only_profile %}disabled{% endif %}><input type="text" name="item_name" value="{{ item.item_name }}" class="w-full min-w-40 rounded-lg border border-slate-300 p-2" required {% if read_only_profile %}disabled{% endif %}></td>
+                        <td class="px-3 py-2"><input type="text" name="specification" value="{{ item.specification or '' }}" class="w-full min-w-40 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
+                        <td class="px-3 py-2"><select name="category" class="w-full min-w-56 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}><option value="">Select category</option>{% for category in item_categories %}<option value="{{ category }}" {% if item.category == category %}selected{% endif %}>{{ category }}</option>{% endfor %}</select></td>
+                        <td class="px-3 py-2"><input type="text" name="sku" value="{{ item.sku or '' }}" class="w-full min-w-32 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
                         <td class="px-3 py-2"><input type="text" name="material" value="{{ item.material or '' }}" class="w-full min-w-40 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
                         <td class="px-3 py-2"><input type="text" name="size" value="{{ item.size or '' }}" class="w-full min-w-32 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
                         <td class="px-3 py-2"><input type="text" name="unit" value="{{ item.unit or '' }}" list="unit-list" autocomplete="off" class="w-full min-w-28 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
@@ -47,7 +65,7 @@
                         <td class="px-3 py-2">{% if not read_only_profile %}<button type="button" class="remove-item-row rounded border border-red-300 px-3 py-1.5 text-xs font-bold text-red-700 hover:bg-red-50">Remove</button>{% endif %}</td>
                     </tr>
                     {% endfor %}
-                    {% if items %}<tr id="item-master-no-results" hidden><td colspan="8" class="px-3 py-8 text-center text-slate-500">No items match this search.</td></tr>{% endif %}
+                    {% if items %}<tr id="item-master-no-results" hidden><td colspan="11" class="px-3 py-8 text-center text-slate-500">No items match this search.</td></tr>{% endif %}
                 </tbody>
             </table>
             </div>
@@ -60,6 +78,9 @@
 <template id="item-row-template">
     <tr class="border-t border-slate-200">
         <td class="px-3 py-2"><input type="hidden" name="item_id" value=""><input type="text" name="item_name" class="w-full min-w-40 rounded border p-2" required></td>
+        <td class="px-3 py-2"><input type="text" name="specification" class="w-full min-w-40 rounded border p-2"></td>
+        <td class="px-3 py-2"><select name="category" class="w-full min-w-56 rounded border p-2"><option value="">Select category</option>{% for category in item_categories %}<option value="{{ category }}">{{ category }}</option>{% endfor %}</select></td>
+        <td class="px-3 py-2"><input type="text" name="sku" class="w-full min-w-32 rounded border p-2"></td>
         <td class="px-3 py-2"><input type="text" name="material" class="w-full min-w-40 rounded border p-2"></td>
         <td class="px-3 py-2"><input type="text" name="size" class="w-full min-w-32 rounded border p-2"></td>
         <td class="px-3 py-2"><input type="text" name="unit" list="unit-list" autocomplete="off" class="w-full min-w-28 rounded border p-2"></td>

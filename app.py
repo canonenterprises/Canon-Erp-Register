@@ -2851,6 +2851,20 @@ def ensure_item_master_issue_columns(engine):
             connection.execute(text('ALTER TABLE item_master ADD COLUMN issue_unit_factor FLOAT NOT NULL DEFAULT 1'))
 
 
+def ensure_item_master_detail_columns(engine):
+    inspector = inspect(engine)
+    if 'item_master' not in inspector.get_table_names():
+        return
+    columns = {column['name'] for column in inspector.get_columns('item_master')}
+    with engine.begin() as connection:
+        if 'specification' not in columns:
+            connection.execute(text("ALTER TABLE item_master ADD COLUMN specification VARCHAR(255) DEFAULT ''"))
+        if 'category' not in columns:
+            connection.execute(text("ALTER TABLE item_master ADD COLUMN category VARCHAR(100) DEFAULT ''"))
+        if 'sku' not in columns:
+            connection.execute(text("ALTER TABLE item_master ADD COLUMN sku VARCHAR(100) DEFAULT ''"))
+
+
 def is_read_only_profile():
     return (
         session.get('role') == 'assistant_manager'
@@ -2974,6 +2988,9 @@ class ItemMaster(db.Model):
     unit = db.Column(db.String(50), default='')
     issue_unit = db.Column(db.String(50), default='')
     issue_unit_factor = db.Column(db.Float, nullable=False, default=1.0)
+    specification = db.Column(db.String(255), default='')
+    category = db.Column(db.String(100), default='')
+    sku = db.Column(db.String(100), default='')
     returnable = db.Column(db.Boolean, nullable=False, default=False)
     refundable = db.Column(db.Boolean, nullable=False, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -5197,6 +5214,7 @@ with app.app_context():
     ensure_portal_account_access_column(db.engine)
     ensure_portal_account_page_access_column(db.engine)
     ensure_item_master_issue_columns(db.engine)
+    ensure_item_master_detail_columns(db.engine)
     seed_portal_accounts()
     ensure_table_columns(db.engine)
     ensure_operation_rate_columns(db.engine)
@@ -10549,7 +10567,7 @@ def owner_dashboard():
         get_order_shipping_snapshot(order)['completed_pcs']
         for order in orders
     )
-    inventory_quantity = sum(numeric(record.quantity) for record in inventory_records)
+    inventory_quantity = get_fabric_stock_totals()['balance']
     inventory_received = sum(numeric(record.fabric_qty_a) + numeric(record.fabric_qty_b) for record in inventory_records)
     fabric_received = sum(numeric(record.fabric_qty_a) + numeric(record.fabric_qty_b) for record in inventory_records)
     fabric_used = sum(numeric(sheet.total_meter) for sheet in cutting_sheets)
@@ -10639,7 +10657,16 @@ def owner_dashboard():
         1 for challan in ChallanRecord.query.filter_by(source_type='order').all()
         if challan.id not in billed_challan_ids
     )
-    active_worker_names = {log.worker for log in month_logs if log.worker}
+    active_inventory_count = sum(
+        1 for record in inventory_records
+        if is_current_month(record.recv_date)
+        and (
+            numeric(record.fabric_qty_a) > 0
+            or numeric(record.fabric_qty_b) > 0
+            or numeric(record.direct_cutting_pcs) > 0
+            or numeric(record.quantity) > 0
+        )
+    )
     production_by_operation = {}
     for log in month_logs:
         operation = (log.operation or 'OTHER').upper()
@@ -10687,6 +10714,12 @@ def owner_dashboard():
             operation = (log.operation or 'OTHER').upper()
             operation_totals[operation] = operation_totals.get(operation, 0) + (log.pcs or 0)
         order_sheets = sheets_by_order.get(str(job_no), [])
+        order_inventory_serials = list(dict.fromkeys(
+            serial_no
+            for sheet in order_sheets
+            for serial_no in split_inventory_serials(sheet.inventory_serial_no)
+            if serial_no
+        ))
         operation_names = list(dict.fromkeys(
             operation
             for sheet in order_sheets
@@ -10820,6 +10853,8 @@ def owner_dashboard():
             'fabric_received': round(order_fabric_received, 2),
             'fabric_used': round(order_fabric_used, 2),
             'fabric_left': round(max(0.0, order_fabric_received - order_fabric_used), 2),
+            'inventory_count': len(order_inventory_serials),
+            'inventory_serials': order_inventory_serials,
             'operations': order_operations,
             'overall_operation_completion': overall_operation_completion,
             'completed_operation_cuts': completed_operation_cuts,
@@ -10866,7 +10901,7 @@ def owner_dashboard():
         fabric_used=round(fabric_used, 2),
         fabric_left=round(fabric_left, 2),
         outstanding_advances=round(outstanding_advances, 2),
-        active_worker_count=len(active_worker_names),
+        active_inventory_count=active_inventory_count,
         workers_with_advances=workers_with_advances,
         pending_orders=pending_orders,
         top_operations=top_operations,
@@ -15049,6 +15084,9 @@ def item_list():
         item_names = request.form.getlist('item_name')
         materials = request.form.getlist('material')
         sizes = request.form.getlist('size')
+        specifications = request.form.getlist('specification')
+        categories = request.form.getlist('category')
+        skus = request.form.getlist('sku')
         units = request.form.getlist('unit')
         issue_units = request.form.getlist('issue_unit')
         returnables = request.form.getlist('returnable')
@@ -15064,6 +15102,9 @@ def item_list():
             item_id = int(item_ids[index]) if index < len(item_ids) and item_ids[index].isdigit() else None
             material = (materials[index] if index < len(materials) else '').strip()
             size = (sizes[index] if index < len(sizes) else '').strip()
+            specification = (specifications[index] if index < len(specifications) else '').strip()
+            category = (categories[index] if index < len(categories) else '').strip()
+            sku = (skus[index] if index < len(skus) else '').strip()
             unit = (units[index] if index < len(units) else '').strip()
             issue_unit = (issue_units[index] if index < len(issue_units) else '').strip()
             if not issue_unit:
@@ -15087,6 +15128,9 @@ def item_list():
             elif existing_item:
                 existing_item.material = material
                 existing_item.size = size
+                existing_item.specification = specification
+                existing_item.category = category
+                existing_item.sku = sku
                 existing_item.unit = unit
                 existing_item.issue_unit = issue_unit
                 existing_item.issue_unit_factor = 1.0
@@ -15102,6 +15146,9 @@ def item_list():
             item.item_name = item_name
             item.material = material
             item.size = size
+            item.specification = specification
+            item.category = category
+            item.sku = sku
             item.unit = unit
             item.issue_unit = issue_unit
             item.issue_unit_factor = 1.0
@@ -19480,6 +19527,21 @@ def accessories_portal(portal_page='home'):
         PartySuppliedAccessory.sent_date.desc(), PartySuppliedAccessory.id.desc()
     ).all()
     stock_positions = get_accessory_stock_positions()
+    item_category_map = {
+        item.item_name.strip().casefold(): (item.category or '').strip()
+        for item in local_po_items
+    }
+    for stock in stock_positions:
+        stock['category'] = item_category_map.get(stock['item'].strip().casefold(), '')
+    stock_category_options = sorted(
+        {stock['category'] for stock in stock_positions if stock['category']},
+        key=str.casefold,
+    )
+    if any(not stock['category'] for stock in stock_positions):
+        stock_category_options.append('__uncategorized__')
+    category_filter = request.args.get('category', '*')
+    if category_filter not in stock_category_options and category_filter != '*':
+        category_filter = '*'
     storage_rows = get_accessory_storage_rows()
     storage_rows = [
         row for row in storage_rows
@@ -19552,6 +19614,7 @@ def accessories_portal(portal_page='home'):
     storage_item_groups = [
         {
             'item': item_name,
+            'category': item_category_map.get(item_name.strip().casefold(), ''),
             'locations': sorted(
                 location_groups,
                 key=lambda group: (group['size'].casefold(), group['quality'].casefold(), group['label'].casefold()),
@@ -19563,6 +19626,7 @@ def accessories_portal(portal_page='home'):
     for received_item in SavedRequirement.query.order_by(SavedRequirement.id.desc()).all():
         received_item.received_value = accessory_layer_received_qty(received_item)
         received_item.unlocated_qty = get_accessory_unlocated_qty(received_item)
+        received_item.category = item_category_map.get((received_item.item or '').strip().casefold(), '')
         if received_item.received_value > 0 and received_item.unlocated_qty > 0.000001:
             put_away_items.append(received_item)
     query = SavedRequirement.query
@@ -19622,6 +19686,8 @@ def accessories_portal(portal_page='home'):
         db.session.commit()
 
     received_item_groups = get_accessory_received_history_groups(items)
+    for history_group in received_item_groups:
+        history_group['category'] = item_category_map.get(history_group['item'].strip().casefold(), '')
     supplier_returns = AccessorySupplierReturn.query.order_by(
         AccessorySupplierReturn.id.desc()
     ).limit(250).all()
@@ -19717,9 +19783,26 @@ def accessories_portal(portal_page='home'):
             'total': po_total,
         }
 
+    stock_categories = [
+        {'name': category_name, 'item_count': item_count}
+        for category_name, item_count in db.session.query(
+            ItemMaster.category, func.count(ItemMaster.id)
+        ).filter(
+            ItemMaster.category.isnot(None),
+            func.trim(ItemMaster.category) != '',
+        ).group_by(
+            ItemMaster.category
+        ).order_by(
+            ItemMaster.category.asc()
+        ).all()
+    ]
+
     return render_template(
         'accessories.html', items=items, received_item_groups=received_item_groups,
         portal_page=portal_page,
+        stock_categories=stock_categories,
+        stock_category_options=stock_category_options,
+        category_filter=category_filter,
         can_create_local_po=can_create_local_po,
         selected_po_company=selected_po_company,
         status_filter=status_filter, search=search,
