@@ -622,10 +622,16 @@
                         <span>Worker Management</span>
                     </a>
                     {% endif %}
-                    {% if 'vendors' in page_access_keys %}
+                    {% if 'vendor_rates' in page_access_keys %}
                     <a href="{{ url_for('vendors') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 hover:text-sky-900">
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600"><i class="fa-solid fa-truck-field text-sm"></i></span>
                         <span>Vendors</span>
+                    </a>
+                    {% endif %}
+                    {% if 'item_list' in page_access_keys %}
+                    <a href="{{ url_for('item_list') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-sky-50 hover:text-sky-900">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600"><i class="fa-solid fa-list-check text-sm"></i></span>
+                        <span>Item List</span>
                     </a>
                     {% endif %}
                     {% if 'stock_home' in page_access_keys %}<a href="{{ url_for('stock_portal') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-900">
@@ -753,9 +759,14 @@
                         <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
                     </a>{% endif %}
                     {% if current_role in ('owner', 'manager', 'assistant_manager') %}
-                    {% if 'vendors' in page_access_keys %}<a href="{{ url_for('vendors') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                    {% if 'vendor_rates' in page_access_keys %}<a href="{{ url_for('vendors') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
                         <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 transition group-hover:bg-sky-100"><i class="fa-solid fa-truck-field text-sm"></i></span>
                         <span>Vendors</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
+                    </a>{% endif %}
+                    {% if 'item_list' in page_access_keys %}<a href="{{ url_for('item_list') }}" class="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-50 text-sky-600 transition group-hover:bg-sky-100"><i class="fa-solid fa-list-check text-sm"></i></span>
+                        <span>Item List</span>
                         <i class="fa-solid fa-arrow-up-right-from-square ml-auto text-[10px] text-slate-300 transition group-hover:text-slate-500"></i>
                     </a>{% endif %}
                     {% endif %}

@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+{% block content %}
+<main class="mx-auto max-w-7xl space-y-6 p-4 sm:p-8">
+  <header class="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-950 p-6 text-white"><div><p class="text-xs font-bold uppercase tracking-widest text-amber-300">Fabric Storage</p><h1 class="mt-1 text-3xl font-black">Dark Room</h1><p class="mt-2 text-sm text-slate-300">Stored fabric is excluded from active inventory until reimbursed.</p></div><a href="{{ url_for('fabric_ledger') }}" class="rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-800">Back to Fabric Ledger</a></header>
+  <section class="space-y-3 rounded-lg border bg-white p-4 shadow">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+      <label for="dark-room-search" class="block text-xs font-bold uppercase text-slate-500">Search Dark Room
+        <input id="dark-room-search" type="search" placeholder="Party, article, serial, or style" class="mt-1 w-full rounded border px-3 py-2 text-sm sm:w-80" autocomplete="off">
+      </label>
+      <label for="dark-room-quality-filter" class="block text-xs font-bold uppercase text-slate-500">Quality
+        <select id="dark-room-quality-filter" class="mt-1 w-full rounded border px-3 py-2 text-sm sm:w-48">
+          <option value="">All qualities</option>
+          <option value="A">A-QUALITY</option>
+          <option value="B">B-QUALITY</option>
+        </select>
+      </label>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-slate-100 text-xs uppercase"><tr><th class="p-3">S.No</th><th class="p-3">Party Name</th><th class="p-3">Article Name</th><th class="p-3">Style</th><th class="p-3">Inventory / Serial</th><th class="p-3">Quality</th><th class="p-3 text-right">Transferred</th><th class="p-3 text-right">Remaining</th><th class="p-3">Reimburse</th></tr></thead>
+        <tbody id="dark-room-records">
+          {% for row in records %}
+          <tr data-dark-room-row data-quality="{{ row.quality|upper }}" class="border-t">
+            <td class="dark-room-row-number p-3 text-center">{{ loop.index }}</td>
+            <td class="p-3">{{ row.party_name }}</td>
+            <td class="p-3 font-bold">{{ row.article or 'Unassigned' }}</td>
+            <td class="p-3">{{ row.style }}</td>
+            <td class="p-3">{{ row.serial_no or '—' }}</td>
+            <td class="p-3">{{ row.quality }}-QUALITY</td>
+            <td class="p-3 text-right">{{ '%.2f'|format(row.quantity) }} m</td>
+            <td class="p-3 text-right font-bold">{{ '%.2f'|format(row.remaining) }} m</td>
+            <td class="p-3"><form method="post" class="flex items-center gap-2"><input type="hidden" name="record_id" value="{{ row.id }}"><input type="number" name="quantity" min="0.01" max="{{ row.remaining }}" step="0.01" required placeholder="Qty" class="w-24 rounded border px-2 py-1"><button class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white">Reimburse</button></form></td>
+          </tr>
+          {% else %}
+          <tr data-dark-room-empty><td colspan="9" class="p-8 text-center text-slate-500">Dark Room is empty.</td></tr>
+          {% endfor %}
+          {% if records %}<tr id="dark-room-no-matches" hidden><td colspan="9" class="p-8 text-center text-slate-500">No matching fabric.</td></tr>{% endif %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const searchInput = document.getElementById('dark-room-search');
+  const qualityFilter = document.getElementById('dark-room-quality-filter');
+  const rows = Array.from(document.querySelectorAll('[data-dark-room-row]'));
+  const noMatchesRow = document.getElementById('dark-room-no-matches');
+
+  if (!searchInput || !qualityFilter) return;
+
+  const applyFilters = function () {
+    const query = searchInput.value.trim().toLocaleLowerCase();
+    const selectedQuality = qualityFilter.value;
+    let visibleCount = 0;
+
+    rows.forEach(function (row) {
+      const matchesSearch = row.textContent.toLocaleLowerCase().includes(query);
+      const matchesQuality = !selectedQuality || row.dataset.quality === selectedQuality;
+      const matches = matchesSearch && matchesQuality;
+      row.hidden = !matches;
+      if (matches) {
+        visibleCount += 1;
+        row.querySelector('.dark-room-row-number').textContent = visibleCount;
+      }
+    });
+
+    if (noMatchesRow) noMatchesRow.hidden = visibleCount > 0;
+  };
+
+  searchInput.addEventListener('input', applyFilters);
+  qualityFilter.addEventListener('change', applyFilters);
+});
+</script>
+{% endblock %}

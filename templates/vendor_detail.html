@@ -16,6 +16,7 @@
             <div class="col-span-2 rounded-xl border border-slate-200 p-4 sm:col-span-1"><p class="text-xs font-bold uppercase text-slate-500">Primary Contact</p><p class="mt-1 truncate text-sm font-bold text-slate-900">{{ vendor.contact_person or vendor.phone or vendor.email or 'Not provided' }}</p></div>
         </div>
 
+        {% if vendor_full_access %}
         <details class="mb-6 rounded-xl border border-slate-200 bg-slate-50">
             <summary class="cursor-pointer px-4 py-3 text-sm font-bold text-slate-800">Edit vendor profile</summary>
             <form method="POST" class="grid gap-3 border-t border-slate-200 p-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -81,6 +82,9 @@
                 {% if selected_item %}<a href="{{ url_for('vendor_detail', vendor_id=vendor.id) }}" class="rounded-lg border border-slate-300 px-5 py-2.5 text-sm font-bold text-slate-700">Cancel</a>{% endif %}
             </div>
         </form>
+        {% else %}
+        <p class="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access to vendor profiles and rates.</p>
+        {% endif %}
         <div class="mt-8">
             <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div><h2 class="text-xl font-black text-slate-900">Vendor Material List</h2><p class="mt-1 text-sm text-slate-500">{{ items|length }} linked material(s)</p></div>
@@ -108,8 +112,10 @@
                             <td class="px-3 py-2 text-slate-600">{{ '%.2f'|format(item.pack_price or 0) }}</td>
                             <td class="px-3 py-2 font-bold text-slate-900">{{ '%.2f'|format(item.rate or 0) }} <span class="text-xs font-normal text-slate-500">/ {{ 'roll' if (item.unit or '')|upper in ('ROLL', 'ROLLS') else item.unit or '-' }}</span></td>
                             <td class="px-3 py-2"><div class="flex justify-end gap-2">
+                                {% if vendor_full_access %}
                                 <a href="{{ url_for('vendor_detail', vendor_id=vendor.id, edit_item=item.id) }}" class="rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">Edit</a>
                                 <form method="post" onsubmit="return confirm('Remove this material from the vendor?')"><input type="hidden" name="action" value="delete_item"><input type="hidden" name="vendor_item_id" value="{{ item.id }}"><button class="rounded-md border border-rose-200 px-2.5 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-50">Remove</button></form>
+                                {% else %}<span class="text-xs text-slate-400">View only</span>{% endif %}
                             </div></td>
                         </tr>
                         {% endfor %}
@@ -131,6 +137,7 @@
     const sizeInput = document.getElementById('size');
     const unitInput = document.getElementById('unit');
 
+    if (itemNameInput && materialInput && sizeInput && unitInput) {
     function loadItemMasterValues() {
         const itemName = itemNameInput.value.trim().toLowerCase();
         const match = itemMaster.find(item => String(item.item_name || '').trim().toLowerCase() === itemName);
@@ -147,6 +154,7 @@
 
     itemNameInput.addEventListener('input', loadItemMasterValues);
     itemNameInput.addEventListener('change', loadItemMasterValues);
+    }
 
     const vendorItemSearch = document.getElementById('vendor-item-search');
     if (vendorItemSearch) {

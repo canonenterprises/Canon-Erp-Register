@@ -123,13 +123,13 @@
             <div class="inventory-quantities-grid grid grid-cols-1 md:grid-cols-5 gap-4 mb-10 {% if inventory and inventory.is_direct_cutting_pcs %}direct-pcs-mode{% endif %}">
                 <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
                     <label class="block text-xs font-bold text-black-500">Fabric Quantity A</label>
-                    <input type="number" step="0.01" name="fabric_qty_a" value="{{ inventory.fabric_qty_a if inventory and inventory.fabric_qty_a else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                    <input type="number" step="0.01" name="fabric_qty_a" value="{{ inventory.fabric_qty_a if inventory and inventory.fabric_qty_a else '' }}" data-dark-room-remaining="{{ dark_room_a_quantity|default(0, true) }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
                 <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
                     <label class="block text-xs font-bold text-black-500">Fabric Quantity B</label>
-                    <input type="number" step="0.01" name="fabric_qty_b" value="{{ inventory.fabric_qty_b if inventory and inventory.fabric_qty_b else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
+                    <input type="number" step="0.01" name="fabric_qty_b" value="{{ inventory.fabric_qty_b if inventory and inventory.fabric_qty_b else '' }}" data-dark-room-remaining="{{ dark_room_b_quantity|default(0, true) }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                     <label class="no-print mt-2 flex items-center gap-2 text-xs font-bold text-black-700">
-                        <input type="checkbox" name="enable_fabric_b" {% if inventory and inventory.fabric_b_enabled %}checked{% endif %} {% if inventory and inventory.is_direct_cutting_pcs %}disabled{% endif %}>
+                        <input type="checkbox" name="enable_fabric_b" {% if inventory and inventory.fabric_b_enabled %}checked{% endif %} {% if (inventory and inventory.is_direct_cutting_pcs) or dark_room_b_pending %}disabled{% endif %}>
                         Enable Fabric B.Q for future cuts
                     </label>
                     {% if inventory and inventory.fabric_b_enabled %}
@@ -289,6 +289,15 @@
                         {% endif %}
                         {% endif %}
                         {% set row_balance = '' %}
+                        {% set saved_a_status_row = (second_rows|selectattr('idx', 'equalto', 4)|list|first) if second_rows else None %}
+                        {% set saved_b_status_row = (second_rows|selectattr('idx', 'equalto', 5)|list|first) if second_rows else None %}
+                        {% set a_action_status = request.form.get('sec_shortage_status_4') or (saved_a_status_row.shortage if saved_a_status_row else '') %}
+                        {% set b_action_status = request.form.get('sec_shortage_status_5') or (saved_b_status_row.shortage if saved_b_status_row else '') %}
+                        {% set saved_balance_start_row = (second_rows|selectattr('idx', 'equalto', 1)|list|first) if second_rows else None %}
+                        {% set balance_start = request.form.get('sec_balance_1') or (saved_balance_start_row.balance if saved_balance_start_row else '') or fabric_balance_before_b or '0' %}
+                        {% set a_deduct = (dark_room_a_quantity if dark_room_a_pending else (inventory.a_returned_quantity if inventory and inventory.a_returned_quantity else remaining_a_quality)) if a_action_status|upper in ('RETURNED', 'DARK ROOM') else 0 %}
+                        {% set b_deduct = (dark_room_b_quantity if dark_room_b_pending else (inventory.b_returned_quantity if inventory and inventory.b_returned_quantity else remaining_b_quality)) if b_action_status|upper in ('RETURNED', 'DARK ROOM') else 0 %}
+                        {% set combined_deduction = (a_deduct|float) + (b_deduct|float) %}
                         {% if i == 1 and fabric_balance_before_b %}
                         {% set row_balance = fabric_balance_before_b %}
                         {% elif i == 2 and inventory and inventory.fabric_b_enabled %}
@@ -304,19 +313,36 @@
                         {% elif i != 5 %}
                         {% set row_balance = request.form.get('sec_balance_'~i) or '' %}
                         {% endif %}
+                        {% if (i == 4 and dark_room_a_pending) or (i == 5 and dark_room_b_pending) %}
+                        {% set row_balance = 'COMPLETED' %}
+                        {% endif %}
+                        {% if i == 2 and combined_deduction > 0 %}
+                        {% set row_balance = '%.2f'|format(combined_deduction) %}
+                        {% elif i == 3 and combined_deduction > 0 %}
+                        {% set row_balance = '%.2f'|format([0, (balance_start|float) - combined_deduction]|max) %}
+                        {% endif %}
+                        {% set shortage_field_name = 'sec_shortage_value_' ~ i if i >= 4 else 'sec_shortage_' ~ i %}
+                        {% set saved_shortage_value = r2.shortage if r2 and r2.shortage and r2.shortage|upper not in ('RETURNED', 'DARK ROOM') else (request.form.get(shortage_field_name) or '') %}
+                        {% set dark_room_pending = dark_room_a_pending if i == 4 else (dark_room_b_pending if i == 5 else false) %}
+                        {% set stored_shortage_status = r2.shortage if r2 and r2.shortage and (r2.shortage|upper != 'DARK ROOM' or dark_room_pending) else '' %}
+                        {% set saved_shortage_status = request.form.get('sec_shortage_status_' ~ i) or (stored_shortage_status if stored_shortage_status|upper in ('RETURNED', 'DARK ROOM') else '') %}
+                        {% set secondary_cut_pcs_value = total_cut_pcs if i == 1 and total_cut_pcs else ('%.2f'|format(remaining_b_quality) if i == 5 and inventory and inventory.fabric_b_enabled and remaining_b_quality > 0 else (0 if i == 5 and inventory and inventory.fabric_b_enabled else (r2.cut_pcs if r2 and r2.cut_pcs is not none else (request.form.get('sec_cut_pcs_'~i) or (inventory.fabric_qty_b if i == 5 and inventory else ''))))) %}
+                        {% if i == 5 and dark_room_b_pending %}
+                        {% set secondary_cut_pcs_value = 0 %}
+                        {% endif %}
 
                         <tr>
                             <td class="border px-1 py-1"><input type="text" name="sec_style_{{ i }}" value="{{ summary_item if i == 1 and summary_item else (r2.style if r2 and r2.style else (request.form.get('sec_style_'~i) or '')) }}" class="w-full p-1 border rounded" {% if i <= 3 %}readonly{% endif %}></td>
                             <td class="w-12 border px-1 py-1"><input type="text" name="sec_sno_{{ i }}" value="{{ r2.sno if r2 and r2.sno else (request.form.get('sec_sno_'~i) or '') }}" class="w-full p-1 border rounded" {% if i <= 3 %}readonly{% endif %}></td>
                             <td class="border px-1 py-1"><input type="text" name="sec_cut_size_{{ i }}" value="{{ summary_cut_size if i == 1 and summary_cut_size else (r2.cut_size if r2 and r2.cut_size else (request.form.get('sec_cut_size_'~i) or '')) }}" class="w-full p-1 border rounded" {% if i <= 3 %}readonly{% endif %}></td>
                             <td class="border px-1 py-1"><input type="number" name="sec_cutting_pcs_{{ i }}" value="{{ total_cutting_pcs if i == 1 and total_cutting_pcs else (r2.cutting_pcs if r2 and r2.cutting_pcs is not none else (request.form.get('sec_cutting_pcs_'~i) or '')) }}" class="w-full p-1 border rounded" {% if i <= 3 %}readonly{% endif %}></td>
-                            <td class="border px-1 py-1"><input type="text" name="sec_shortage_{{ i }}" value="{{ '%.2f'|format(total_shortage) if i == 1 and total_shortage else (r2.shortage if r2 and r2.shortage else (request.form.get('sec_shortage_'~i) or '')) }}" class="w-full p-1 border rounded" {% if i <= 4 %}readonly{% endif %}></td>
+                            <td class="border px-1 py-1"><input type="text" name="{{ shortage_field_name }}" value="{{ '%.2f'|format(total_shortage) if i == 1 and total_shortage else saved_shortage_value }}" class="w-full p-1 border rounded" {% if i <= 4 %}readonly{% endif %}></td>
                             <td class="border px-1 py-1"><input type="text" name="sec_fabric_use_{{ i }}" value="{{ 'A-QUALITY' if i == 4 else ('%.2f'|format(total_fabric_use) if i == 1 and total_fabric_use else ('B-QUALITY' if i == 5 and not (r2 and r2.fabric_use) and not request.form.get('sec_fabric_use_'~i) else (r2.fabric_use if r2 and r2.fabric_use else (request.form.get('sec_fabric_use_'~i) or '')))) }}" class="w-full p-1 border rounded" {% if i <= 4 %}readonly{% endif %}></td>
                             <td class="border px-1 py-1">
                                 {% if i == 4 %}
-                                <input type="text" id="a-quality-remaining" value="{{ '%.2f'|format(remaining_a_quality|default(0, true)) }}" class="w-full p-1 border rounded" readonly>
+                                <input type="text" id="a-quality-remaining" value="{{ '%.2f'|format(remaining_a_quality|default(0, true)) }}" data-remaining="{{ dark_room_a_quantity if dark_room_a_pending else remaining_a_quality|default(0, true) }}" class="w-full p-1 border rounded" readonly>
                                 {% else %}
-                                <input type="number" name="sec_cut_pcs_{{ i }}" value="{{ total_cut_pcs if i == 1 and total_cut_pcs else ('%.2f'|format(remaining_b_quality) if i == 5 and inventory and inventory.fabric_b_enabled and remaining_b_quality > 0 else (0 if i == 5 and inventory and inventory.fabric_b_enabled else (r2.cut_pcs if r2 and r2.cut_pcs is not none else (request.form.get('sec_cut_pcs_'~i) or (inventory.fabric_qty_b if i == 5 and inventory else ''))))) }}" class="w-full p-1 border rounded" {% if i <= 3 %}readonly{% endif %}>
+                                <input type="number" name="sec_cut_pcs_{{ i }}" value="{{ secondary_cut_pcs_value }}" data-remaining="{{ dark_room_b_quantity if dark_room_b_pending else secondary_cut_pcs_value }}" class="w-full p-1 border rounded" {% if i <= 3 %}readonly{% endif %}>
                                 {% endif %}
                             </td>
                             <td class="border px-1 py-1">
@@ -325,15 +351,19 @@
                                 {% if returned_disabled %}
                                 <input type="hidden" name="sec_shortage_{{ i }}_flag" value="RETURNED">
                                 {% endif %}
-                                <select name="sec_shortage_{{ i }}" class="w-full p-1 border rounded" {% if returned_disabled %}disabled{% endif %}>
-                                    <option value="" {% if not (r2 and r2.shortage) and not request.form.get('sec_shortage_'~i) and not returned_disabled %}selected{% endif %}></option>
-                                    <option value="RETURNED" {% if (r2 and (r2.shortage|upper == 'RETURNED')) or (request.form.get('sec_shortage_'~i)|upper == 'RETURNED') or returned_disabled %}selected{% endif %}>RETURNED</option>
+                                {% if dark_room_pending %}
+                                <input type="hidden" name="sec_shortage_status_{{ i }}" value="DARK ROOM">
+                                {% endif %}
+                                <select name="sec_shortage_status_{{ i }}" class="w-full p-1 border rounded" {% if returned_disabled or dark_room_pending %}disabled{% endif %}>
+                                    <option value="" {% if not saved_shortage_status and not returned_disabled %}selected{% endif %}></option>
+                                    <option value="RETURNED" {% if saved_shortage_status|upper == 'RETURNED' or returned_disabled %}selected{% endif %}>RETURNED</option>
+                                    {% if session.get('role') in ('owner', 'manager') and not read_only_profile %}<option value="DARK ROOM" {% if saved_shortage_status|upper == 'DARK ROOM' %}selected{% endif %}>DARK ROOM</option>{% endif %}
                                 </select>
                                 {% else %}
                                 <input type="text" step="0.01" name="sec_shortage_{{ i }}" value="{{ '%.2f'|format(total_wastage) if i == 1 and total_wastage else (r2.shortage if r2 and r2.shortage else (request.form.get('sec_shortage_'~i) or '')) }}" class="w-full p-1 border rounded" readonly>
                                 {% endif %}
                             </td>
-                            <td class="border px-1 py-1"><input type="{{ 'text' if i >= 4 else 'number' }}" step="0.01" name="sec_balance_{{ i }}" value="{{ row_balance }}" class="w-full p-1 border rounded" {% if i <= 4 %}readonly{% endif %}></td>
+                            <td class="border px-1 py-1"><input type="{{ 'text' if i >= 4 else 'number' }}" step="0.01" name="sec_balance_{{ i }}" value="{{ row_balance }}" {% if i == 2 %}data-default="{{ row_balance }}"{% endif %} class="w-full p-1 border rounded" {% if i <= 4 %}readonly{% endif %}></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -442,16 +472,28 @@ function updateInventoryFabricStatus() {
     const usedEl = document.querySelector('input[name="used_fabric"]');
     const rejectedEl = document.querySelector('input[name="rejected_fabric"]');
     const leftEl = document.querySelector('input[name="left_over_fabric"]');
+    const remainingAEl = document.getElementById('a-quality-remaining');
+    const remainingBEl = document.querySelector('input[name="sec_cut_pcs_5"]');
 
     if (!fabricAEl || !usedEl || !rejectedEl || !leftEl) {
         return;
     }
 
-    const fabricA = parseFloat(fabricAEl.value) || 0;
-    const fabricB = enableFabricBEl?.checked ? (parseFloat(fabricBEl?.value) || 0) : 0;
+    const aStatus = document.querySelector('select[name="sec_shortage_status_4"]')?.value?.trim().toUpperCase();
+    const bStatus = document.querySelector('select[name="sec_shortage_status_5"]')?.value?.trim().toUpperCase();
+    const darkRoomA = aStatus === 'DARK ROOM'
+        ? (parseFloat(remainingAEl?.dataset.remaining || remainingAEl?.value) || 0)
+        : (parseFloat(fabricAEl.dataset.darkRoomRemaining) || 0);
+    const darkRoomB = bStatus === 'DARK ROOM'
+        ? (parseFloat(remainingBEl?.dataset.remaining || remainingBEl?.value) || 0)
+        : (parseFloat(fabricBEl?.dataset.darkRoomRemaining) || 0);
+    const fabricA = Math.max(0, (parseFloat(fabricAEl.value) || 0) - darkRoomA);
+    const fabricB = enableFabricBEl?.checked
+        ? Math.max(0, (parseFloat(fabricBEl?.value) || 0) - darkRoomB)
+        : 0;
     const used = parseFloat(usedEl.value) || 0;
     const rejected = parseFloat(rejectedEl.value) || 0;
-    const leftOver = fabricA + fabricB - used - rejected;
+    const leftOver = Math.max(0, fabricA + fabricB - used - rejected);
     leftEl.value = Number.isFinite(leftOver) ? leftOver.toFixed(2) : '';
 }
 
@@ -468,68 +510,50 @@ function updateRejectedFromReactive() {
     updateInventoryFabricStatus();
 }
 
-function updateBQualityBalance() {
-    const shortageEl = document.querySelector('select[name="sec_shortage_5"]') || document.querySelector('input[name="sec_shortage_5"]');
+function updateSecondaryBalance() {
     const balanceEl = document.querySelector('input[name="sec_balance_3"]');
-    const statusEl = document.querySelector('input[name="sec_balance_5"]');
-    const bQualityEl = document.querySelector('input[name="sec_cut_pcs_5"]');
+    const transferBalanceEl = document.querySelector('input[name="sec_balance_2"]');
+    const statusAEl = document.querySelector('input[name="sec_balance_4"]');
+    const statusBEl = document.querySelector('input[name="sec_balance_5"]');
+    const aStatusEl = document.querySelector('select[name="sec_shortage_status_4"]');
+    const bStatusEl = document.querySelector('select[name="sec_shortage_status_5"]');
+    const remainingAEl = document.getElementById('a-quality-remaining');
+    const remainingBEl = document.querySelector('input[name="sec_cut_pcs_5"]');
 
-    if (!balanceEl || !statusEl || !bQualityEl) {
+    if (!balanceEl || !transferBalanceEl || !statusAEl || !statusBEl || !remainingAEl || !remainingBEl) {
         return;
     }
 
-    const balanceBeforeB = Number(document.querySelector("input[name='sec_balance_1']")?.value || 0);
-    const remainingB = Number.parseFloat(bQualityEl.value || 0);
+    const balanceBefore = Number(document.querySelector("input[name='sec_balance_1']")?.value || 0);
+    const statusA = String(aStatusEl?.value || '').trim().toUpperCase();
+    const statusB = String(bStatusEl?.value || '').trim().toUpperCase();
+    const aSelected = statusA === 'RETURNED' || statusA === 'DARK ROOM';
+    const bSelected = statusB === 'RETURNED' || statusB === 'DARK ROOM';
+    const remainingA = Number.parseFloat(remainingAEl.dataset.remaining || remainingAEl.value) || 0;
+    const remainingB = Number.parseFloat(remainingBEl.dataset.remaining || remainingBEl.value) || 0;
 
-    if (!Number.isFinite(balanceBeforeB)) {
+    if (!Number.isFinite(balanceBefore)) {
         return;
     }
 
-    if (!shortageEl || !shortageEl.value || String(shortageEl.value).trim() === '') {
-        balanceEl.value = balanceBeforeB.toFixed(2);
-        statusEl.value = '';
-        return;
-    }
+    const deduction = (aSelected ? remainingA : 0) + (bSelected ? remainingB : 0);
+    transferBalanceEl.value = (aSelected || bSelected)
+        ? deduction.toFixed(2)
+        : (transferBalanceEl.dataset.default || '');
+    balanceEl.value = Math.max(0, balanceBefore - deduction).toFixed(2);
+    statusAEl.value = aSelected ? 'COMPLETED' : '';
+    statusBEl.value = bSelected ? 'COMPLETED' : '';
+    remainingAEl.value = statusA === 'DARK ROOM' ? '0.00' : remainingA.toFixed(2);
+    remainingBEl.value = statusB === 'DARK ROOM' ? '0' : remainingB.toFixed(2);
+    updateInventoryFabricStatus();
+}
 
-    if (String(shortageEl.value).trim().toUpperCase() === 'RETURNED') {
-        const remainingBalance = Math.max(0, balanceBeforeB - remainingB);
-        balanceEl.value = remainingBalance.toFixed(2);
-        statusEl.value = remainingBalance === 0 ? 'COMPLETED' : 'NOT COMPLETED';
-        return;
-    }
-
-    const manualValue = Number.parseFloat(shortageEl.value || 0);
-    if (Number.isFinite(manualValue)) {
-        const remainingBalance = Math.max(0, balanceBeforeB - manualValue);
-        balanceEl.value = remainingBalance.toFixed(2);
-        statusEl.value = remainingBalance === 0 ? 'COMPLETED' : 'NOT COMPLETED';
-    } else {
-        balanceEl.value = balanceBeforeB.toFixed(2);
-        statusEl.value = '';
-    }
+function updateBQualityBalance() {
+    updateSecondaryBalance();
 }
 
 function updateAQualityBalance() {
-    const shortageEl = document.querySelector('select[name="sec_shortage_4"]');
-    const balanceEl = document.querySelector('input[name="sec_balance_3"]');
-    const statusEl = document.querySelector('input[name="sec_balance_4"]');
-    const remainingAEl = document.getElementById('a-quality-remaining');
-
-    if (!shortageEl || !balanceEl || !statusEl || !remainingAEl) {
-        return;
-    }
-
-    const balanceBeforeA = Number(document.querySelector("input[name='sec_balance_1']")?.value || 0);
-    if (String(shortageEl.value).trim().toUpperCase() !== 'RETURNED') {
-        balanceEl.value = balanceBeforeA.toFixed(2);
-        statusEl.value = '';
-        return;
-    }
-
-    const remainingA = Number.parseFloat(remainingAEl.value || 0) || 0;
-    const remainingBalance = Math.max(0, balanceBeforeA - remainingA);
-    balanceEl.value = remainingBalance.toFixed(2);
-    statusEl.value = remainingBalance === 0 ? 'COMPLETED' : 'NOT COMPLETED';
+    updateSecondaryBalance();
 }
 
 window.addEventListener('DOMContentLoaded', function () {
@@ -553,7 +577,7 @@ window.addEventListener('DOMContentLoaded', function () {
     if (enableFabricBEl) {
         enableFabricBEl.addEventListener('change', updateInventoryFabricStatus);
     }
-    const shortageEl = document.querySelector('select[name="sec_shortage_5"]') || document.querySelector('input[name="sec_shortage_5"]');
+    const shortageEl = document.querySelector('select[name="sec_shortage_status_5"]');
     const bQualityEl = document.querySelector('input[name="sec_cut_pcs_5"]');
     if (shortageEl) {
         shortageEl.addEventListener('change', updateBQualityBalance);
@@ -562,7 +586,7 @@ window.addEventListener('DOMContentLoaded', function () {
     if (bQualityEl) {
         bQualityEl.addEventListener('input', updateBQualityBalance);
     }
-    const aShortageEl = document.querySelector('select[name="sec_shortage_4"]');
+    const aShortageEl = document.querySelector('select[name="sec_shortage_status_4"]');
     if (aShortageEl) {
         aShortageEl.addEventListener('change', updateAQualityBalance);
         aShortageEl.addEventListener('input', updateAQualityBalance);

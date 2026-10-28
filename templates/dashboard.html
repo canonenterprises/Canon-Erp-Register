@@ -319,6 +319,9 @@
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Margin %</label><input type="number" id="margin_percent" name="margin" class="font-bold w-full p-2 border rounded-lg bg-slate-300 {% if editing_order %}bg-slate-300{% endif %}" min="0" placeholder="Enter margin %" value="{{ form_order.margin if form_order else '' }}" ></div>
         </div>
         <div class="mb-2 bg-slate-50 border border-slate-400 rounded-2xl p-4">
+            <div><label for="order_qty_plus_margin" class="text-[15px] font-bold text-slate-600 uppercase">Order Qty + B/Q Margin</label><input type="number" id="order_qty_plus_margin" class="font-bold w-full p-2 border rounded-lg bg-slate-300" readonly aria-label="Order quantity plus margin"></div>
+        </div>
+        <div class="mb-2 bg-slate-50 border border-slate-400 rounded-2xl p-4">
             <div><label class="text-[15px] font-bold text-slate-600 uppercase">Usage/Doz %</label><input type="text" name="usage" value="{{ form_order.usage if form_order else '' }}" class="font-bold w-full p-2 border rounded-lg bg-slate-300" readonly required></div>
         </div>
         <div class="mb-2 bg-slate-50 border border-slate-400 rounded-2xl p-4">
@@ -391,6 +394,8 @@
             const dozenInput = document.getElementById('new_qty_dozen');
             const pcsInput = document.getElementById('new_qty_pcs');
             const qtyInput = document.getElementById('qty');
+            const marginPercentInput = document.getElementById('margin_percent');
+            const orderQtyPlusMarginDisplay = document.getElementById('order_qty_plus_margin');
             const labelInput = document.getElementById('label_input');
             const hiddenDozen = document.getElementById('hidden_new_qty_dozen');
             const hiddenPcs = document.getElementById('hidden_new_qty_pcs');
@@ -405,6 +410,31 @@
             const originalOrderPcs = pcsInput ? (parseFloat(pcsInput.value) || 0) : 0;
             const originalExtensionPcs = extensionInput ? (parseFloat(extensionInput.value) || 0) : 0;
             const baseOrderPcs = Math.max(0, originalOrderPcs - originalExtensionPcs);
+
+            function roundToNearestEven(value) {
+                const lower = Math.floor(value);
+                const fraction = value - lower;
+                if (fraction < 0.5) return lower;
+                if (fraction > 0.5) return lower + 1;
+                return lower % 2 === 0 ? lower : lower + 1;
+            }
+
+            function updateOrderQtyBqMargin() {
+                if (!qtyInput || !orderQtyPlusMarginDisplay) return;
+                const orderPcs = Number.parseFloat(qtyInput.value);
+                const marginPercent = Number.parseFloat(marginPercentInput && marginPercentInput.value) || 0;
+                if (!Number.isFinite(orderPcs) || orderPcs <= 0) {
+                    orderQtyPlusMarginDisplay.value = '';
+                    return;
+                }
+                const excessPcs = marginPercent > 0
+                    ? roundToNearestEven(orderPcs * marginPercent / 100)
+                    : 0;
+                orderQtyPlusMarginDisplay.value = String(orderPcs + excessPcs);
+            }
+
+            if (marginPercentInput) marginPercentInput.addEventListener('input', updateOrderQtyBqMargin);
+            updateOrderQtyBqMargin();
 
             function calculatePackagingTotals() {
                 const orderPcs = Number.parseFloat(qtyInput && qtyInput.value);
@@ -442,6 +472,7 @@
                     hiddenDozen.value = updatedDozen.toFixed(3);
                     hiddenExtension.value = extensionInput.value || '';
                     if (labelInput) labelInput.value = String(updatedPcs);
+                    updateOrderQtyBqMargin();
                     calculatePackagingTotals();
                 });
             }
@@ -476,6 +507,7 @@
                     hiddenPcs.value = '';
                     qtyInput.value = '';
                 }
+                updateOrderQtyBqMargin();
                 calculatePackagingTotals();
                 calculateUsage();
             }
@@ -501,6 +533,7 @@
                     hiddenDozen.value = '';
                     qtyInput.value = '';
                 }
+                updateOrderQtyBqMargin();
                 calculatePackagingTotals();
                 calculateUsage();
             }

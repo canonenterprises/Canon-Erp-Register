@@ -9,7 +9,7 @@
                 <p class="mt-1 text-sm text-slate-500">Shared item master for vendor materials, standard descriptions, sizes, and units.</p>
                 <p class="mt-1 text-xs text-slate-500">Returnable items must come back but are not restocked. Refundable items are unused and return to stock.</p>
             </div>
-            <a href="{{ url_for('vendors') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Vendors</a>
+            {% if 'vendor_rates' in page_access_keys %}<a href="{{ url_for('vendors') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Vendors</a>{% endif %}
         </div>
 
         <form method="POST" class="mt-8">

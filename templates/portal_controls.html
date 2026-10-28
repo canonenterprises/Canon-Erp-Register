@@ -74,7 +74,7 @@
                     <div class="flex flex-wrap gap-x-6 gap-y-3">
                         {% for access_key, access_label, access_portals in special_access_options %}
                         <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
-                            <input type="checkbox" name="special_access" value="{{ access_key }}" data-special-access="create" data-special-portals="{{ access_portals|join(',') }}" data-special-page-depends-on="{{ 'fabric' if access_key == 'fabric_reports' else 'order_accessories' if access_key == 'cut_wise_accessory_issue' else 'accessories' if access_key == 'local_po_generation' else '' }}" class="rounded border-slate-300 text-amber-600 focus:ring-amber-500">
+                            <input type="checkbox" name="special_access" value="{{ access_key }}" data-special-access="create" data-special-portals="{{ access_portals|join(',') }}" data-special-page-depends-on="{{ 'fabric' if access_key == 'fabric_reports' else 'order_accessories' if access_key == 'cut_wise_accessory_issue' else 'accessories' if access_key == 'local_po_generation' else 'vendor_rates' if access_key == 'allow_full_access_vendors' else 'item_list' if access_key == 'allow_full_access_item_list' else '' }}" class="rounded border-slate-300 text-amber-600 focus:ring-amber-500">
                             {{ access_label }}
                         </label>
                         {% endfor %}
@@ -148,7 +148,7 @@
                                     <div class="space-y-2">
                                         {% for access_key, access_label, access_portals in special_access_options %}
                                         <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700">
-                                            <input form="edit-account-{{ account.id }}" type="checkbox" name="special_access" value="{{ access_key }}" data-special-access="{{ account.id }}" data-special-portals="{{ access_portals|join(',') }}" data-special-page-depends-on="{{ 'fabric' if access_key == 'fabric_reports' else 'order_accessories' if access_key == 'cut_wise_accessory_issue' else 'accessories' if access_key == 'local_po_generation' else '' }}" {% if access_key in account_page_access[account.id] %}checked{% endif %} class="rounded border-slate-300 text-amber-600 focus:ring-amber-500">
+                                            <input form="edit-account-{{ account.id }}" type="checkbox" name="special_access" value="{{ access_key }}" data-special-access="{{ account.id }}" data-special-portals="{{ access_portals|join(',') }}" data-special-page-depends-on="{{ 'fabric' if access_key == 'fabric_reports' else 'order_accessories' if access_key == 'cut_wise_accessory_issue' else 'accessories' if access_key == 'local_po_generation' else 'vendor_rates' if access_key == 'allow_full_access_vendors' else 'item_list' if access_key == 'allow_full_access_item_list' else '' }}" {% if access_key in account_page_access[account.id] %}checked{% endif %} class="rounded border-slate-300 text-amber-600 focus:ring-amber-500">
                                             {{ access_label }}
                                         </label>
                                         {% endfor %}

@@ -420,7 +420,11 @@ def calculate_inventory_returnable_b_quantity(inventory_obj, order_id=None):
     if getattr(inventory_obj, 'fabric_b_enabled', False):
         return calculate_inventory_b_quality_remaining(inventory_obj, order_id=order_id)
 
-    fallback_b = max(0.0, parse_numeric(getattr(inventory_obj, 'fabric_qty_b', 0)))
+    fallback_b = max(
+        0.0,
+        parse_numeric(getattr(inventory_obj, 'fabric_qty_b', 0))
+        - calculate_inventory_dark_room_remaining(inventory_obj, 'B'),
+    )
     if fallback_b <= 0:
         return 0.0
 
@@ -431,6 +435,29 @@ def calculate_inventory_returnable_b_quantity(inventory_obj, order_id=None):
     simulated.fabric_b_enabled = True
     remaining_b = calculate_inventory_b_quality_remaining(simulated, order_id=order_id)
     return remaining_b if remaining_b > 0 else fallback_b
+
+
+def calculate_inventory_dark_room_remaining(inventory_obj, quality):
+    if not inventory_obj or not getattr(inventory_obj, 'id', None):
+        return 0.0
+    return sum(
+        max(0.0, parse_numeric(record.remaining))
+        for record in DarkRoomFabric.query.filter_by(
+            inventory_id=inventory_obj.id,
+            quality=quality,
+        ).all()
+    )
+
+
+def inventory_dark_room_status_locked(inventory_obj, quality):
+    if not inventory_obj or not getattr(inventory_obj, 'id', None):
+        return False
+    row_idx = 4 if quality == 'A' else 5
+    status_row = InventorySecondRow.query.filter_by(
+        inventory_id=inventory_obj.id,
+        idx=row_idx,
+    ).first()
+    return bool(status_row and (status_row.shortage or '').strip().upper() == 'DARK ROOM')
 
 
 def calculate_inventory_used_fabric(serial_no, order_id=None):
@@ -471,7 +498,8 @@ def calculate_inventory_used_fabric(serial_no, order_id=None):
         total_received = parse_numeric(getattr(inv, 'fabric_qty_a', 0))
         rejected_value = max(0.0, parse_numeric(getattr(inv, 'rejected_fabric', 0)))
         reactive_value = max(0.0, parse_numeric(getattr(inv, 'rejected_recovered_fabric', 0)))
-        normal_balance = max(0.0, total_received - rejected_value - reactive_value)
+        dark_room_a = calculate_inventory_dark_room_remaining(inv, 'A')
+        normal_balance = max(0.0, total_received - dark_room_a - rejected_value - reactive_value)
         balances[inv.serial_no] = normal_balance + reactive_value
         used_map[inv.serial_no] = 0.0
 
@@ -497,7 +525,11 @@ def calculate_inventory_used_fabric(serial_no, order_id=None):
             if inv.serial_no in b_added:
                 continue
             if inventory_b_active_for_cut(inv, sheet_cut_no, sheet.order_id):
-                balances[inv.serial_no] = balances.get(inv.serial_no, 0.0) + parse_numeric(inv.fabric_qty_b)
+                balances[inv.serial_no] = balances.get(inv.serial_no, 0.0) + max(
+                    0.0,
+                    parse_numeric(inv.fabric_qty_b)
+                    - calculate_inventory_dark_room_remaining(inv, 'B'),
+                )
                 b_added.add(inv.serial_no)
         sheet_serials = split_inventory_serials(sheet.inventory_serial_no)
         if not sheet_serials:
@@ -615,11 +647,16 @@ def calculate_inventory_consumption_state(inventory_obj, before_cut_no=None, ord
     a_remaining = max(
         0.0,
         parse_numeric(getattr(inventory_obj, 'fabric_qty_a', 0))
+        - calculate_inventory_dark_room_remaining(inventory_obj, 'A')
         - rejected_remaining
         - reactive_remaining,
     )
     b_remaining = (
-        max(0.0, parse_numeric(getattr(inventory_obj, 'fabric_qty_b', 0)))
+        max(
+            0.0,
+            parse_numeric(getattr(inventory_obj, 'fabric_qty_b', 0))
+            - calculate_inventory_dark_room_remaining(inventory_obj, 'B'),
+        )
         if getattr(inventory_obj, 'fabric_b_enabled', False)
         else 0.0
     )
@@ -724,10 +761,15 @@ def calculate_inventory_b_usage_for_period(inventory_obj, start_date=None, end_d
     a_remaining = max(
         0.0,
         parse_numeric(getattr(inventory_obj, 'fabric_qty_a', 0))
+        - calculate_inventory_dark_room_remaining(inventory_obj, 'A')
         - rejected_remaining
         - reactive_remaining,
     )
-    b_remaining = max(0.0, parse_numeric(getattr(inventory_obj, 'fabric_qty_b', 0)))
+    b_remaining = max(
+        0.0,
+        parse_numeric(getattr(inventory_obj, 'fabric_qty_b', 0))
+        - calculate_inventory_dark_room_remaining(inventory_obj, 'B'),
+    )
     effective_order_id = order_id or getattr(inventory_obj, 'order_id', None)
     used_meter = 0.0
     used_pcs = 0.0
@@ -797,7 +839,7 @@ def calculate_inventory_b_usage_for_period(inventory_obj, start_date=None, end_d
 
 def calculate_inventory_fabric_balances(inventory_obj):
     fabric_a = parse_numeric(getattr(inventory_obj, 'fabric_qty_a', 0))
-    fabric_b = parse_numeric(getattr(inventory_obj, 'fabric_qty_b', 0)) if getattr(inventory_obj, 'fabric_b_enabled', False) else 0.0
+    fabric_b = parse_numeric(getattr(inventory_obj, 'fabric_qty_b', 0))
     state = calculate_inventory_consumption_state(inventory_obj)
     raw_reactive_value = max(0.0, parse_numeric(getattr(inventory_obj, 'rejected_recovered_fabric', 0)))
     total_value = fabric_a + fabric_b
@@ -1088,13 +1130,21 @@ def build_cut_accessory_rows(order, cutting_sheet):
             'quality': quality or '',
             'unit': display_unit,
             'required': 0.0,
+            'required_stock_qty': 0.0,
             'issued': 0.0,
             'returned': 0.0,
             'net_issued': 0.0,
+            'net_issued_stock_qty': 0.0,
             'remaining': 0.0,
             'issued_to': [],
             'sort_order': sort_order,
         })
+
+    def receipt_location_balance(requirement):
+        return sum(
+            max(0.0, parse_numeric(location.quantity))
+            for location in requirement.storage_locations
+        )
 
     specs = ArticleMaterialSpec.query.filter_by(article_id=order.article_id).order_by(
         ArticleMaterialSpec.sort_order.asc(), ArticleMaterialSpec.id.asc()
@@ -1121,28 +1171,65 @@ def build_cut_accessory_rows(order, cutting_sheet):
                 and (issue.requirement.size or '').strip().casefold() == spec_size
                 and (issue.requirement.quality or '').strip().casefold() == spec_quality
             ]
-            received_issue_requirements = [
-                requirement for requirement in matching_issue_requirements
-                if accessory_layer_received_qty(requirement) > 0
+            matching_cut_issue_requirements = [
+                issue.requirement for issue in cut_issues
+                if issue.requirement
+                and (issue.requirement.item or '').strip().casefold() == (spec.item_name or '').strip().casefold()
+                and (issue.requirement.size or '').strip().casefold() == spec_size
+                and (issue.requirement.quality or '').strip().casefold() == spec_quality
+                and accessory_layer_received_qty(issue.requirement) > 0
             ]
+            matching_receipts = SavedRequirement.query.filter(
+                func.lower(func.trim(SavedRequirement.item)) == (spec.item_name or '').strip().casefold(),
+            ).order_by(SavedRequirement.id.asc()).all()
+            matching_received_receipts = [
+                requirement for requirement in matching_receipts
+                if (requirement.size or '').strip().casefold() == spec_size
+                and (requirement.quality or '').strip().casefold() == spec_quality
+                and accessory_layer_received_qty(requirement) > 0
+            ]
+            preferred_issue_unit = default_issue_unit_for_item(spec.item_name, spec.unit).casefold()
             stock_requirement = next((
-                requirement for requirement in received_issue_requirements
-                if (requirement.issue_unit or '').strip()
-            ), None) or next(iter(received_issue_requirements), None)
+                requirement for requirement in matching_cut_issue_requirements
+                if (requirement.issue_unit or requirement.unit or '').strip().casefold() == preferred_issue_unit
+            ), None)
             if not stock_requirement:
-                matching_receipts = SavedRequirement.query.filter(
-                    func.lower(func.trim(SavedRequirement.item)) == (spec.item_name or '').strip().casefold(),
-                ).order_by(SavedRequirement.id.asc()).all()
-                matching_received_receipts = [
-                    requirement for requirement in matching_receipts
-                    if (requirement.size or '').strip().casefold() == spec_size
-                    and (requirement.quality or '').strip().casefold() == spec_quality
-                    and accessory_layer_received_qty(requirement) > 0
+                preferred_located_receipts = [
+                    requirement for requirement in matching_received_receipts
+                    if (requirement.issue_unit or requirement.unit or '').strip().casefold() == preferred_issue_unit
+                    and receipt_location_balance(requirement) > 0.000001
                 ]
+                stock_requirement = max(
+                    preferred_located_receipts,
+                    key=receipt_location_balance,
+                    default=None,
+                )
+            if not stock_requirement:
+                located_receipts = [
+                    requirement for requirement in matching_received_receipts
+                    if receipt_location_balance(requirement) > 0.000001
+                ]
+                stock_requirement = max(
+                    located_receipts,
+                    key=receipt_location_balance,
+                    default=None,
+                )
+            if not stock_requirement:
                 stock_requirement = next((
                     requirement for requirement in matching_received_receipts
+                    if (requirement.issue_unit or '').strip().casefold() == preferred_issue_unit
+                ), None)
+            if not stock_requirement:
+                received_issue_requirements = [
+                    requirement for requirement in matching_issue_requirements
+                    if accessory_layer_received_qty(requirement) > 0
+                ]
+                stock_requirement = next((
+                    requirement for requirement in received_issue_requirements
                     if (requirement.issue_unit or '').strip()
-                ), None) or next(iter(matching_received_receipts), None)
+                ), None) or next(iter(received_issue_requirements), None)
+            if not stock_requirement:
+                stock_requirement = next(iter(matching_received_receipts), None)
             if not stock_requirement:
                 stock_requirement = order_requirement
             if stock_requirement:
@@ -1188,6 +1275,8 @@ def build_cut_accessory_rows(order, cutting_sheet):
                     if is_discrete_issue_unit(stock_unit):
                         required_qty = math.ceil(required_qty - 1e-10)
                 group['required'] += required_qty
+                group['required_stock_qty'] += required_stock_qty
+                group['stock_per_display_unit'] = stock_per_issue_unit
                 group['stock_available'] = stock_summary['available']
                 group['stock_unit'] = stock_unit
                 group['stock_per_display_unit'] = stock_per_issue_unit
@@ -1202,6 +1291,7 @@ def build_cut_accessory_rows(order, cutting_sheet):
             )
             required_qty = cutting_pcs * parse_numeric(spec.qty_per_piece)
             group['required'] += required_qty
+            group['required_stock_qty'] += required_qty
     elif order_pcs > 0 and not order.article_id:
         for requirement in SavedRequirement.query.filter_by(order_id=order.job_no).all():
             stock_summary = accessory_cut_stock_summary(
@@ -1245,6 +1335,7 @@ def build_cut_accessory_rows(order, cutting_sheet):
                     required_qty = math.ceil(required_qty - 1e-10)
                 group['stock_per_display_unit'] = 1.0
             group['required'] += required_qty
+            group['required_stock_qty'] += required_stock_qty
             group['stock_available'] = stock_summary['available']
             group['stock_unit'] = stock_unit
 
@@ -1273,42 +1364,37 @@ def build_cut_accessory_rows(order, cutting_sheet):
         issued_qty = parse_numeric(issue.issued_qty)
         returned_qty = accessory_issue_returned_qty(issue)
         refundable_qty = accessory_issue_refundable_qty(issue)
-        issue_conversion_factor = (
-            parse_numeric(requirement.issue_unit_factor)
-            or parse_numeric(issue.issue_conversion_factor)
-            or 1.0
-            if has_received_stock and (display_unit or '').strip().casefold() != stock_unit.casefold()
-            else 1.0
-        )
-        entered_qty = parse_numeric(issue.issued_as_qty)
-        issued_in_display_unit = (
-            entered_qty
-            if entered_qty > 0 and (issue.issued_as_unit or '').strip().casefold() == (display_unit or '').strip().casefold()
-            else issued_qty / issue_conversion_factor
-        )
-        returned_in_display_unit = returned_qty / issue_conversion_factor
+        stock_per_display_unit = parse_numeric(group.get('stock_per_display_unit')) or 1.0
+        issued_in_display_unit = issued_qty / stock_per_display_unit
+        returned_in_display_unit = returned_qty / stock_per_display_unit
         worker_name = (issue.worker_name or '').strip()
         if worker_name:
             group['issued_to'] = list(dict.fromkeys(group['issued_to'] + [worker_name]))
         group['issued'] += issued_in_display_unit
         group['returned'] += returned_in_display_unit
-        group['net_issued'] += max(0.0, issued_in_display_unit - refundable_qty / issue_conversion_factor)
+        group['net_issued'] += max(0.0, issued_qty - refundable_qty) / stock_per_display_unit
+        group['net_issued_stock_qty'] += max(0.0, issued_qty - refundable_qty)
         group['stock_available'] = stock_summary['available']
         group['stock_unit'] = stock_unit
-        group['stock_per_display_unit'] = (
-            stock_summary['average_meters_per_roll']
-            if is_roll_unit(display_unit) else 1.0
-        )
+        if is_roll_unit(display_unit) and stock_summary['average_meters_per_roll'] > 0:
+            group['stock_per_display_unit'] = stock_summary['average_meters_per_roll']
 
     result = list(groups.values())
     for group in result:
-        group['remaining'] = max(0.0, group['required'] - group['net_issued'])
+        stock_per_display_unit = parse_numeric(group.get('stock_per_display_unit')) or 1.0
+        remaining_stock_qty = max(
+            0.0,
+            parse_numeric(group.get('required_stock_qty'))
+            - parse_numeric(group.get('net_issued_stock_qty')),
+        )
+        group['remaining'] = remaining_stock_qty / stock_per_display_unit
+        if is_discrete_issue_unit(group['unit']):
+            group['remaining'] = math.ceil(group['remaining'] - 1e-10)
         group['issued_to_display'] = ', '.join(group['issued_to']) if group['issued_to'] else '—'
         group['display_unit'] = group['unit']
         group['display_required'] = group['required']
         group['display_net_issued'] = group['net_issued']
         group['display_remaining'] = group['remaining']
-        stock_per_display_unit = parse_numeric(group.get('stock_per_display_unit')) or 1.0
         available_in_display_unit = parse_numeric(group.get('stock_available')) / stock_per_display_unit
         group['display_stock_available'] = available_in_display_unit
         if available_in_display_unit <= 0.000001:
@@ -1331,6 +1417,31 @@ def cut_accessories_fully_issued(order, cutting_sheet):
         if item['required'] > 0.000001
     ]
     return all(item['remaining'] <= 0.000001 for item in required_items)
+
+
+def cut_accessory_production_limit(order, cutting_sheet):
+    cutting_pcs = accessory_cut_pcs(cutting_sheet)
+    if cutting_pcs <= 0:
+        return 0
+
+    required_items = [
+        item for item in build_cut_accessory_rows(order, cutting_sheet)
+        if item['required'] > 0.000001
+    ]
+    if not required_items:
+        return int(cutting_pcs)
+
+    supported_limits = []
+    for item in required_items:
+        required_stock_qty = parse_numeric(item['required_stock_qty'])
+        required_per_piece = required_stock_qty / cutting_pcs
+        if required_per_piece <= 0:
+            supported_limits.append(0)
+            continue
+        issued_stock_qty = parse_numeric(item['net_issued_stock_qty'])
+        supported_limits.append(math.floor((issued_stock_qty + 0.000001) / required_per_piece))
+
+    return max(0, min(int(cutting_pcs), min(supported_limits, default=int(cutting_pcs))))
 
 
 def accessory_layer_issue_entries(item):
@@ -1880,57 +1991,19 @@ def get_cut_quality_split(order):
             if (log.operation or '').upper() == final_operation
         ]
         if operation_rates.get(final_operation) and operation_rates[final_operation].is_stitched_operation:
-            worker_worked_pcs = sum(log.pcs or 0 for log in final_logs)
-            cut_pcs = worker_worked_pcs
+            aq_pcs = sum(max(0, int(log.pcs or 0)) for log in final_logs)
         else:
-            worker_worked_pcs = state['credited_totals'].get(final_operation, 0)
-            cut_pcs = worker_worked_pcs
+            aq_pcs = state['credited_totals'].get(final_operation, 0)
 
-        worker_worked_pcs = max(0, int(round(worker_worked_pcs)))
-        cut_pcs = worker_worked_pcs
+        aq_pcs = max(0, int(round(aq_pcs)))
+        bq_pcs = sum(max(0, int(parse_numeric(log.bq_stitched))) for log in final_logs)
+        cut_pcs = aq_pcs + bq_pcs
         if cut_pcs <= 0:
             continue
 
-        total_fabric_used = 0.0
-        fabric_b_used = 0.0
-        for inventory in Inventory.query.filter_by(order_id=order.job_no).all():
-            cut_usage = 0.0
-            for row in inventory.rows:
-                if str(row.cut_no) != str(sheet.cut_no):
-                    continue
-                usage = parse_numeric(row.fabric_use)
-                if usage <= 0:
-                    continue
-                cut_usage += usage
-            if cut_usage <= 0:
-                continue
-
-            total_fabric_used += cut_usage
-            if getattr(inventory, 'fabric_b_enabled', False) and inventory_b_active_for_cut(inventory, int(str(sheet.cut_no)), order.job_no):
-                before_cut_state = calculate_inventory_consumption_state(
-                    inventory,
-                    before_cut_no=int(str(sheet.cut_no)),
-                    order_id=order.job_no,
-                )
-                a_available_before_cut = before_cut_state['a_remaining']
-                if a_available_before_cut <= 0:
-                    fabric_b_used += cut_usage
-                else:
-                    fabric_b_used += max(0.0, cut_usage - min(cut_usage, a_available_before_cut))
-
-        fabric_a_ratio = 1.0
-        fabric_b_ratio = 0.0
-        if total_fabric_used > 0:
-            fabric_a_ratio = max(0.0, min(1.0, 1.0 - (fabric_b_used / total_fabric_used)))
-            fabric_b_ratio = max(0.0, min(1.0, 1.0 - fabric_a_ratio))
-
-        aq_pcs = max(0.0, worker_worked_pcs * fabric_a_ratio)
-        bq_pcs = worker_worked_pcs - aq_pcs
         quality_split.append({
             'cut_no': sheet.cut_no,
             'cut_pcs': cut_pcs,
-            'fabric_a_ratio': fabric_a_ratio,
-            'fabric_b_ratio': fabric_b_ratio,
             'aq_pcs': aq_pcs,
             'bq_pcs': bq_pcs,
         })
@@ -2276,6 +2349,33 @@ def update_inventory_schema():
     except Exception as e:
         db.session.rollback()
         print("INVENTORY SCHEMA UPDATE FAILED")
+        traceback.print_exc()
+
+
+def update_dark_room_schema():
+    try:
+        inspector = inspect(db.engine)
+        if 'dark_room_fabric' not in inspector.get_table_names():
+            return
+        columns = {column['name'] for column in inspector.get_columns('dark_room_fabric')}
+        if 'received_quantity_restored' not in columns:
+            db.session.execute(text(
+                'ALTER TABLE dark_room_fabric '
+                'ADD COLUMN received_quantity_restored BOOLEAN NOT NULL DEFAULT FALSE'
+            ))
+            db.session.commit()
+
+        for record in DarkRoomFabric.query.filter_by(received_quantity_restored=False).all():
+            inventory = Inventory.query.get(record.inventory_id)
+            if inventory and record.quality in ('A', 'B'):
+                field = 'fabric_qty_a' if record.quality == 'A' else 'fabric_qty_b'
+                restored_quantity = max(0.0, parse_numeric(record.remaining))
+                current_quantity = max(0.0, parse_numeric(getattr(inventory, field, 0)))
+                setattr(inventory, field, f'{current_quantity + restored_quantity:.2f}')
+            record.received_quantity_restored = True
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
         traceback.print_exc()
 
 
@@ -2755,6 +2855,13 @@ def is_read_only_profile():
     return (
         session.get('role') == 'assistant_manager'
         or session.get('profile_role') == 'operations_manager'
+    )
+
+
+def has_page_write_access(access_key):
+    return owner_only() or (
+        bool(session.get('user'))
+        and access_key in getattr(g, 'page_access_keys', set())
     )
 
 
@@ -4214,6 +4321,19 @@ class InventorySecondRow(db.Model):
     shortage = db.Column(db.String(50))
     balance = db.Column(db.String(50))
 
+class DarkRoomFabric(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    inventory_id = db.Column(db.Integer, db.ForeignKey('inventory.id'), nullable=False, index=True)
+    serial_no = db.Column(db.String(100), default='')
+    order_id = db.Column(db.String(100), default='')
+    article = db.Column(db.String(200), default='')
+    quality = db.Column(db.String(10), nullable=False)
+    quantity = db.Column(db.Float, nullable=False, default=0.0)
+    remaining = db.Column(db.Float, nullable=False, default=0.0)
+    received_quantity_restored = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_by = db.Column(db.String(100), default='')
+
 class ReceivingChallan(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.String(100))
@@ -5115,6 +5235,8 @@ with app.app_context():
     update_postgres_schema()
     print("Updating Inventory schema...")
     update_inventory_schema()
+    print("Updating Dark Room schema...")
+    update_dark_room_schema()
     print("Updating shipment and challan schema...")
     update_shipment_challan_schema()
     print("Updating Order schema...")
@@ -9080,18 +9202,24 @@ def order_accessories(job_no):
                     stock_per_issue_unit = accessory_issue_stock_qty(requirement, 1.0, issue_unit)
                     if stock_per_issue_unit <= 0:
                         continue
-                    remaining_stock = accessory_issue_stock_qty(
-                        requirement,
-                        cut_item['remaining'],
-                        cut_item['unit'] or issue_unit,
+                    remaining_stock = max(
+                        0.0,
+                        parse_numeric(cut_item.get('required_stock_qty'))
+                        - parse_numeric(cut_item.get('net_issued_stock_qty')),
                     )
                     locations = []
                     for location in requirement.storage_locations:
                         location_stock = max(0.0, parse_numeric(location.quantity))
-                        max_issue_qty = min(location_stock, remaining_stock) / stock_per_issue_unit
                         is_discrete = is_discrete_issue_unit(issue_unit)
+                        available_issue_qty = location_stock / stock_per_issue_unit
                         if is_discrete:
-                            max_issue_qty = math.floor(max_issue_qty + 1e-10)
+                            available_issue_qty = math.floor(available_issue_qty + 1e-10)
+                            max_issue_qty = min(
+                                available_issue_qty,
+                                math.ceil(remaining_stock / stock_per_issue_unit - 1e-10),
+                            )
+                        else:
+                            max_issue_qty = min(available_issue_qty, remaining_stock / stock_per_issue_unit)
                         if max_issue_qty <= 0.000001:
                             continue
                         location_option = {
@@ -9099,7 +9227,7 @@ def order_accessories(job_no):
                             'requirement_id': requirement.id,
                             'label': accessory_storage_location_label(location),
                             'max_issue_qty': max_issue_qty,
-                            'available_issue_qty': location_stock / stock_per_issue_unit,
+                            'available_issue_qty': available_issue_qty,
                             'unit': issue_unit,
                             'discrete': is_discrete,
                         }
@@ -9949,7 +10077,8 @@ PAGE_ACCESS_OPTIONS = [
     ('worker_management', 'Worker Management', ('manager', 'operations', 'assistant_manager')),
     ('worker_advance', 'Worker Advance Management', ('manager', 'operations', 'assistant_manager')),
     ('worker_attendance', 'Worker Attendance', ('manager', 'operations', 'assistant_manager')),
-    ('vendors', 'Vendors & Items', ('manager', 'operations', 'assistant_manager')),
+    ('vendor_rates', 'Vendor & Their Rates', ('manager', 'operations', 'assistant_manager')),
+    ('item_list', 'Item List', ('manager', 'operations', 'assistant_manager')),
     ('departments', 'Departments', ('manager', 'operations')),
     ('factory_ledger', 'Factory In/Out Ledger', ('manager', 'operations', 'assistant_manager')),
     ('stock_home', 'Stock Portal', ('stock',)),
@@ -9973,6 +10102,8 @@ SPECIAL_ACCESS_OPTIONS = [
     ('fabric_reports', 'Fabric report sections', ('stock',)),
     ('cut_wise_accessory_issue', 'Cut-wise accessory issue', ('manager', 'operations', 'assistant_manager')),
     ('local_po_generation', 'Local PO generation', ('manager', 'operations', 'assistant_manager', 'stock')),
+    ('allow_full_access_vendors', 'Allow Full Access of Vendors', ('manager', 'operations', 'assistant_manager')),
+    ('allow_full_access_item_list', 'Allow Full Access of Item List', ('manager', 'operations', 'assistant_manager')),
 ]
 PAGE_ACCESS_KEYS = {
     page_key
@@ -10018,10 +10149,16 @@ def account_page_access(account):
     except (TypeError, ValueError):
         configured_pages = None
     if configured_pages is None:
-        return available_pages - {'fabric_reports', 'local_po_generation'}
+        return available_pages - {
+            'fabric_reports', 'local_po_generation',
+            'allow_full_access_vendors', 'allow_full_access_item_list',
+        }
     if not isinstance(configured_pages, list):
         return set()
     configured_page_keys = set(configured_pages)
+    if 'vendors' in configured_page_keys:
+        configured_page_keys.discard('vendors')
+        configured_page_keys.update(('vendor_rates', 'item_list'))
     if 'workers' in configured_page_keys:
         configured_page_keys.update(('worker_management', 'worker_advance', 'worker_attendance'))
     if 'fabric' not in configured_page_keys:
@@ -10030,6 +10167,10 @@ def account_page_access(account):
         configured_page_keys.discard('cut_wise_accessory_issue')
     if 'accessories' not in configured_page_keys:
         configured_page_keys.discard('local_po_generation')
+    if 'vendor_rates' not in configured_page_keys:
+        configured_page_keys.discard('allow_full_access_vendors')
+    if 'item_list' not in configured_page_keys:
+        configured_page_keys.discard('allow_full_access_item_list')
     return {page for page in configured_page_keys if page in available_pages}
 
 
@@ -10065,8 +10206,10 @@ def required_page_for_request():
         return 'worker_advance'
     if path.startswith(('/manager/workers', '/manager/worker/', '/manager/delete-worker')):
         return 'worker_management'
-    if path.startswith(('/manager/vendors', '/manager/item-list', '/manager/api/item-list', '/manager/api/vendor-items')):
-        return 'vendors'
+    if path.startswith(('/manager/vendors', '/manager/api/vendor-items')):
+        return 'vendor_rates'
+    if path.startswith(('/manager/item-list', '/manager/api/item-list')):
+        return 'item_list'
     if path.startswith('/manager/departments'):
         return 'departments'
     if path.startswith('/factory-in-out-ledger'):
@@ -10173,6 +10316,8 @@ def inject_page_access_keys():
     return {
         'page_access_keys': getattr(g, 'page_access_keys', PAGE_ACCESS_KEYS),
         'read_only_profile': is_read_only_profile(),
+        'vendor_full_access': has_page_write_access('allow_full_access_vendors'),
+        'item_list_full_access': has_page_write_access('allow_full_access_item_list'),
     }
 
 
@@ -10218,6 +10363,10 @@ def portal_controls():
             page_access.discard('cut_wise_accessory_issue')
         if 'accessories' not in page_access:
             page_access.discard('local_po_generation')
+        if 'vendor_rates' not in page_access:
+            page_access.discard('allow_full_access_vendors')
+        if 'item_list' not in page_access:
+            page_access.discard('allow_full_access_item_list')
         page_access = sorted(page_access)
 
         if action == 'create':
@@ -12621,19 +12770,32 @@ def cutting_sheet():
         if selected_secondary_inventory else 0.0
     )
     active_b_total_meter = 0.0
+    active_a_total_meter = 0.0
     for active_inventory in (selected_inventory, selected_secondary_inventory):
+        if active_inventory:
+            active_a_total_meter += max(
+                0.0,
+                numeric_meter(active_inventory.fabric_qty_a)
+                - calculate_inventory_dark_room_remaining(active_inventory, 'A'),
+            )
         if active_inventory and inventory_b_active_for_cut(active_inventory, display_cut_no, job_no):
-            active_b_total_meter += max(0.0, numeric_meter(active_inventory.fabric_qty_b))
-    inventory_total_meter = (
-        numeric_meter(selected_inventory.fabric_qty_a) if selected_inventory else 0.0
-    ) + active_b_total_meter
+            active_b_total_meter += max(
+                0.0,
+                numeric_meter(active_inventory.fabric_qty_b)
+                - calculate_inventory_dark_room_remaining(active_inventory, 'B'),
+            )
+    inventory_total_meter = active_a_total_meter + active_b_total_meter
     direct_cutting_pcs_mode = bool(
         selected_inventory and selected_inventory.is_direct_cutting_pcs
     )
     if direct_cutting_pcs_mode:
         inventory_total_meter = 0.0
     primary_inventory_total_meter = (
-        numeric_meter(selected_inventory.fabric_qty_a)
+        max(
+            0.0,
+            numeric_meter(selected_inventory.fabric_qty_a)
+            - calculate_inventory_dark_room_remaining(selected_inventory, 'A'),
+        )
         if selected_inventory else 0.0
     )
     if selected_inventory and inventory_b_active_for_cut(selected_inventory, display_cut_no, job_no):
@@ -13259,6 +13421,8 @@ def inventory():
     if remaining_fabric_balance and b_quality_applied:
         fabric_balance_status = 'COMPLETED' if parse_numeric(remaining_fabric_balance) == 0 else 'NOT COMPLETED'
     inventory_status = get_inventory_status(inventory) if inventory else 'NOT USED'
+    dark_room_a_pending = inventory_dark_room_status_locked(inventory, 'A')
+    dark_room_b_pending = inventory_dark_room_status_locked(inventory, 'B')
     direct_pcs_remaining = (
         calculate_inventory_direct_cut_pcs_remaining(inventory)
         if inventory and inventory.is_direct_cutting_pcs else 0.0
@@ -13300,6 +13464,10 @@ def inventory():
         remaining_a_quality=remaining_a_quality,
         b_quality_applied=b_quality_applied,
         remaining_b_quality=remaining_b_quality,
+        dark_room_a_pending=dark_room_a_pending,
+        dark_room_b_pending=dark_room_b_pending,
+        dark_room_a_quantity=calculate_inventory_dark_room_remaining(inventory, 'A'),
+        dark_room_b_quantity=calculate_inventory_dark_room_remaining(inventory, 'B'),
     )
 
 @app.route('/manager/save-inventory', methods=['POST'])
@@ -13409,7 +13577,8 @@ def save_inventory():
         )
     else:
         original_rejected_pool = rejected_value
-    enable_fabric_b = request.form.get('enable_fabric_b') == 'on'
+    b_quality_in_dark_room = inventory_dark_room_status_locked(inventory_entry, 'B')
+    enable_fabric_b = request.form.get('enable_fabric_b') == 'on' and not b_quality_in_dark_room
     was_fabric_b_enabled = bool(inventory_entry and getattr(inventory_entry, 'fabric_b_enabled', False))
     has_activation_order = bool(inventory_entry and getattr(inventory_entry, 'fabric_b_activation_order_id', None))
     if enable_fabric_b and (not was_fabric_b_enabled or not has_activation_order):
@@ -13444,15 +13613,18 @@ def save_inventory():
         original_rejected_pool,
     )
     updated_rejected_value = max(0.0, rejected_value - reactive_value)
+    dark_room_a_remaining = calculate_inventory_dark_room_remaining(inventory_entry, 'A')
+    dark_room_b_remaining = calculate_inventory_dark_room_remaining(inventory_entry, 'B')
     left_over_value = max(
         0.0,
-        fabric_a_value - used_value - updated_rejected_value + reactive_value,
+        fabric_a_value - dark_room_a_remaining - used_value - updated_rejected_value + reactive_value,
     )
     if fabric_b_enabled_for_save:
         left_over_value = max(
             0.0,
             fabric_a_value
-            + parse_numeric(request.form.get('fabric_qty_b', ''))
+            - dark_room_a_remaining
+            + max(0.0, parse_numeric(request.form.get('fabric_qty_b', '')) - dark_room_b_remaining)
             - used_value
             - updated_rejected_value
             + reactive_value,
@@ -13595,14 +13767,14 @@ def save_inventory():
         inv_obj = build_inventory_form_object()
         db.session.rollback()
         flash('Please fill all required header fields before saving.', 'danger')
-        return render_template('inventory.html', selected_job=job_no, order=order, serial_no=serial_no, inventory=inv_obj, inventory_rolls=inventory_rolls, inventory_avg_value=inventory_avg_value, inventory_status=get_inventory_status(inventory_entry), rows=rows, second_rows=second_rows, remaining_a_quality=calculate_inventory_consumption_state(inventory_entry, order_id=job_no)['a_remaining'])
+        return render_template('inventory.html', selected_job=job_no, order=order, serial_no=serial_no, inventory=inv_obj, inventory_rolls=inventory_rolls, inventory_avg_value=inventory_avg_value, inventory_status=get_inventory_status(inventory_entry), rows=rows, second_rows=second_rows, remaining_a_quality=calculate_inventory_consumption_state(inventory_entry, order_id=job_no)['a_remaining'], dark_room_a_pending=inventory_dark_room_status_locked(inventory_entry, 'A'), dark_room_b_pending=inventory_dark_room_status_locked(inventory_entry, 'B'), dark_room_a_quantity=calculate_inventory_dark_room_remaining(inventory_entry, 'A'), dark_room_b_quantity=calculate_inventory_dark_room_remaining(inventory_entry, 'B'))
 
     try:
         db.session.flush()
 
         submitted_shortage_4 = [
             (value or '').strip().upper()
-            for value in request.form.getlist('sec_shortage_4')
+            for value in (request.form.getlist('sec_shortage_status_4') or request.form.getlist('sec_shortage_4'))
             if (value or '').strip()
         ]
         submitted_shortage_4_flag = [
@@ -13612,7 +13784,7 @@ def save_inventory():
         ]
         submitted_shortage_5 = [
             (value or '').strip().upper()
-            for value in request.form.getlist('sec_shortage_5')
+            for value in (request.form.getlist('sec_shortage_status_5') or request.form.getlist('sec_shortage_5'))
             if (value or '').strip()
         ]
         submitted_shortage_5_flag = [
@@ -13620,6 +13792,10 @@ def save_inventory():
             for value in request.form.getlist('sec_shortage_5_flag')
             if (value or '').strip()
         ]
+        dark_room_a = 'DARK ROOM' in submitted_shortage_4
+        dark_room_b = 'DARK ROOM' in submitted_shortage_5
+        transfer_dark_room_a = dark_room_a and not inventory_dark_room_status_locked(inventory_entry, 'A')
+        transfer_dark_room_b = dark_room_b and not inventory_dark_room_status_locked(inventory_entry, 'B')
         a_return_already_recorded = bool(
             inventory_entry
             and (
@@ -13672,6 +13848,22 @@ def save_inventory():
                 inventory_entry.b_returned_quantity = f'{remaining_return_qty:.2f}'
             inventory_entry.left_over_fabric = f'{max(0.0, parse_numeric(inventory_entry.fabric_qty_a) + max(0.0, parse_numeric(inventory_entry.fabric_qty_b)) - max(0.0, parse_numeric(inventory_entry.used_fabric)) - max(0.0, parse_numeric(inventory_entry.rejected_fabric))):.2f}'
 
+        if inventory_entry and (dark_room_a or dark_room_b):
+            if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
+                raise ValueError('Only the owner or manager can transfer fabric to Dark Room.')
+            for quality, selected in (('A', transfer_dark_room_a), ('B', transfer_dark_room_b)):
+                if not selected:
+                    continue
+                max_remaining = calculate_inventory_returnable_a_quantity(inventory_entry, order_id=job_no) if quality == 'A' else calculate_inventory_returnable_b_quantity(inventory_entry, order_id=job_no)
+                transfer_qty = max(0.0, float(max_remaining))
+                if transfer_qty <= 0:
+                    continue
+                if quality == 'B':
+                    inventory_entry.fabric_b_enabled = False
+                db.session.add(DarkRoomFabric(inventory_id=inventory_entry.id, serial_no=inventory_entry.serial_no or '', order_id=inventory_entry.order_id or '', article=(order.article_name or order.article) if order else (inventory_entry.fabric_for or ''), quality=quality, quantity=transfer_qty, remaining=transfer_qty, received_quantity_restored=True, created_by=session.get('name') or session.get('user') or ''))
+            db.session.flush()
+            inventory_entry.left_over_fabric = f"{calculate_inventory_fabric_balances(inventory_entry)['left_over_fabric']:.2f}"
+
         if inventory_entry.id:
             InventoryRow.query.filter_by(inventory_id=inventory_entry.id).delete()
             InventorySecondRow.query.filter_by(inventory_id=inventory_entry.id).delete()
@@ -13722,8 +13914,38 @@ def save_inventory():
             cutting_pcs_val = request.form.get(f'sec_cutting_pcs_{i}', '').strip()
             fabric_use_val = request.form.get(f'sec_fabric_use_{i}', '').strip()
             cut_pcs_val = request.form.get(f'sec_cut_pcs_{i}', '').strip()
-            shortage_val = request.form.get(f'sec_shortage_{i}', '').strip()
+            if i in (4, 5):
+                shortage_status = (request.form.get(f'sec_shortage_status_{i}') or '').strip().upper()
+                if not shortage_status:
+                    shortage_status = next((
+                        (value or '').strip().upper()
+                        for value in request.form.getlist(f'sec_shortage_{i}')
+                        if (value or '').strip().upper() in ('RETURNED', 'DARK ROOM')
+                    ), '')
+                shortage_val = shortage_status if shortage_status in ('RETURNED', 'DARK ROOM') else request.form.get(f'sec_shortage_value_{i}', '').strip()
+            else:
+                shortage_val = request.form.get(f'sec_shortage_{i}', '').strip()
             balance_val = request.form.get(f'sec_balance_{i}', '').strip()
+            if shortage_val.upper() == 'DARK ROOM':
+                balance_val = 'COMPLETED'
+                if i == 5:
+                    cut_pcs_val = '0'
+            if i in (2, 3) and (selected_a_return or selected_b_return or dark_room_a or dark_room_b):
+                balance_start = parse_numeric(request.form.get('sec_balance_1', ''))
+                a_deduction = (
+                    calculate_inventory_dark_room_remaining(inventory_entry, 'A')
+                    if dark_room_a
+                    else parse_numeric(getattr(inventory_entry, 'a_returned_quantity', 0))
+                    if selected_a_return else 0.0
+                )
+                b_deduction = (
+                    calculate_inventory_dark_room_remaining(inventory_entry, 'B')
+                    if dark_room_b
+                    else parse_numeric(getattr(inventory_entry, 'b_returned_quantity', 0))
+                    if selected_b_return else 0.0
+                )
+                total_deduction = a_deduction + b_deduction
+                balance_val = f'{total_deduction:.2f}' if i == 2 else f'{max(0.0, balance_start - total_deduction):.2f}'
 
             if any([style_val, sno_val, cut_size_val, cutting_pcs_val, fabric_use_val, cut_pcs_val, shortage_val, balance_val]):
                 srow = InventorySecondRow(
@@ -13791,7 +14013,7 @@ def save_inventory():
                 ))
 
         inv_obj = build_inventory_form_object()
-        return render_template('inventory.html', selected_job=job_no, order=order, serial_no=serial_no, inventory=inv_obj, inventory_rolls=inventory_rolls, inventory_avg_value=inventory_avg_value, inventory_status=get_inventory_status(inventory_entry), rows=rows, remaining_a_quality=calculate_inventory_consumption_state(inventory_entry, order_id=job_no)['a_remaining'])
+        return render_template('inventory.html', selected_job=job_no, order=order, serial_no=serial_no, inventory=inv_obj, inventory_rolls=inventory_rolls, inventory_avg_value=inventory_avg_value, inventory_status=get_inventory_status(inventory_entry), rows=rows, remaining_a_quality=calculate_inventory_consumption_state(inventory_entry, order_id=job_no)['a_remaining'], dark_room_a_pending=inventory_dark_room_status_locked(inventory_entry, 'A'), dark_room_b_pending=inventory_dark_room_status_locked(inventory_entry, 'B'), dark_room_a_quantity=calculate_inventory_dark_room_remaining(inventory_entry, 'A'), dark_room_b_quantity=calculate_inventory_dark_room_remaining(inventory_entry, 'B'))
 
 
 @app.route('/manager/saved-inventory')
@@ -13868,23 +14090,10 @@ def production_entry():
             sheet.id
         )
     )
-    accessory_completion_by_sheet = {
-        sheet.id: cut_accessories_fully_issued(order, sheet)
+    accessory_production_limit_by_sheet = {
+        sheet.id: cut_accessory_production_limit(order, sheet)
         for sheet in all_cutting_sheets
     }
-    if request.method == 'POST' and not request.form.get('save_cut_special_operations'):
-        posted_cut_no = (request.form.get('cut_no') or '').strip()
-        posted_cut_sheet = next(
-            (sheet for sheet in all_cutting_sheets if str(sheet.cut_no) == posted_cut_no),
-            None,
-        )
-        if posted_cut_sheet and not accessory_completion_by_sheet[posted_cut_sheet.id]:
-            flash('Issue all required accessories for this cut before entering production.', 'danger')
-            return redirect(url_for(
-                'production_entry',
-                job_no=prefill_job,
-                cut_no=posted_cut_sheet.cut_no,
-            ))
 
     cutting_sheets = all_cutting_sheets
     if not selected_cut and cutting_sheets:
@@ -13919,16 +14128,26 @@ def production_entry():
         production_state = get_cut_production_state(
             prefill_job,
             sheet.cut_no,
-            cut_limit,
+            min(cut_limit, accessory_production_limit_by_sheet[sheet.id]),
             operation_names,
         )
+        stitched_operation_names = {
+            (rate.operation or '').upper()
+            for rate in OperationRate.query.filter(
+                func.upper(OperationRate.operation).in_(operation_names)
+            ).all()
+            if rate.is_stitched_operation
+        }
         operation_limits_by_cut[str(sheet.cut_no)] = production_state['effective_limits']
         for operation_name in operation_names:
             completion_limit = production_state['effective_limits'].get(
                 operation_name,
                 production_state['limits_before_bq'].get(operation_name, 0),
             ) if production_state['machine_operations'].get(operation_name) else production_state['limits_before_bq'].get(operation_name, 0)
-            if production_state['raw_totals'].get(operation_name, 0) < completion_limit:
+            completed_pcs = production_state['raw_totals'].get(operation_name, 0)
+            if operation_name in stitched_operation_names:
+                completed_pcs += production_state['stitched_bq_totals'].get(operation_name, 0)
+            if completed_pcs < completion_limit:
                 resume_operations_by_cut[str(sheet.cut_no)] = operation_name
                 break
 
@@ -14021,6 +14240,21 @@ def production_entry():
             if selected_op not in operation_names:
                 raise ValueError("Selected operation is not configured for this order.")
 
+            accessory_limit = accessory_production_limit_by_sheet.get(cut_sheet.id)
+            if accessory_limit is None:
+                accessory_limit = cut_accessory_production_limit(order, cut_sheet)
+            production_limit = min(cut_limit, accessory_limit)
+            if production_limit <= 0 or (
+                production_limit < cut_limit
+                and not resume_operations_by_cut.get(str(selected_cut))
+            ):
+                remaining_pcs = max(0, int(cut_limit - production_limit))
+                raise ValueError(
+                    f'Production has reached the accessory-supported limit of '
+                    f'{int(production_limit)} PCS for Cut No {selected_cut}. '
+                    f'Issue accessories for the remaining {remaining_pcs} PCS before continuing.'
+                )
+
             current_operation_index = operation_names.index(selected_op)
             production_logs = ProductionLog.query.filter_by(
                 job_no=job_no,
@@ -14029,7 +14263,7 @@ def production_entry():
             production_state = get_cut_production_state(
                 job_no,
                 selected_cut,
-                cut_limit,
+                production_limit,
                 operation_names,
                 logs=production_logs,
             )
@@ -14071,7 +14305,7 @@ def production_entry():
                 effective_bq_limit = bq_value
                 input_limit = max(
                     0,
-                    production_state['limits_before_bq'].get(selected_op, cut_limit) - effective_bq_limit,
+                    production_state['limits_before_bq'].get(selected_op, production_limit) - effective_bq_limit,
                 )
                 if current_operation_index > 0:
                     previous_operation = operation_names[current_operation_index - 1]
@@ -14093,7 +14327,7 @@ def production_entry():
                 existing_bq_total = production_state['bq_totals'].get(selected_op, 0)
                 operation_limit = max(
                     0,
-                    production_state['limits_before_bq'].get(selected_op, cut_limit)
+                    production_state['limits_before_bq'].get(selected_op, production_limit)
                     - existing_bq_total,
                 )
                 updated_inline_limit = max(
@@ -14178,7 +14412,7 @@ def production_entry():
             production_state = get_cut_production_state(
                 job_no,
                 selected_cut,
-                cut_limit,
+                production_limit,
                 operation_names,
                 logs=production_logs,
             )
@@ -14186,8 +14420,8 @@ def production_entry():
             operation_raw_total = production_state['raw_totals'].get(selected_op, 0)
             operation_limit = production_state['effective_limits'].get(
                 selected_op,
-                production_state['limits_before_bq'].get(selected_op, cut_limit),
-            ) if production_state['machine_operations'].get(selected_op) else production_state['limits_before_bq'].get(selected_op, cut_limit)
+                production_state['limits_before_bq'].get(selected_op, production_limit),
+            ) if production_state['machine_operations'].get(selected_op) else production_state['limits_before_bq'].get(selected_op, production_limit)
             stitched_operation_names = {
                 (rate.operation or '').upper()
                 for rate in OperationRate.query.filter(
@@ -14198,18 +14432,18 @@ def production_entry():
             operation_completion_total = operation_raw_total
             if selected_op in stitched_operation_names:
                 operation_completion_total += production_state['stitched_bq_totals'].get(selected_op, 0)
-                operation_limit = production_state['limits_before_bq'].get(selected_op, cut_limit)
+                operation_limit = production_state['limits_before_bq'].get(selected_op, production_limit)
             if operation_completion_total >= operation_limit:
                 completed_operations = set()
                 for operation_name in operation_names:
                     total = production_state['raw_totals'].get(operation_name, 0)
                     limit = production_state['effective_limits'].get(
                         operation_name,
-                        production_state['limits_before_bq'].get(operation_name, cut_limit),
-                    ) if production_state['machine_operations'].get(operation_name) else production_state['limits_before_bq'].get(operation_name, cut_limit)
+                        production_state['limits_before_bq'].get(operation_name, production_limit),
+                    ) if production_state['machine_operations'].get(operation_name) else production_state['limits_before_bq'].get(operation_name, production_limit)
                     if operation_name in stitched_operation_names:
                         total += production_state['stitched_bq_totals'].get(operation_name, 0)
-                        limit = production_state['limits_before_bq'].get(operation_name, cut_limit)
+                        limit = production_state['limits_before_bq'].get(operation_name, production_limit)
                     if total >= limit:
                         completed_operations.add(operation_name)
 
@@ -14280,8 +14514,11 @@ def production_entry():
         prefill_job=prefill_job,
         order=order,
         cutting_sheets=cutting_sheets,
-        accessory_completion_by_cut={
-            str(sheet.cut_no): accessory_completion_by_sheet[sheet.id]
+        accessory_production_limit_by_cut={
+            str(sheet.cut_no): min(
+                parse_numeric(sheet.quantity),
+                accessory_production_limit_by_sheet[sheet.id],
+            )
             for sheet in all_cutting_sheets
         },
         selected_cut=selected_cut,
@@ -14752,6 +14989,8 @@ def vendors():
         return redirect(url_for('index'))
 
     if request.method == 'POST':
+        if not has_page_write_access('allow_full_access_vendors'):
+            return reject_read_only_edit('This profile has read-only access to vendors and vendor rates.')
         vendor_name = (request.form.get('vendor_name') or '').strip()
         if not vendor_name:
             flash('Vendor name is required.', 'danger')
@@ -14804,6 +15043,8 @@ def item_list():
         return redirect(url_for('index'))
 
     if request.method == 'POST':
+        if not has_page_write_access('allow_full_access_item_list'):
+            return reject_read_only_edit('This profile has read-only access to the item list.')
         item_ids = request.form.getlist('item_id')
         item_names = request.form.getlist('item_name')
         materials = request.form.getlist('material')
@@ -14812,12 +15053,6 @@ def item_list():
         issue_units = request.form.getlist('issue_unit')
         returnables = request.form.getlist('returnable')
         refundables = request.form.getlist('refundable')
-        if is_read_only_profile():
-            if any(item_id.strip() for item_id in item_ids) or any(
-                ItemMaster.query.filter(func.lower(func.trim(ItemMaster.item_name)) == name.strip().lower()).first()
-                for name in item_names if name and name.strip()
-            ):
-                return reject_read_only_edit('Saved items cannot be changed.')
         saved_count = 0
         activity_actions = []
 
@@ -14885,7 +15120,11 @@ def item_list():
         return redirect(url_for('item_list'))
 
     items = ItemMaster.query.order_by(ItemMaster.item_name.asc()).all()
-    return render_template('item_list.html', items=items, read_only_profile=is_read_only_profile())
+    return render_template(
+        'item_list.html',
+        items=items,
+        read_only_profile=not has_page_write_access('allow_full_access_item_list'),
+    )
 
 
 @app.route('/manager/vendors/<int:vendor_id>', methods=['GET', 'POST'])
@@ -14895,6 +15134,8 @@ def vendor_detail(vendor_id):
 
     vendor = Vendor.query.get_or_404(vendor_id)
     if request.method == 'POST':
+        if not has_page_write_access('allow_full_access_vendors'):
+            return reject_read_only_edit('This profile has read-only access to vendors and vendor rates.')
         action = (request.form.get('action') or 'add_item').strip()
         if action == 'update_vendor':
             vendor_name = (request.form.get('vendor_name') or '').strip()
@@ -16555,6 +16796,14 @@ def workers(job_no=None):
     if request.method == 'POST':
         # Get form data
         worker_id = request.form.get('worker_id')
+        if worker_id:
+            existing_worker = Worker.query.get(worker_id)
+            if not existing_worker:
+                flash('Worker not found.', 'danger')
+                return redirect(url_for('workers'))
+            if existing_worker.is_permanent:
+                flash('The permanent CANON worker cannot be edited.', 'danger')
+                return redirect(url_for('workers'))
         name = request.form.get('name')
         email = request.form.get('email')
         phone = request.form.get('phone')
@@ -16724,8 +16973,21 @@ def workers(job_no=None):
             editing_worker = Worker.query.get(int(query_worker_id))
         except Exception:
             editing_worker = None
+        if editing_worker and editing_worker.is_permanent:
+            flash('The permanent CANON worker cannot be edited.', 'danger')
+            return redirect(url_for('workers'))
 
-    workers_list = Worker.query.order_by(Worker.id.desc()).all()
+    can_view_permanent_worker = (
+        session.get('role') in ('owner', 'manager')
+        and not is_read_only_profile()
+    )
+    workers_query = Worker.query
+    if not can_view_permanent_worker:
+        workers_query = workers_query.filter(or_(
+            Worker.is_permanent.is_(False),
+            Worker.is_permanent.is_(None),
+        ))
+    workers_list = workers_query.order_by(Worker.id.desc()).all()
     advance_summaries = []
     for worker in workers_list:
         advance_entries = [a for a in worker.advances if a.record_type == 'advance']
@@ -16768,6 +17030,8 @@ def worker_print(worker_id):
     if not worker:
         flash('Worker not found.', 'danger')
         return redirect(url_for('workers'))
+    if worker.is_permanent:
+        abort(403)
     return render_template('worker_print.html', worker=worker)
 
 
@@ -17352,7 +17616,86 @@ def fabric_ledger():
         search=search, quality_filter=quality_filter, supplier_filter=supplier_filter,
         status_filter=status_filter, status_options=status_options, sort_order=sort_order, movements=movements, party_names=party_names,
         show_fabric_report_sections='fabric_reports' in getattr(g, 'page_access_keys', set()),
+        can_view_dark_room=session.get('role') in ('owner', 'manager') and not is_read_only_profile(),
     )
+
+
+@app.route('/stock-portal/dark-room', methods=['GET', 'POST'])
+def dark_room():
+    if session.get('role') not in ('owner', 'manager') or is_read_only_profile():
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        try:
+            record = DarkRoomFabric.query.get(int(request.form.get('record_id', '')))
+            amount = float(request.form.get('quantity', '0'))
+            if not record:
+                raise ValueError('Dark Room fabric record not found.')
+            remaining = max(0.0, parse_numeric(record.remaining))
+            if not math.isfinite(amount) or amount <= 0 or amount > remaining + 0.000001:
+                raise ValueError('Enter a quantity no greater than the fabric remaining in Dark Room.')
+            inventory = Inventory.query.get(record.inventory_id)
+            if not inventory:
+                raise ValueError('The linked inventory record no longer exists.')
+            if record.quality not in ('A', 'B'):
+                raise ValueError('The Dark Room quality is invalid.')
+            if record.quality == 'B' and (
+                not inventory.fabric_b_enabled
+                or not inventory.fabric_b_activation_order_id
+            ):
+                existing_cut_numbers = []
+                for sheet in CuttingSheet.query.filter_by(order_id=inventory.order_id).all():
+                    if inventory.serial_no not in split_inventory_serials(sheet.inventory_serial_no):
+                        continue
+                    try:
+                        existing_cut_numbers.append(int(str(sheet.cut_no)))
+                    except (TypeError, ValueError):
+                        continue
+                inventory.fabric_b_enabled = True
+                inventory.fabric_b_activation_cut_no = max(existing_cut_numbers, default=0) + 1
+                inventory.fabric_b_activation_order_id = inventory.order_id
+            record.remaining = max(0.0, remaining - amount)
+            db.session.flush()
+            row_idx = 4 if record.quality == 'A' else 5
+            status_row = InventorySecondRow.query.filter_by(
+                inventory_id=inventory.id,
+                idx=row_idx,
+            ).first()
+            if status_row and (status_row.shortage or '').strip().upper() == 'DARK ROOM':
+                status_row.shortage = None
+                status_row.balance = None
+            inventory.left_over_fabric = f"{calculate_inventory_fabric_balances(inventory)['left_over_fabric']:.2f}"
+            db.session.commit()
+            flash(f'{amount:g} meters reimbursed to inventory.', 'success')
+        except (ValueError, TypeError) as exc:
+            db.session.rollback()
+            flash(str(exc) or 'Invalid reimbursement quantity.', 'danger')
+        return redirect(url_for('dark_room'))
+    stored_records = DarkRoomFabric.query.filter(
+        DarkRoomFabric.remaining > 0
+    ).order_by(
+        DarkRoomFabric.article,
+        DarkRoomFabric.serial_no,
+        DarkRoomFabric.quality,
+    ).all()
+    order_ids = {record.order_id for record in stored_records if record.order_id}
+    orders_by_job = {
+        order.job_no: order
+        for order in Order.query.filter(Order.job_no.in_(order_ids)).all()
+    } if order_ids else {}
+    records = []
+    for record in stored_records:
+        order = orders_by_job.get(record.order_id)
+        records.append(SimpleNamespace(
+            id=record.id,
+            article=(order.article_name if order else None) or record.article,
+            party_name=(order.name if order else None) or '—',
+            style=(order.style if order else None) or '—',
+            serial_no=record.serial_no,
+            quality=record.quality,
+            quantity=record.quantity,
+            remaining=record.remaining,
+        ))
+    return render_template('dark_room.html', records=records)
 
 
 @app.route('/stock-portal/fabric-position-summary')

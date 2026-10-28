@@ -10,7 +10,7 @@
                 <h1 class="mt-2 text-3xl font-black">Fabric Ledger</h1>
                 <p class="mt-2 text-sm text-slate-300">Fabric received (Inventory) vs. fabric issued (Cutting Sheets) — live stock position across every lot.</p>
             </div>
-            <a href="{{ url_for('stock_portal') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Stock Portal</a>
+            <div class="flex flex-wrap gap-2">{% if can_view_dark_room %}<a href="{{ url_for('dark_room') }}" class="inline-flex items-center rounded-lg bg-amber-500 px-3 py-2 text-sm font-bold text-slate-950 hover:bg-amber-400">Open Dark Room</a>{% endif %}<a href="{{ url_for('stock_portal') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Stock Portal</a></div>
         </div>
     </header>
 
@@ -233,11 +233,12 @@
         <div class="mt-4 overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="border-b border-slate-200 text-left text-[10px] uppercase text-slate-400">
-                    <tr><th class="px-2 py-2">Order</th><th class="px-2 py-2">Party</th><th class="px-2 py-2">Article</th><th class="px-2 py-2 text-right">Received</th><th class="px-2 py-2 text-right">Issued</th><th class="px-2 py-2 text-right">Balance</th><th class="px-2 py-2 text-right">INV's</th></tr>
+                    <tr><th class="px-2 py-2">S.No</th><th class="px-2 py-2">Order</th><th class="px-2 py-2">Party</th><th class="px-2 py-2">Article</th><th class="px-2 py-2 text-right">Received</th><th class="px-2 py-2 text-right">Issued</th><th class="px-2 py-2 text-right">Balance</th><th class="px-2 py-2 text-right">INV's</th></tr>
                 </thead>
                 <tbody>
                     {% for order_id, data in by_order %}
                     <tr class="border-b border-slate-100">
+                        <td class="px-2 py-2 text-center">{{ loop.index }}</td>
                         <td class="px-2 py-2 font-bold text-indigo-600">{% if order_id != '-' %}<a href="{{ url_for('order_details', job_no=order_id) }}" class="hover:underline">{{ order_id }}</a>{% else %}—{% endif %}</td>
                         <td class="px-2 py-2">{{ data.order.name if data.order else '-' }}</td>
                         <td class="px-2 py-2">{{ data.order.article_name if data.order else '-' }}</td>
@@ -246,7 +247,7 @@
                         <td class="px-2 py-2 text-right font-bold text-emerald-700">{{ '{:,.2f}'.format(data.balance) }}</td>
                         <td class="px-2 py-2 text-right">{{ data.lots }}</td>
                     </tr>
-                    {% else %}<tr><td colspan="7" class="px-2 py-6 text-center text-slate-500">No records.</td></tr>{% endfor %}
+                    {% else %}<tr><td colspan="8" class="px-2 py-6 text-center text-slate-500">No records.</td></tr>{% endfor %}
                 </tbody>
             </table>
         </div>
@@ -260,11 +261,12 @@
         <div class="mt-4 overflow-x-auto">
             <table class="w-full text-sm">
                 <thead class="border-b border-slate-200 text-left text-[10px] uppercase text-slate-400">
-                    <tr><th class="px-2 py-2">Date &amp; Time</th><th class="px-2 py-2">Type</th><th class="px-2 py-2">Serial</th><th class="px-2 py-2">Order</th><th class="px-2 py-2">Reference</th><th class="px-2 py-2 text-right">Used (m)</th><th class="px-2 py-2 text-right">Balance (m)</th><th class="px-2 py-2 text-right">Issued (m)</th></tr>
+                    <tr><th class="px-2 py-2">S.No</th><th class="px-2 py-2">Date &amp; Time</th><th class="px-2 py-2">Type</th><th class="px-2 py-2">Serial</th><th class="px-2 py-2">Order</th><th class="px-2 py-2">Reference</th><th class="px-2 py-2 text-right">Used (m)</th><th class="px-2 py-2 text-right">Balance (m)</th><th class="px-2 py-2 text-right">Issued (m)</th></tr>
                 </thead>
                 <tbody id="fabric-movement-list" data-load-more-list data-page-size="50">
                     {% for m in movements %}
                     <tr data-load-more-row class="border-b border-slate-100">
+                        <td class="px-2 py-2 text-center">{{ loop.index }}</td>
                         <td class="px-2 py-2">{{ m.date|format_ddmmyyyy if m.date else '-' }}{% if m.time %}<span class="block text-xs text-slate-500">{{ m.time }}</span>{% endif %}</td>
                         <td class="px-2 py-2"><span class="rounded-full px-2 py-1 text-[10px] font-bold uppercase {% if m.type == 'RECEIVED' %}bg-sky-100 text-sky-700{% else %}bg-orange-100 text-orange-700{% endif %}">{{ m.type }}</span></td>
                         <td class="px-2 py-2 font-bold">{{ m.serial_no or '-' }}</td>
@@ -274,7 +276,7 @@
                         <td class="px-2 py-2 text-right">{{ '{:,.2f}'.format(m.balance) }}</td>
                         <td class="px-2 py-2 text-right font-bold {% if m.type == 'RECEIVED' %}text-sky-700{% else %}text-orange-700{% endif %}">{{ '{:,.2f}'.format(m.qty) }}</td>
                     </tr>
-                    {% else %}<tr><td colspan="8" class="px-2 py-8 text-center text-slate-500">No movements recorded yet.</td></tr>{% endfor %}
+                    {% else %}<tr><td colspan="9" class="px-2 py-8 text-center text-slate-500">No movements recorded yet.</td></tr>{% endfor %}
                 </tbody>
             </table>
         </div>

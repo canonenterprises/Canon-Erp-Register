@@ -14,10 +14,12 @@
             </div>
 
             <div class="flex flex-wrap gap-2">
+                {% if 'item_list' in page_access_keys %}
                 <a href="{{ url_for('item_list') }}"
                    class="rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-black text-white shadow-sm transition hover:bg-sky-700">
                     ITEM LIST
                 </a>
+                {% endif %}
                 <a href="{{ url_for('manager_dashboard', tab='list') }}"
                    class="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100">
                     DASHBOARD
@@ -52,6 +54,7 @@
             </div>
         </div>
 
+        {% if vendor_full_access %}
         <!-- Add Vendor -->
         <div class="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             <div class="flex flex-col gap-2 border-b border-slate-200 bg-slate-900 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
@@ -140,6 +143,9 @@
                 </div>
             </form>
         </div>
+        {% else %}
+        <p class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access to vendors and vendor rates.</p>
+        {% endif %}
 
         <!-- Vendor Directory -->
         <div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -246,7 +252,7 @@
                 <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">🏢</div>
                 <h3 class="text-lg font-black text-slate-800">No vendors yet</h3>
                 <p class="mx-auto mt-1 max-w-md text-sm text-slate-500">
-                    Add your first supplier using the vendor form above.
+                    {% if vendor_full_access %}Add your first supplier using the vendor form above.{% else %}No vendor profiles are available yet.{% endif %}
                 </p>
             </div>
             {% endif %}
