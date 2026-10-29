@@ -43,8 +43,10 @@
             <div><strong>Referred By:</strong> {{ worker.referred_by or '-' }}</div>
             <div><strong>Hired By:</strong> {{ worker.hired_by or '-' }}</div>
             <div><strong>Hiring Date:</strong> {{ worker.joining_date|format_ddmmyyyy if worker.joining_date else '-' }}</div>
+            {% if not is_coordinator %}
             <div><strong>Salary:</strong> {% if worker.salary is not none %}{{ '%.2f'|format(worker.salary) }}{% else %}-{% endif %}</div>
             <div><strong>Attendance Allowance:</strong> {% if worker.attendance_allowance is not none %}{{ '%.2f'|format(worker.attendance_allowance) }}{% else %}-{% endif %}</div>
+            {% endif %}
             <div><strong>Supervisor:</strong> {{ worker.supervisor or '-' }}</div>
             <div><strong>HOD:</strong> {{ worker.hod or '-' }}</div>
         </div>

@@ -45,6 +45,7 @@
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
                     <span class="no-print rounded-full bg-emerald-100 px-3 py-1 text-sm font-bold text-black-700">Serial No: {{ serial_no }}</span>
+                    <span class="inventory-mode-badge rounded-full px-3 py-1 text-sm font-bold {% if inventory and inventory.is_direct_cutting_pcs %}bg-violet-100 text-violet-800{% else %}bg-cyan-100 text-cyan-800{% endif %}">INV MODE: {{ 'Direct Cutting PCS' if inventory and inventory.is_direct_cutting_pcs else 'Fabric' }}</span>
                     <span class="inventory-print-status rounded-full px-3 py-1 text-sm font-bold {% if 'Rejected' in inventory_status %}bg-rose-100 text-rose-800{% elif 'Re-active' in inventory_status %}bg-teal-100 text-teal-800{% elif inventory_status.startswith('Finished') %}bg-emerald-100 text-emerald-800{% elif inventory_status.startswith('Active') %}bg-cyan-100 text-cyan-800{% elif inventory_status.startswith('Partially Used') %}bg-amber-100 text-amber-700{% else %}bg-slate-100 text-slate-700{% endif %}">Status: {{ inventory_status or 'Not Used' }}</span>
                 </div>
             </div>
@@ -120,7 +121,7 @@
                 </div>
             </div>
 
-            <div class="inventory-quantities-grid grid grid-cols-1 md:grid-cols-5 gap-4 mb-10 {% if inventory and inventory.is_direct_cutting_pcs %}direct-pcs-mode{% endif %}">
+            <div class="inventory-quantities-grid grid grid-cols-1 md:grid-cols-4 gap-4 mb-10 {% if inventory and inventory.is_direct_cutting_pcs %}direct-pcs-mode{% endif %}">
                 <div {% if inventory and inventory.is_direct_cutting_pcs %}hidden{% endif %}>
                     <label class="block text-xs font-bold text-black-500">Fabric Quantity A</label>
                     <input type="number" step="0.01" name="fabric_qty_a" value="{{ inventory.fabric_qty_a if inventory and inventory.fabric_qty_a else '' }}" data-dark-room-remaining="{{ dark_room_a_quantity|default(0, true) }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
@@ -140,16 +141,6 @@
                     <label class="block text-xs font-bold text-black-500">Received Cut PCS</label>
                     <input type="number" name="receive_cut_pcs" value="{{ inventory.receive_cut_pcs if inventory and inventory.receive_cut_pcs else '' }}" readonly class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed">
                 </div>
-                <div class="inventory-mode-field">
-                    <label class="block text-xs font-bold text-black-500">Inventory Mode</label>
-                    <input
-                    type="text"
-                    value="{{ 'Direct Cutting PCS' if inventory and inventory.is_direct_cutting_pcs else 'Fabric' }}"
-                    readonly
-                    class="upper w-full border border-black-500 rounded-lg p-2 bg-slate-100 cursor-not-allowed"
-                    >
-                </div>
-
                 {% if inventory and inventory.is_direct_cutting_pcs %}
                 <div class="inventory-direct-pcs-field">
                     <label class="block text-xs font-bold text-black-500">

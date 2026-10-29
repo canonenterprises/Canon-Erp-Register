@@ -2996,6 +2996,60 @@ class ItemMaster(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+ITEM_CATEGORY_CODES = {
+    'PRODUCTION ACCESSORIES': 'PA',
+    'SEWING MATERIALS': 'SW',
+    'MACHINE MAINTENANCE / SPARE PARTS': 'SP',
+    'ELECTRICAL MATERIALS': 'EM',
+    'GENERAL FACTORY MATERIALS': 'GM',
+    'IT & COMPUTER EQUIPMENTS': 'ICE',
+    'STATIONARY & OFFICE SUPPLIES': 'SS',
+    'PACKAGING MATERIALS': 'PM',
+    'FIRE & EMERGENCY SUPPLIES': 'FES',
+    'CUTTING ACCESSORIES': 'CA',
+}
+
+
+def item_sku_matches_category(sku, category):
+    category_code = ITEM_CATEGORY_CODES.get(category or '')
+    if not category_code or not sku:
+        return False
+    prefix = f'SKU-{category_code}-'
+    suffix = sku[len(prefix):] if sku.startswith(prefix) else ''
+    return suffix.isdigit() and len(suffix) >= 7
+
+
+def generate_item_master_sku(category, used_skus):
+    category_code = ITEM_CATEGORY_CODES.get(category or '')
+    if not category_code:
+        return ''
+    prefix = f'SKU-{category_code}-'
+    last_sequence = max(
+        (
+            int(sku[len(prefix):])
+            for sku in used_skus
+            if sku.startswith(prefix) and sku[len(prefix):].isdigit()
+        ),
+        default=0,
+    )
+    sku = f'{prefix}{last_sequence + 1:07d}'
+    used_skus.add(sku)
+    return sku
+
+
+def assign_missing_item_master_skus():
+    used_skus = {
+        sku for (sku,) in db.session.query(ItemMaster.sku).filter(ItemMaster.sku.isnot(None)).all()
+    }
+    changed = False
+    for item in ItemMaster.query.order_by(ItemMaster.id.asc()).all():
+        if item.category and not item_sku_matches_category(item.sku, item.category):
+            item.sku = generate_item_master_sku(item.category, used_skus)
+            changed = changed or bool(item.sku)
+    if changed:
+        db.session.commit()
+
+
 class VendorItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     vendor_id = db.Column(db.Integer, db.ForeignKey('vendor.id'), nullable=False, index=True)
@@ -5215,6 +5269,7 @@ with app.app_context():
     ensure_portal_account_page_access_column(db.engine)
     ensure_item_master_issue_columns(db.engine)
     ensure_item_master_detail_columns(db.engine)
+    assign_missing_item_master_skus()
     seed_portal_accounts()
     ensure_table_columns(db.engine)
     ensure_operation_rate_columns(db.engine)
@@ -8659,6 +8714,43 @@ def manager_dashboard():
         article_details_locked=bool(selected_article or editing_order),
     )
 
+
+@app.route('/manager/fabric-availability')
+def manager_fabric_availability():
+    if not session.get('role'):
+        return jsonify({'error': 'Authentication required'}), 401
+
+    article_name = (request.args.get('article_name') or '').strip()
+    if not article_name:
+        return jsonify({'article_name': '', 'available_meters': 0.0})
+
+    normalized_article = article_name.casefold()
+    matching_job_numbers = [
+        job_no for (job_no,) in db.session.query(Order.job_no).filter(
+            func.lower(func.trim(Order.article_name)) == normalized_article
+        ).all()
+        if job_no
+    ]
+    inventory_match = [
+        func.lower(func.trim(Inventory.fabric_for)) == normalized_article
+    ]
+    if matching_job_numbers:
+        inventory_match.append(Inventory.order_id.in_(matching_job_numbers))
+
+    available_meters = 0.0
+    for inventory in Inventory.query.filter(or_(*inventory_match)).all():
+        balance = calculate_inventory_fabric_balances(inventory)['left_over_fabric']
+        returned_to_party = 0.0
+        if inventory.a_returned_to_party:
+            returned_to_party += parse_numeric(inventory.a_returned_quantity)
+        if inventory.b_returned_to_party:
+            returned_to_party += parse_numeric(inventory.b_returned_quantity)
+        available_meters += max(0.0, balance - returned_to_party)
+    return jsonify({
+        'article_name': article_name,
+        'available_meters': round(max(0.0, available_meters), 3),
+    })
+
 # (Login route aapka pehle jaisa hi rahega, bas ADMIN_USERS ka list upar rehne dein)
 
 
@@ -8983,7 +9075,9 @@ def order_accessories(job_no):
             ))
         return redirect(url_for('order_accessories', job_no=job_no))
 
+    original_order_qty = get_effective_order_quantity(order)
     order_qty = get_accessory_order_quantity(order)
+    bq_margin_pcs = max(0.0, order_qty - original_order_qty)
 
     accessory_groups = {}
     issue_rows = AccessoryIssue.query.filter_by(order_id=job_no).order_by(AccessoryIssue.id.asc()).all()
@@ -9291,7 +9385,8 @@ def order_accessories(job_no):
     return render_template(
         'order_accessories.html',
         order=order,
-        order_qty=order_qty,
+        order_qty=original_order_qty,
+        bq_margin_pcs=bq_margin_pcs,
         accessories=accessories,
         totals=totals,
         cut_accessories=cut_accessories,
@@ -15086,11 +15181,13 @@ def item_list():
         sizes = request.form.getlist('size')
         specifications = request.form.getlist('specification')
         categories = request.form.getlist('category')
-        skus = request.form.getlist('sku')
         units = request.form.getlist('unit')
         issue_units = request.form.getlist('issue_unit')
         returnables = request.form.getlist('returnable')
         refundables = request.form.getlist('refundable')
+        used_skus = {
+            sku for (sku,) in db.session.query(ItemMaster.sku).filter(ItemMaster.sku.isnot(None)).all()
+        }
         saved_count = 0
         activity_actions = []
 
@@ -15104,7 +15201,8 @@ def item_list():
             size = (sizes[index] if index < len(sizes) else '').strip()
             specification = (specifications[index] if index < len(specifications) else '').strip()
             category = (categories[index] if index < len(categories) else '').strip()
-            sku = (skus[index] if index < len(skus) else '').strip()
+            if category not in ITEM_CATEGORY_CODES:
+                category = ''
             unit = (units[index] if index < len(units) else '').strip()
             issue_unit = (issue_units[index] if index < len(issue_units) else '').strip()
             if not issue_unit:
@@ -15126,11 +15224,15 @@ def item_list():
                 if duplicate:
                     continue
             elif existing_item:
+                previous_category = existing_item.category or ''
                 existing_item.material = material
                 existing_item.size = size
                 existing_item.specification = specification
                 existing_item.category = category
-                existing_item.sku = sku
+                if category and (category != previous_category or not item_sku_matches_category(existing_item.sku, category)):
+                    existing_item.sku = generate_item_master_sku(category, used_skus)
+                elif not category:
+                    existing_item.sku = ''
                 existing_item.unit = unit
                 existing_item.issue_unit = issue_unit
                 existing_item.issue_unit_factor = 1.0
@@ -15143,12 +15245,17 @@ def item_list():
                 item = ItemMaster(item_name=item_name)
                 db.session.add(item)
 
+            previous_category = item.category or ''
+            previous_sku = item.sku or ''
             item.item_name = item_name
             item.material = material
             item.size = size
             item.specification = specification
             item.category = category
-            item.sku = sku
+            if category and (category != previous_category or not item_sku_matches_category(previous_sku, category)):
+                item.sku = generate_item_master_sku(category, used_skus)
+            elif not category:
+                item.sku = ''
             item.unit = unit
             item.issue_unit = issue_unit
             item.issue_unit_factor = 1.0
@@ -16839,6 +16946,10 @@ def departments():
 def workers(job_no=None):
     if not session.get('role'):
         return redirect(url_for('index'))
+    is_coordinator = (
+        session.get('role') == 'assistant_manager'
+        or session.get('profile_role') == 'assistant_manager'
+    )
 
     if request.method == 'POST':
         # Get form data
@@ -16935,8 +17046,9 @@ def workers(job_no=None):
             w.joining_date = joining_date
             w.referred_by = referred_by
             w.hired_by = hired_by
-            w.salary = float(salary) if salary else None
-            w.attendance_allowance = float(attendance_allowance) if attendance_allowance else None
+            if not is_coordinator:
+                w.salary = float(salary) if salary else None
+                w.attendance_allowance = float(attendance_allowance) if attendance_allowance else None
             w.hod = hod
             w.employment_type = employment_type
             w.department = department
@@ -16986,8 +17098,8 @@ def workers(job_no=None):
             joining_date=joining_date,
             referred_by=referred_by,
             hired_by=hired_by,
-            salary=float(salary) if salary else None,
-            attendance_allowance=float(attendance_allowance) if attendance_allowance else None,
+            salary=float(salary) if salary and not is_coordinator else None,
+            attendance_allowance=float(attendance_allowance) if attendance_allowance and not is_coordinator else None,
             hod=hod,
             employment_type=employment_type,
             department=department,
@@ -17066,7 +17178,7 @@ def workers(job_no=None):
         })
     next_worker_code = get_next_worker_code() if not editing_worker else None
     department_list = Department.query.order_by(func.lower(Department.name)).all()
-    return render_template('workers.html', workers=workers_list, editing_worker=editing_worker, new_entry=new_entry, next_worker_code=next_worker_code, advance_summaries=advance_summaries, departments=department_list)
+    return render_template('workers.html', workers=workers_list, editing_worker=editing_worker, new_entry=new_entry, next_worker_code=next_worker_code, advance_summaries=advance_summaries, departments=department_list, is_coordinator=is_coordinator)
 
 
 @app.route('/manager/worker/<int:worker_id>/print')
@@ -17079,7 +17191,11 @@ def worker_print(worker_id):
         return redirect(url_for('workers'))
     if worker.is_permanent:
         abort(403)
-    return render_template('worker_print.html', worker=worker)
+    is_coordinator = (
+        session.get('role') == 'assistant_manager'
+        or session.get('profile_role') == 'assistant_manager'
+    )
+    return render_template('worker_print.html', worker=worker, is_coordinator=is_coordinator)
 
 
 @app.route('/manager/worker-advance', methods=['GET', 'POST'])
@@ -19533,6 +19649,15 @@ def accessories_portal(portal_page='home'):
     }
     for stock in stock_positions:
         stock['category'] = item_category_map.get(stock['item'].strip().casefold(), '')
+        stock['available_percentage'] = (
+            stock['available'] / stock['received'] * 100
+            if stock['received'] > 0 else 0
+        )
+        stock['stock_level'] = (
+            'EXTREMELY LOW' if stock['available_percentage'] < 15
+            else 'LOW' if stock['available_percentage'] < 25
+            else 'NORMAL'
+        )
     stock_category_options = sorted(
         {stock['category'] for stock in stock_positions if stock['category']},
         key=str.casefold,
@@ -19656,7 +19781,7 @@ def accessories_portal(portal_page='home'):
         item.refunded_value = sum(accessory_issue_refundable_qty(entry) for entry in item.issue_history_entries)
         item.net_issued_value = max(0.0, item.issued_value - item.refunded_value)
         item.left_over_value = max(0.0, item.received_value - item.net_issued_value)
-        item.issue_form_date = datetime.utcnow().strftime('%Y-%m-%d')
+        item.issue_form_date = datetime.now(timezone.utc).strftime('%Y-%m-%d')
         item.returnable = is_accessory_returnable(item.item)
         for issue_entry in item.issue_history_entries:
             issue_entry.returned_value = accessory_issue_returned_qty(issue_entry)
@@ -19783,18 +19908,20 @@ def accessories_portal(portal_page='home'):
             'total': po_total,
         }
 
+    items_by_category = {}
+    for master_item in local_po_items:
+        category_name = (master_item.category or '').strip()
+        if category_name:
+            items_by_category.setdefault(category_name, []).append(master_item)
     stock_categories = [
-        {'name': category_name, 'item_count': item_count}
-        for category_name, item_count in db.session.query(
-            ItemMaster.category, func.count(ItemMaster.id)
-        ).filter(
-            ItemMaster.category.isnot(None),
-            func.trim(ItemMaster.category) != '',
-        ).group_by(
-            ItemMaster.category
-        ).order_by(
-            ItemMaster.category.asc()
-        ).all()
+        {
+            'name': category_name,
+            'item_count': len(category_items),
+            'items': category_items,
+        }
+        for category_name, category_items in sorted(
+            items_by_category.items(), key=lambda entry: entry[0].casefold()
+        )
     ]
 
     return render_template(

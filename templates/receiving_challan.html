@@ -60,9 +60,9 @@
 
             <div id="challan-fabric-details-grid" class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div id="challan-width-field"><label class="block text-sm font-bold text-slate-500">Width</label><input type="text" name="width" value="{{ editing_challan.width if editing_challan and editing_challan.width else (order.fab_width if order else '') }}" class="w-full border rounded-lg p-2" required></div>
-                <div><label class="block text-sm font-bold text-slate-500">Fabric For</label><input type="text" name="fabric_for" value="{{ editing_challan.fabric_for if editing_challan and editing_challan.fabric_for else (order.style if order else '') }}" class="w-full border rounded-lg p-2" required></div>
+                <div><label class="block text-sm font-bold text-slate-500">Fabric For</label><input type="text" name="fabric_for" value="{{ order.style if order and order.style else (editing_challan.fabric_for if editing_challan else '') }}" class="w-full border rounded-lg p-2 bg-slate-100 cursor-not-allowed" readonly required></div>
                 <div><label class="block text-sm font-bold text-slate-500">Used FILE No</label><input type="text" name="used_file_no" value="{{ editing_challan.used_file_no if editing_challan and editing_challan.used_file_no else (order.file_no if order else '') }}" class="w-full border rounded-lg p-2 bg-slate-50" readonly required></div>
-                <div><label class="block text-sm font-bold text-slate-500">Fabric Quality</label><input type="text" name="fabric_quality" value="{{ editing_challan.fabric_quality if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
+                <div><label class="block text-sm font-bold text-slate-500">Fabric Quality</label><input type="text" name="fabric_quality" value="{{ order.article_name if order and order.article_name else (editing_challan.fabric_quality if editing_challan else '') }}" class="w-full border rounded-lg p-2 bg-slate-100 cursor-not-allowed" readonly required></div>
             </div>        
 
 
@@ -127,7 +127,7 @@
 
         <!-- Delivery Details -->
         <div class="grid grid-cols-4 gap-4 mb-6">
-            <div><label class="block text-sm font-bold text-slate-500">Bundles</label><input type="number" name="rolls" value="{{ editing_challan.rolls if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
+            <div><label id="rolls-label" class="block text-sm font-bold text-slate-500">{{ 'Bundles' if editing_challan and editing_challan.is_direct_cutting_pcs else 'Rolls' }}</label><input type="number" name="rolls" value="{{ editing_challan.rolls if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
             <div><label class="block text-sm font-bold text-slate-500">Vehicle No.</label><input type="text" name="vehicle_no" value="{{ editing_challan.vehicle_no if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
             <div><label class="block text-sm font-bold text-slate-500">Delivered By</label><input type="text" name="delivered_by" value="{{ editing_challan.delivered_by if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
             <div><label class="block text-sm font-bold text-slate-500">Driver Cell No.</label><input type="text" name="driver_cell_no" value="{{ editing_challan.driver_cell_no if editing_challan else '' }}" class="w-full border rounded-lg p-2" required></div>
@@ -258,6 +258,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     const directToggle = document.getElementById('direct-cutting-pcs-toggle');
+    const rollsLabel = document.getElementById('rolls-label');
     const directField = document.getElementById('direct-cutting-pcs-field');
     const directColumn = document.getElementById('challan-direct-cutting-pcs-column');
     const quantityGrid = document.getElementById('challan-quantity-grid');
@@ -277,6 +278,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const meterToCmInput = document.querySelector("input[name='meter_to_cm']");
     function syncDirectCuttingPcsMode() {
         const enabled = directToggle?.checked || false;
+        if (rollsLabel) rollsLabel.textContent = enabled ? 'Bundles' : 'Rolls';
         if (directField) directField.hidden = !enabled;
         if (directColumn) directColumn.hidden = !enabled;
         if (quantityGrid) {

@@ -55,7 +55,7 @@
                         <td class="px-3 py-2"><input type="hidden" name="item_id" value="{{ item.id }}" {% if read_only_profile %}disabled{% endif %}><input type="text" name="item_name" value="{{ item.item_name }}" class="w-full min-w-40 rounded-lg border border-slate-300 p-2" required {% if read_only_profile %}disabled{% endif %}></td>
                         <td class="px-3 py-2"><input type="text" name="specification" value="{{ item.specification or '' }}" class="w-full min-w-40 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
                         <td class="px-3 py-2"><select name="category" class="w-full min-w-56 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}><option value="">Select category</option>{% for category in item_categories %}<option value="{{ category }}" {% if item.category == category %}selected{% endif %}>{{ category }}</option>{% endfor %}</select></td>
-                        <td class="px-3 py-2"><input type="text" name="sku" value="{{ item.sku or '' }}" class="w-full min-w-32 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
+                        <td class="px-3 py-2"><input type="text" name="sku" value="{{ item.sku or '' }}" class="w-full min-w-32 rounded-lg border border-slate-300 bg-slate-50 p-2" readonly aria-label="Automatically generated SKU"></td>
                         <td class="px-3 py-2"><input type="text" name="material" value="{{ item.material or '' }}" class="w-full min-w-40 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
                         <td class="px-3 py-2"><input type="text" name="size" value="{{ item.size or '' }}" class="w-full min-w-32 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
                         <td class="px-3 py-2"><input type="text" name="unit" value="{{ item.unit or '' }}" list="unit-list" autocomplete="off" class="w-full min-w-28 rounded-lg border border-slate-300 p-2" {% if read_only_profile %}disabled{% endif %}></td>
@@ -80,7 +80,7 @@
         <td class="px-3 py-2"><input type="hidden" name="item_id" value=""><input type="text" name="item_name" class="w-full min-w-40 rounded border p-2" required></td>
         <td class="px-3 py-2"><input type="text" name="specification" class="w-full min-w-40 rounded border p-2"></td>
         <td class="px-3 py-2"><select name="category" class="w-full min-w-56 rounded border p-2"><option value="">Select category</option>{% for category in item_categories %}<option value="{{ category }}">{{ category }}</option>{% endfor %}</select></td>
-        <td class="px-3 py-2"><input type="text" name="sku" class="w-full min-w-32 rounded border p-2"></td>
+        <td class="px-3 py-2"><input type="text" name="sku" class="w-full min-w-32 rounded border bg-slate-50 p-2" readonly aria-label="Automatically generated SKU"></td>
         <td class="px-3 py-2"><input type="text" name="material" class="w-full min-w-40 rounded border p-2"></td>
         <td class="px-3 py-2"><input type="text" name="size" class="w-full min-w-32 rounded border p-2"></td>
         <td class="px-3 py-2"><input type="text" name="unit" list="unit-list" autocomplete="off" class="w-full min-w-28 rounded border p-2"></td>

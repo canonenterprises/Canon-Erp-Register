@@ -8,6 +8,7 @@
             <p class="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-700">Order Accessories</p>
             <h1 class="mt-1 text-2xl font-black text-slate-900">{{ order.job_no }} <span class="font-semibold text-slate-500">· {{ order.article_name or order.article or 'Article' }}</span></h1>
             <p class="mt-1 text-sm text-slate-600">Order quantity: {{ '{:,.2f}'.format(order_qty) }} pcs</p>
+            <p class="mt-1 text-sm font-semibold text-slate-600">B/Q Margin PCS: {{ '{:,.0f}'.format(bq_margin_pcs) }} pcs</p>
         </div>
         <div class="flex flex-wrap gap-2">
             <a href="{{ url_for('accessories_portal', order_id=order.job_no) }}" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"><i class="fa-solid fa-box-open"></i> Issue from stock</a>

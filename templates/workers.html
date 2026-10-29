@@ -217,6 +217,7 @@
 
 
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                {% if not is_coordinator %}
                 <div class="flex-1">
                     <label class="block text-s font-bold text-slate-500">Salary</label>
                     <input type="number" name="salary" min="0" step="0.01" value="{{ editing_worker.salary if editing_worker else '' }}" class="w-full border rounded p-2">
@@ -225,6 +226,7 @@
                     <label class="block text-s font-bold text-slate-500">Attendance Allowance</label>
                     <input type="number" name="attendance_allowance" min="0" step="0.01" value="{{ editing_worker.attendance_allowance if editing_worker else '' }}" class="w-full border rounded p-2">
                 </div>
+                {% endif %}
                 <div>
                     <label class="block text-s font-bold text-slate-500">Supervisor</label>
                     <input type="text" name="supervisor" value="{{ editing_worker.supervisor if editing_worker else '' }}" class="w-full border rounded p-2">
@@ -279,7 +281,7 @@
                 <label for="worker-directory-search" class="mb-2 block text-[12px] font-black uppercase tracking-[0.2em] text-black-800">Find a worker</label>
                 <div class="group relative flex w-full items-center rounded-2xl border border-slate-200 bg-slate-50 shadow-inner transition focus-within:border-cyan-400 focus-within:bg-white focus-within:shadow-lg focus-within:shadow-cyan-100/60">
                     <i class="fa-solid fa-magnifying-glass ml-5 text-slate-400 transition group-focus-within:text-cyan-600" aria-hidden="true"></i>
-                    <input id="worker-directory-search" type="search" placeholder="Search name, phone, Worker ID, CNIC, department, designation, type, status, salary, or sub-designation" autocomplete="off" class="w-full bg-transparent px-4 py-4 text-base font-semibold text-slate-800 outline-none placeholder:text-slate-400">
+                    <input id="worker-directory-search" type="search" placeholder="Search name, phone, Worker ID, CNIC, department, designation, type, status{% if not is_coordinator %}, salary{% endif %}, or sub-designation" autocomplete="off" class="w-full bg-transparent px-4 py-4 text-base font-semibold text-slate-800 outline-none placeholder:text-slate-400">
                     <button type="button" id="clear-worker-directory-search" class="mr-3 hidden shrink-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-500 transition hover:border-cyan-300 hover:bg-cyan-50 hover:text-cyan-700">Clear</button>
                 </div>
             </div>
@@ -295,14 +297,13 @@
                         <th class="p-2 border">Employment Type</th>
                         <th class="p-2 border">Status</th>
                         <th class="p-2 border">Sub Designation</th>
-                        <th class="p-2 border">Salary</th>
-                        <th class="p-2 border">Allowance</th>
+                        {% if not is_coordinator %}<th class="p-2 border">Salary</th><th class="p-2 border">Allowance</th>{% endif %}
                         <th class="p-2 border">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="worker-directory-results">
                     {% for w in workers %}
-                    <tr class="group" data-worker-search="{{ (w.name ~ ' ' ~ (w.phone or '') ~ ' ' ~ (w.worker_code or '') ~ ' ' ~ (w.cnic or '') ~ ' ' ~ (w.department or '') ~ ' ' ~ (w.employment_type or '') ~ ' ' ~ (w.role or '') ~ ' ' ~ (w.sub_designation or '') ~ ' ' ~ (w.salary if w.salary is not none else '') ~ ' ' ~ (w.status or 'Active'))|lower }}">
+                    <tr class="group" data-worker-search="{{ (w.name ~ ' ' ~ (w.phone or '') ~ ' ' ~ (w.worker_code or '') ~ ' ' ~ (w.cnic or '') ~ ' ' ~ (w.department or '') ~ ' ' ~ (w.employment_type or '') ~ ' ' ~ (w.role or '') ~ ' ' ~ (w.sub_designation or '') ~ (' ' ~ w.salary if not is_coordinator and w.salary is not none else '') ~ ' ' ~ (w.status or 'Active'))|lower }}">
                         <td class="p-2 border text-center">
                             {% if w.picture %}
                                 <img src="{{ url_for('static', filename='uploads/' ~ w.picture) }}" alt="pic" class="h-12 w-12 object-cover mx-auto rounded-full">
@@ -320,8 +321,7 @@
                             <span class="inline-flex rounded-full px-2 py-1 text-xs font-bold {% if w.status == 'Non-active' %}bg-rose-100 text-rose-700{% else %}bg-emerald-100 text-emerald-700{% endif %}">{{ w.status or 'Active' }}</span>
                         </td>
                         <td class="p-2 border">{{ w.sub_designation or '-' }}</td>
-                        <td class="p-2 border">{{ w.salary if w.salary is not none else '-' }}</td>
-                        <td class="p-2 border">{{ w.attendance_allowance if w.attendance_allowance is not none else '-' }}</td>
+                        {% if not is_coordinator %}<td class="p-2 border">{{ w.salary if w.salary is not none else '-' }}</td><td class="p-2 border">{{ w.attendance_allowance if w.attendance_allowance is not none else '-' }}</td>{% endif %}
                         <td class="p-2 border">
                             <div class="flex flex-wrap items-center justify-center gap-1">
                                 {% if not w.is_permanent %}
@@ -340,9 +340,9 @@
                         </td>
                     </tr>
                     {% else %}
-                    <tr id="worker-directory-empty"><td colspan="12" class="p-4 text-center text-slate-500">No workers yet.</td></tr>
+                    <tr id="worker-directory-empty"><td colspan="{{ 10 if is_coordinator else 12 }}" class="p-4 text-center text-slate-500">No workers yet.</td></tr>
                     {% endfor %}
-                    <tr id="worker-directory-no-results" class="hidden"><td colspan="12" class="p-4 text-center text-slate-500">No workers match your search.</td></tr>
+                    <tr id="worker-directory-no-results" class="hidden"><td colspan="{{ 10 if is_coordinator else 12 }}" class="p-4 text-center text-slate-500">No workers match your search.</td></tr>
                 </tbody>
             </table>
         </div>
