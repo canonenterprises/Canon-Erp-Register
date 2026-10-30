@@ -34,7 +34,7 @@
       <legend class="max-w-full whitespace-normal break-words px-1 text-xs font-bold text-slate-800 sm:col-span-3">{{ po_item.item }} · PO {{ po_item.qty }} {{ po_item.unit or 'PCS' }}</legend>
       <label class="text-[10px] font-bold text-slate-600">Received quantity ({{ po_item.unit or 'PCS' }})<input type="number" name="received_qty_{{ po_item.id }}" min="0.01" max="{{ po_item.qty }}" step="0.01" value="{{ po_item.qty }}" required class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-xs"></label>
       <label class="text-[10px] font-bold text-slate-600">Issue unit
-        <input id="issue-unit-field-{{ po_item.id }}" type="text" name="issue_unit_{{ po_item.id }}" value="{{ issue_unit_default }}" data-stock-unit="{{ po_item.unit or 'PCS' }}" data-conversion-field="issue-factor-{{ po_item.id }}" readonly required class="mt-1 w-full rounded border border-slate-300 bg-slate-100 px-2 py-1.5 text-xs">
+        <input id="issue-unit-field-{{ po_item.id }}" type="text" name="issue_unit_{{ po_item.id }}" value="{{ issue_unit_default }}" list="issue-unit-list-{{ po_item.id }}" data-stock-unit="{{ po_item.unit or 'PCS' }}" data-conversion-field="issue-factor-{{ po_item.id }}" autocomplete="off" required class="mt-1 w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-xs">
         <datalist id="issue-unit-list-{{ po_item.id }}"><option value="PCS"><option value="PAIR"><option value="DOZEN"><option value="GROSS"><option value="BUNDLE"><option value="PACK"><option value="ROLL"><option value="METER"><option value="INCH"><option value="CM"><option value="MM"><option value="FOOT"><option value="YARD"><option value="KG"><option value="GRAM"><option value="MG"><option value="LITER"><option value="ML"><option value="BOX"><option value="CONE"><option value="HANK"><option value="CARTON"><option value="OTHER"></datalist>
       </label>
       <label id="issue-factor-label-{{ po_item.id }}" class="text-[10px] font-bold text-slate-600">{% if issue_factor_mode == 'ISSUE_PER_STOCK' %}Issue units per 1 {{ stock_unit }}{% else %}PO units per 1 issue unit{% endif %}<input id="issue-factor-{{ po_item.id }}" type="number" name="issue_factor_{{ po_item.id }}" min="0.000001" step="any" value="{% if po_item.issue_unit %}{{ (1 / po_item.issue_unit_factor) if issue_factor_mode == 'ISSUE_PER_STOCK' and po_item.issue_unit_factor else po_item.issue_unit_factor or 1 }}{% elif issue_unit_default|lower == (po_item.unit or '')|lower %}1{% endif %}" data-auto-factor="" data-stock-unit="{{ po_item.unit or 'PCS' }}" data-mode-field="issue-factor-mode-{{ po_item.id }}" required class="mt-1 w-full rounded border border-slate-300 px-2 py-1.5 text-xs"><input id="issue-factor-mode-{{ po_item.id }}" type="hidden" name="issue_factor_mode_{{ po_item.id }}" value="{{ issue_factor_mode }}" data-package-stock="{{ 'true' if package_stock else 'false' }}" data-stock-unit="{{ po_item.unit or 'PCS' }}" data-issue-unit-field="issue-unit-field-{{ po_item.id }}"></label>
@@ -393,12 +393,12 @@
         {% endfor %}
       </div>
       <table class="w-full text-center text-sm">
-        <thead class="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500"><tr><th class="px-3 py-3">Item</th><th class="px-3 py-3">Size</th><th class="px-3 py-3">Quality</th><th class="px-3 py-3">Net Received</th><th class="px-3 py-3">Net Used</th><th class="px-3 py-3">Available</th><th class="px-3 py-3">Stock Level</th><th class="px-3 py-3">In Store</th></tr></thead>
+        <thead class="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500"><tr><th class="px-3 py-3">S. No</th><th class="px-3 py-3">Item</th><th class="px-3 py-3">Size</th><th class="px-3 py-3">Quality</th><th class="px-3 py-3">Net Received</th><th class="px-3 py-3">Net Used</th><th class="px-3 py-3">Available</th><th class="px-3 py-3">Stock Level</th><th class="px-3 py-3">In Store</th></tr></thead>
         <tbody>
           {% for stock in stock_positions %}
-          <tr data-consolidated-stock-row data-stock-category="{{ stock.category or '__uncategorized__' }}" class="border-y border-slate-200"><td class="px-3 py-3 font-bold text-slate-800">{{ stock.item }}{% if stock.roll_length_m %}<span class="block text-xs font-normal text-slate-500">{{ '{:g}'.format(stock.roll_length_m) }} m per roll</span>{% endif %}</td><td class="px-3 py-3">{{ stock.size or '-' }}</td><td class="px-3 py-3">{{ stock.quality or '-' }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.received) }} {{ stock.unit }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.issued) }} {{ stock.unit }}</td><td class="px-3 py-3 font-bold text-emerald-700">{{ '{:,.1f}'.format(stock.available) }} {{ stock.unit }}</td><td class="px-3 py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase {% if stock.stock_level == 'EXTREMELY LOW' %}bg-rose-100 text-rose-800{% elif stock.stock_level == 'LOW' %}bg-amber-100 text-amber-800{% else %}bg-emerald-100 text-emerald-800{% endif %}">{{ 'Extremely Low Stock' if stock.stock_level == 'EXTREMELY LOW' else 'Low Stock' if stock.stock_level == 'LOW' else 'Normal' }}</span><span class="mt-1 block text-[10px] text-slate-500">{{ '{:.1f}'.format(stock.available_percentage) }}% remaining</span></td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.located) }} {{ stock.unit }}</td></tr>
-          {% else %}<tr><td colspan="8" class="px-3 py-6 text-slate-500">No received accessories yet.</td></tr>{% endfor %}
-          {% if stock_positions %}<tr id="stock-category-no-results" hidden><td colspan="8" class="px-3 py-6 text-slate-500">No stock in this category.</td></tr>{% endif %}
+          <tr data-consolidated-stock-row data-stock-category="{{ stock.category or '__uncategorized__' }}" class="border-y border-slate-200"><td class="px-3 py-3">{{ loop.index }}</td><td class="px-3 py-3 font-bold text-slate-800">{{ stock.item }}{% if stock.roll_length_m %}<span class="block text-xs font-normal text-slate-500">{{ '{:g}'.format(stock.roll_length_m) }} m per roll</span>{% endif %}</td><td class="px-3 py-3">{{ stock.size or '-' }}</td><td class="px-3 py-3">{{ stock.quality or '-' }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.received) }} {{ stock.unit }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.issued) }} {{ stock.unit }}</td><td class="px-3 py-3 font-bold text-emerald-700">{{ '{:,.1f}'.format(stock.available) }} {{ stock.unit }}</td><td class="px-3 py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase {% if stock.stock_level == 'EXTREMELY LOW' %}bg-rose-100 text-rose-800{% elif stock.stock_level == 'LOW' %}bg-amber-100 text-amber-800{% else %}bg-emerald-100 text-emerald-800{% endif %}">{{ 'Extremely Low Stock' if stock.stock_level == 'EXTREMELY LOW' else 'Low Stock' if stock.stock_level == 'LOW' else 'Normal' }}</span><span class="mt-1 block text-[10px] text-slate-500">{{ '{:.1f}'.format(stock.available_percentage) }}% remaining</span></td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.located) }} {{ stock.unit }}</td></tr>
+          {% else %}<tr><td colspan="9" class="px-3 py-6 text-slate-500">No received accessories yet.</td></tr>{% endfor %}
+          {% if stock_positions %}<tr id="stock-category-no-results" hidden><td colspan="9" class="px-3 py-6 text-slate-500">No stock in this category.</td></tr>{% endif %}
         </tbody>
       </table>
     </section>
@@ -429,7 +429,10 @@
           stockRows.forEach(function (row) {
             const matches = selectedCategory === '*' || row.dataset.stockCategory === selectedCategory;
             row.hidden = !matches;
-            if (matches) visibleRows += 1;
+            if (matches) {
+              visibleRows += 1;
+              row.cells[0].textContent = String(visibleRows);
+            }
           });
           if (noCategoryResults) noCategoryResults.hidden = visibleRows > 0;
         });
@@ -486,7 +489,7 @@
             </td>
           </tr>
           <tr id="issue-details-{{ loop.index }}" data-issue-history-group="{{ loop.index }}" class="{% if not item.issue_history_entries %}hidden {% endif %}border-y border-cyan-200 bg-cyan-50/40">
-            <td class="p-0"></td>
+            <td class="bg-cyan-50 p-0"></td>
             <td colspan="6" class="p-0">
               <table class="w-full border-y border-cyan-200 text-center text-xs">
                 <thead class="bg-cyan-50 text-center text-[10px] uppercase tracking-wide text-slate-500">
@@ -690,12 +693,12 @@
       <div class="flex items-center gap-2"><button id="po-view-print" type="button" onclick="printPurchaseOrder()" class="rounded-lg bg-slate-900 px-3 py-2 text-xs font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-print mr-1" aria-hidden="true"></i>Print A5</button><button id="po-view-close" type="button" onclick="closePurchaseOrder()" aria-label="Close purchase order" class="rounded border border-slate-300 px-3 py-1.5 text-lg font-bold text-slate-600 hover:bg-slate-100">&times;</button></div>
     </header>
     <div class="space-y-5 p-5">
-      <dl id="po-view-meta" class="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-4"></dl>
+      <dl id="po-view-meta" class="grid gap-y-3 sm:grid-cols-2 lg:grid-cols-5 lg:divide-x lg:divide-slate-200"></dl>
       <div class="overflow-x-auto rounded border border-slate-200">
-        <table class="w-full min-w-[760px] text-sm">
-          <thead class="bg-slate-100 text-left text-[10px] uppercase tracking-wider text-slate-600"><tr><th class="px-3 py-2">Item</th><th class="px-3 py-2">Size</th><th class="px-3 py-2">Quality</th><th class="px-3 py-2 text-right">Qty</th><th class="px-3 py-2">Unit</th><th class="px-3 py-2 text-right">Rate</th><th class="px-3 py-2 text-right">Amount</th></tr></thead>
+        <table class="w-full min-w-[760px] text-center text-sm">
+          <thead class="bg-slate-100 text-center text-[10px] uppercase tracking-wider text-slate-600"><tr><th class="px-3 py-2">Item</th><th class="px-3 py-2">Size</th><th class="px-3 py-2">Quality</th><th class="px-3 py-2">Qty</th><th class="px-3 py-2">Unit</th><th class="px-3 py-2">Rate</th><th class="px-3 py-2">Amount</th></tr></thead>
           <tbody id="po-view-items"></tbody>
-          <tfoot class="border-t-2 border-slate-800 bg-slate-50 font-black"><tr><td colspan="6" class="px-3 py-3 text-right">Grand Total</td><td id="po-view-total" class="px-3 py-3 text-right"></td></tr></tfoot>
+          <tfoot class="border-t-2 border-slate-800 bg-slate-50 font-black"><tr><td colspan="6" class="px-3 py-3 text-center">Grand Total</td><td id="po-view-total" class="px-3 py-3 text-center"></td></tr></tfoot>
         </table>
       </div>
     </div>
@@ -1557,6 +1560,11 @@ document.addEventListener('DOMContentLoaded', function () {
   const poCurrencyFormat = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   let activePurchaseOrder = null;
 
+  function formatPurchaseOrderDate(value) {
+    const dateParts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || '').trim());
+    return dateParts ? `${dateParts[3]}-${dateParts[2]}-${dateParts[1]}` : value || '';
+  }
+
   function openPurchaseOrder(poId) {
     const po = purchaseOrderData[String(poId)];
     if (!po) return;
@@ -1569,19 +1577,17 @@ document.addEventListener('DOMContentLoaded', function () {
     const meta = document.getElementById('po-view-meta');
     meta.replaceChildren();
     for (const [label, value] of [
-      ['Order', po.order_id], ['Company', po.company], ['Supplier', po.supplier], ['Date', po.date],
-      ['Bought By', po.bought_by],
-      ['Requested By', po.requested_by], ['Priority', po.priority],
-      ['For', po.for_field]
+      ['Date', formatPurchaseOrderDate(po.date)], ['Supplier', po.supplier],
+      ['Requested By', po.requested_by], ['Bought By', po.bought_by], ['Priority', po.priority]
     ]) {
       if (!value) continue;
       const wrapper = document.createElement('div');
-      wrapper.className = 'po-meta-field min-w-0';
+      wrapper.className = 'po-meta-field min-w-0 text-center lg:px-3 first:lg:pl-0 last:lg:pr-0';
       const heading = document.createElement('dt');
       heading.className = 'text-[10px] font-bold uppercase tracking-wider text-slate-500';
       heading.textContent = label;
       const detail = document.createElement('dd');
-      detail.className = 'po-meta-value mt-0.5 text-sm font-semibold text-slate-800';
+      detail.className = 'po-meta-value mt-0.5 break-words text-sm font-semibold text-slate-800';
       detail.textContent = value;
       wrapper.append(heading, detail);
       meta.appendChild(wrapper);
@@ -1596,10 +1602,10 @@ document.addEventListener('DOMContentLoaded', function () {
         [item.item, 'px-3 py-2 font-bold'],
         [item.size || '—', 'px-3 py-2'],
         [item.quality || '—', 'px-3 py-2'],
-        [item.quantity, 'px-3 py-2 text-right'],
+        [item.quantity, 'px-3 py-2'],
         [item.unit, 'px-3 py-2'],
-        [poCurrencyFormat.format(item.rate || 0), 'px-3 py-2 text-right'],
-        [poCurrencyFormat.format(item.amount || 0), 'px-3 py-2 text-right font-semibold']
+        [poCurrencyFormat.format(item.rate || 0), 'px-3 py-2'],
+        [poCurrencyFormat.format(item.amount || 0), 'px-3 py-2 font-semibold']
       ]) {
         const cell = document.createElement('td');
         cell.className = className;
@@ -1638,20 +1644,33 @@ document.addEventListener('DOMContentLoaded', function () {
         html, body { width: 200mm; height: 138mm; margin: 0; padding: 0; }
         body { color: #000; font-family: Arial, sans-serif; }
         #po-print-page { width: 200mm; height: 136mm; overflow: hidden; break-inside: avoid; page-break-inside: avoid; break-after: avoid; page-break-after: avoid; }
-        #po-print-content { width: 200mm; padding: 1mm; transform-origin: top left; }
-        .po-print-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #000; padding-bottom: 3mm; }
-        .po-print-eyebrow { margin: 0 0 1mm; color: #000; font-size: 7pt; font-weight: 700; text-transform: uppercase; }
-        .po-print-title { margin: 0; font-size: 15pt; font-weight: 800; }
+        #po-print-content { display: flex; width: 200mm; min-height: 136mm; flex-direction: column; padding: 1mm; transform-origin: top left; }
+        #po-print-content > * { flex-shrink: 0; }
+        .po-print-letterhead { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid #000; padding-bottom: 2mm; }
+        .po-print-logo { display: block; width: 48mm; height: 18mm; object-fit: contain; object-position: left center; }
+        .po-print-address { max-width: 82mm; margin: 0; font-size: 7pt; line-height: 1.35; text-align: right; white-space: pre-line; }
+        .po-print-title { margin: 3mm 0 1mm; font-size: 13pt; font-weight: 800; text-align: center; }
+        .po-print-order-details { display: flex; align-items: center; justify-content: center; gap: 4mm; margin-bottom: 2mm; }
         .po-print-status { border: 3px double #000; border-radius: 0; background: #fff; color: #000; padding: 2mm 4mm; font-size: 10pt; font-weight: 900; text-align: center; text-transform: uppercase; transform: rotate(-2deg); }
-        .po-print-meta { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 2mm; margin: 3mm 0; }
-        .po-print-meta-label { margin: 0; color: #000; font-size: 8pt; font-weight: 700; text-transform: uppercase; }
-        .po-print-meta-value { margin: 1mm 0 0; font-size: 9pt; font-weight: 700; white-space: nowrap; }
+        .po-print-number { margin: 0; font-size: 9pt; font-weight: 700; text-align: center; }
+        .po-print-meta { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin: 3mm 0; }
+        .po-print-meta > div { min-width: 0; padding: 0 2mm; border-right: 1px solid #000; }
+        .po-print-meta > div:first-child { padding-left: 0; }
+        .po-print-meta > div:last-child { padding-right: 0; border-right: 0; }
+        .po-print-meta-label { margin: 0; color: #000; font-size: 8pt; font-weight: 700; text-align: center; text-transform: uppercase; }
+        .po-print-meta-value { margin: 1mm 0 0; font-size: 9pt; font-weight: 700; overflow-wrap: anywhere; text-align: center; }
         table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 9pt; }
         thead { background: #fff; }
         th, td { border: 1px solid #000; color: #000; padding: 2mm 1.5mm; text-align: center; vertical-align: middle; overflow-wrap: anywhere; }
         th { font-size: 8pt; text-transform: uppercase; }
         .po-print-number { text-align: center; white-space: nowrap; }
         tfoot { background: #fff; font-weight: 800; }
+        .po-print-signatures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20mm; margin: auto 12mm 0; padding-top: 10mm; }
+        .po-print-signatures-received { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12mm; }
+        .po-print-signature { font-size: 8pt; font-weight: 700; text-align: center; }
+        .po-print-signature-line { border-top: 1px solid #000; }
+        .po-print-signature-name { min-height: 4mm; margin: 1mm 0 0; font-size: 8pt; font-weight: 700; }
+        .po-print-signature-label { margin: 0; font-size: 8pt; font-weight: 700; }
         @media print { html, body { overflow: hidden; } }
       `;
       printDocument.head.appendChild(style);
@@ -1663,27 +1682,41 @@ document.addEventListener('DOMContentLoaded', function () {
       page.appendChild(content);
 
       const header = printDocument.createElement('header');
-      header.className = 'po-print-header';
-      const heading = printDocument.createElement('div');
-      const eyebrow = printDocument.createElement('p');
-      eyebrow.className = 'po-print-eyebrow';
-      eyebrow.textContent = 'Purchase Order';
+      header.className = 'po-print-letterhead';
+      const logo = printDocument.createElement('img');
+      logo.className = 'po-print-logo';
+      logo.src = activePurchaseOrder.logo_url;
+      logo.alt = `${activePurchaseOrder.company || 'Company'} logo`;
+      const address = printDocument.createElement('p');
+      address.className = 'po-print-address';
+      address.textContent = activePurchaseOrder.company_address || '';
+      header.append(logo, address);
+      content.appendChild(header);
+
       const title = printDocument.createElement('h1');
       title.className = 'po-print-title';
-      title.textContent = `P.O. ${activePurchaseOrder.po_no || '—'}`;
-      heading.append(eyebrow, title);
+      title.textContent = activePurchaseOrder.is_local
+        ? `LOCAL PURCHASE ORDER - ${(activePurchaseOrder.company || 'Canon').toUpperCase()} COPY`
+        : 'PURCHASE ORDER';
+      content.appendChild(title);
+
+      const orderDetails = printDocument.createElement('div');
+      orderDetails.className = 'po-print-order-details';
+      const poNumber = printDocument.createElement('p');
+      poNumber.className = 'po-print-number';
+      poNumber.textContent = `P.O. ${activePurchaseOrder.po_no || '—'}`;
       const status = printDocument.createElement('span');
       status.className = 'po-print-status';
       status.textContent = activePurchaseOrder.status || 'PENDING';
-      header.append(heading, status);
-      content.appendChild(header);
+      orderDetails.append(poNumber, status);
+      content.appendChild(orderDetails);
 
       const meta = printDocument.createElement('section');
       meta.className = 'po-print-meta';
       for (const [label, value] of [
-        ['Order', activePurchaseOrder.order_id], ['Supplier', activePurchaseOrder.supplier],
-        ['Date', activePurchaseOrder.date], ['Requested By', activePurchaseOrder.requested_by],
-        ['Priority', activePurchaseOrder.priority], ['For', activePurchaseOrder.for_field]
+        ['Date', formatPurchaseOrderDate(activePurchaseOrder.date)], ['Supplier', activePurchaseOrder.supplier],
+        ['Requested By', activePurchaseOrder.requested_by], ['Bought By', activePurchaseOrder.bought_by],
+        ['Priority', activePurchaseOrder.priority]
       ]) {
         if (!value) continue;
         const cell = printDocument.createElement('div');
@@ -1737,6 +1770,29 @@ document.addEventListener('DOMContentLoaded', function () {
       foot.appendChild(totalRow);
       table.appendChild(foot);
       content.appendChild(table);
+
+      const signatures = printDocument.createElement('footer');
+      const isReceived = activePurchaseOrder.status === 'RECEIVED';
+      signatures.className = `po-print-signatures${isReceived ? ' po-print-signatures-received' : ''}`;
+      const signatureLabels = isReceived
+        ? ['PREPARED BY', 'RECEIVED BY', 'DELIVERED BY']
+        : ['PREPARED BY', 'AUTHORIZED BY'];
+      for (const label of signatureLabels) {
+        const signature = printDocument.createElement('div');
+        signature.className = 'po-print-signature';
+        const line = printDocument.createElement('div');
+        line.className = 'po-print-signature-line';
+        const name = printDocument.createElement('p');
+        name.className = 'po-print-signature-name';
+        name.textContent = label === 'PREPARED BY' ? activePurchaseOrder.prepared_by || '' : '';
+        const caption = printDocument.createElement('p');
+        caption.className = 'po-print-signature-label';
+        caption.textContent = label;
+        if (label === 'PREPARED BY') signature.append(name, line, caption);
+        else signature.append(line, name, caption);
+        signatures.appendChild(signature);
+      }
+      content.appendChild(signatures);
       printDocument.body.appendChild(page);
 
       const printableWidth = 200 * 96 / 25.4;

@@ -32,19 +32,20 @@
 
     <section class="space-y-4">
       <div class="flex flex-wrap items-end justify-between gap-3"><div><h2 class="text-xl font-black text-slate-950">Bill register</h2><p class="mt-1 text-sm text-slate-500">Payment history is retained for each bill.</p></div><form id="utility-bill-search-form" method="get" class="flex w-full sm:max-w-md"><label for="utility-bill-search" class="sr-only">Search utility bills</label><input id="utility-bill-search" type="search" name="q" value="{{ search }}" autocomplete="off" placeholder="Provider, type or account" class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm"></form></div>
-      <div class="w-full min-w-0 border-y border-slate-200"><table class="bill-register-table w-full min-w-0 table-fixed text-left text-xs"><colgroup><col style="width:12%"><col style="width:7%"><col style="width:11%"><col style="width:13%"><col style="width:10%"><col style="width:9%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:14%"></colgroup><thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-2 py-3">Utility / Provider</th><th class="px-2 py-3">Period</th><th class="px-2 py-3">Account</th><th class="px-2 py-3">Meter / Location</th><th class="px-2 py-3">Bill / Due</th><th class="px-2 py-3 text-right">Amount</th><th class="px-2 py-3 text-right">Paid</th><th class="px-2 py-3 text-right">Balance</th><th class="px-2 py-3">Status</th><th class="px-2 py-3">Payment</th></tr></thead>
+      {% if can_delete_bills %}<form id="utility-bill-delete-form" method="post" class="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200 py-3"><input type="hidden" name="action" value="delete_bills"><label class="inline-flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" data-select-visible-bills class="h-4 w-4 rounded border-slate-300"> Select visible</label><div class="flex items-center gap-3"><span data-selected-bill-count class="text-sm text-slate-500">0 selected</span><button type="submit" data-delete-selected-bills disabled class="rounded bg-rose-700 px-3 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Delete selected</button></div></form>{% endif %}
+      <div class="w-full min-w-0 border-y border-slate-200"><table class="bill-register-table w-full min-w-0 table-fixed text-left text-xs"><colgroup><col style="width:8%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:12%"><col style="width:9%"><col style="width:9%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:13%"></colgroup><thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-2 py-3">S.No</th><th class="px-2 py-3">Utility / Provider</th><th class="px-2 py-3">Period</th><th class="px-2 py-3">Account</th><th class="px-2 py-3">Meter / Location</th><th class="px-2 py-3">Bill / Due</th><th class="px-2 py-3 text-right">Amount</th><th class="px-2 py-3 text-right">Paid</th><th class="px-2 py-3 text-right">Balance</th><th class="px-2 py-3">Status</th><th class="px-2 py-3">Payment</th></tr></thead>
         <tbody class="divide-y divide-slate-100">
           {% for row in rows %}
           {% if row.payment_owner and row.group_size == 1 %}
-          <tr aria-hidden="true" data-utility-bill-id="{{ row.bill.id }}" class="utility-bill-separator"><td colspan="10" class="h-2 border-t-4 border-double border-slate-400 bg-slate-50 p-0"></td></tr>
+          <tr aria-hidden="true" data-utility-bill-id="{{ row.bill.id }}" class="utility-bill-separator"><td colspan="11" class="h-2 border-t-4 border-double border-slate-400 bg-slate-50 p-0"></td></tr>
           {% endif %}
-          {% if row.payment_owner %}<tr hidden style="display: none;" data-utility-bill-summary data-utility-bill-id="{{ row.bill.id }}" data-search="{{ (row.bill.utility_type ~ ' ' ~ row.bill.provider ~ ' ' ~ row.bill.account_reference ~ ' ' ~ row.bill.billing_period)|lower }}" data-line-count="{{ row.group_size }}" data-amount="{{ row.bill.amount }}" data-paid="{{ row.group_paid }}" data-balance="{{ row.group_balance }}"><td colspan="10"></td></tr>{% endif %}
+          {% if row.payment_owner %}<tr hidden style="display: none;" data-utility-bill-summary data-utility-bill-id="{{ row.bill.id }}" data-search="{{ (row.bill.utility_type ~ ' ' ~ row.bill.provider ~ ' ' ~ row.bill.account_reference ~ ' ' ~ row.bill.billing_period)|lower }}" data-line-count="{{ row.group_size }}" data-amount="{{ row.bill.amount }}" data-paid="{{ row.group_paid }}" data-balance="{{ row.group_balance }}"><td colspan="11"></td></tr>{% endif %}
           {% if row.payment_owner and row.group_size > 1 %}
-          <tr data-utility-bill-id="{{ row.bill.id }}" class="bill-group-header border-t-2 border-slate-300 bg-slate-100"><td colspan="10" class="px-4 py-3"><div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-center"><div><span class="font-black text-slate-950">COMBINED BILL · {{ row.bill.utility_type }} · {{ row.bill.provider }}</span><span class="ml-2 text-xs font-bold uppercase text-slate-500">{{ row.group_size }} detail lines</span><p class="mt-1 text-xs text-slate-600">Period {{ row.bill.billing_period }} · Account {{ row.bill.account_reference or '—' }} · Bill date {{ row.bill.bill_date }}{% if row.bill.due_date %} · Due {{ row.bill.due_date }}{% endif %}</p></div><div class="flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm"><span><span class="font-bold">Combined:</span> PKR {{ '{:,.2f}'.format(row.bill.amount) }}</span><span class="text-emerald-800"><span class="font-bold">Paid:</span> PKR {{ '{:,.2f}'.format(row.group_paid) }}</span><span class="font-bold text-rose-800"><span>Status:</span> {{ row.group_status }} · Balance PKR {{ '{:,.2f}'.format(row.group_balance) }}</span></div></div></td></tr>
+          <tr data-utility-bill-id="{{ row.bill.id }}" class="bill-group-header border-t-2 border-slate-300 bg-slate-100"><td colspan="11" class="px-4 py-3"><div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-center"><div><span class="font-black text-slate-950">COMBINED BILL · {{ row.bill.utility_type }} · {{ row.bill.provider }}</span><span class="ml-2 text-xs font-bold uppercase text-slate-500">{{ row.group_size }} detail lines</span><p class="mt-1 text-xs text-slate-600">Period {{ row.bill.billing_period }} · Account {{ row.bill.account_reference or '—' }} · Bill date {{ row.bill.bill_date }}{% if row.bill.due_date %} · Due {{ row.bill.due_date }}{% endif %}</p></div><div class="flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm"><span><span class="font-bold">Combined:</span> PKR {{ '{:,.2f}'.format(row.bill.amount) }}</span><span class="text-emerald-800"><span class="font-bold">Paid:</span> PKR {{ '{:,.2f}'.format(row.group_paid) }}</span><span class="font-bold text-rose-800"><span>Status:</span> {{ row.group_status }} · Balance PKR {{ '{:,.2f}'.format(row.group_balance) }}</span></div></div></td></tr>
           {% endif %}
-          <tr data-utility-bill-id="{{ row.bill.id }}" class="hover:bg-slate-50"><td class="px-3 py-3"><span class="font-black text-slate-900">{{ row.bill.utility_type }}</span><span class="block text-xs text-slate-500">{{ row.bill.provider }}</span></td><td class="px-3 py-3">{{ row.bill.billing_period }}</td><td class="px-3 py-3">{{ row.bill.account_reference or '—' }}</td><td class="px-3 py-3">{% if row.summary_row %}<span class="font-bold">{{ row.summary_row.meter_no }}</span>{% if row.summary_row.bill_no %}<span class="block text-xs text-slate-500">Bill {{ row.summary_row.bill_no }}</span>{% endif %}{% if row.summary_row.location %}<span class="block text-xs text-slate-500">{{ row.summary_row.location }}</span>{% endif %}{% else %}—{% endif %}</td><td class="px-3 py-3">{{ row.bill.bill_date }}{% if row.bill.due_date %}<span class="block text-xs text-slate-500">Due {{ row.bill.due_date }}</span>{% endif %}</td><td class="px-3 py-3 text-right font-bold">{{ '{:,.2f}'.format(row.amount) }}</td><td class="px-3 py-3 text-right text-emerald-700">{{ '{:,.2f}'.format(row.paid) }}</td><td class="px-3 py-3 text-right font-bold text-rose-700">{{ '{:,.2f}'.format(row.balance) }}</td><td class="px-3 py-3"><span class="rounded-full px-2.5 py-1 text-[10px] font-black {% if row.status == 'PAID' %}bg-emerald-100 text-emerald-800{% elif row.status == 'OVERDUE' %}bg-rose-100 text-rose-800{% elif row.status == 'PARTIAL' %}bg-amber-100 text-amber-800{% else %}bg-slate-100 text-slate-700{% endif %}">{{ row.status }}</span></td><td class="px-3 py-3">{% if row.payment_owner and row.payment_balance > 0 %}<details><summary class="cursor-pointer font-bold text-sky-800">Record payment</summary><form method="post" enctype="multipart/form-data" data-utility-payment-form class="mt-2 grid w-64 gap-2"><input type="hidden" name="action" value="record_payment"><input type="hidden" name="bill_id" value="{{ row.bill.id }}"><input type="number" name="amount" min="0.01" max="{{ row.payment_balance }}" step="0.01" required placeholder="Amount" class="rounded border border-slate-300 px-2 py-1.5"><input type="date" name="paid_on" value="{{ today }}" required class="rounded border border-slate-300 px-2 py-1.5"><select name="method" data-payment-method class="rounded border border-slate-300 px-2 py-1.5">{% for method in payment_methods %}<option value="{{ method }}">{{ method }}</option>{% endfor %}</select><div data-transfer-fields hidden><label class="grid gap-1 text-xs font-bold text-slate-600">TID<input name="tid" maxlength="100" required disabled class="rounded border border-slate-300 px-2 py-1.5"></label><label class="grid gap-1 text-xs font-bold text-slate-600">Proof of payment<input type="file" name="proof_of_payment" accept="image/png,image/jpeg,image/webp,application/pdf" required disabled class="min-w-0 rounded border border-slate-300 px-2 py-1.5 text-xs"></label></div><div data-cheque-fields hidden><label class="grid gap-1 text-xs font-bold text-slate-600">Cheque number<input name="cheque_number" maxlength="100" required disabled class="rounded border border-slate-300 px-2 py-1.5"></label><label class="grid gap-1 text-xs font-bold text-slate-600">Cheque picture<input type="file" name="cheque_image" accept="image/png,image/jpeg,image/webp" required disabled class="min-w-0 rounded border border-slate-300 px-2 py-1.5 text-xs"></label></div><input name="reference" maxlength="100" placeholder="Reference" class="rounded border border-slate-300 px-2 py-1.5"><button class="rounded bg-sky-700 px-3 py-2 text-xs font-bold text-white">Save payment</button></form></details>{% elif row.payment_owner and row.paid > 0 %}{% set payment_dialog_id = 'payment-details-' ~ row.bill.id ~ '-' ~ loop.index %}<button type="button" onclick="document.getElementById('{{ payment_dialog_id }}').showModal()" class="rounded border border-slate-300 px-3 py-2 text-xs font-bold text-slate-800">View Details</button><dialog id="{{ payment_dialog_id }}" aria-labelledby="{{ payment_dialog_id }}-title" class="max-h-[85vh] w-[min(44rem,calc(100%-2rem))] max-w-none rounded-md border border-slate-300 p-0 shadow-xl backdrop:bg-black/50"><div class="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div><h2 id="{{ payment_dialog_id }}-title" class="text-lg font-black">Payment details</h2><p class="mt-1 text-sm text-slate-500">{{ row.bill.provider }} · {{ row.bill.billing_period }}</p></div><form method="dialog"><button aria-label="Close payment details" class="rounded border border-slate-300 px-3 py-2 text-sm font-bold">Close</button></form></div><div class="max-h-[60vh] space-y-4 overflow-y-auto px-5 py-4">{% for payment in row.bill.payments %}<article class="border-b border-slate-200 pb-4 last:border-0"><div class="flex flex-wrap justify-between gap-2"><strong class="text-slate-950">PKR {{ '{:,.2f}'.format(payment.amount) }}</strong><span class="text-sm text-slate-600">{{ payment.paid_on }}</span></div><p class="mt-1 text-sm"><span class="font-bold">Method:</span> {{ payment.method }}</p>{% if payment.method == 'Bank Transfer' %}<p class="mt-1 text-sm"><span class="font-bold">TID:</span> {{ payment.tid or '—' }}</p>{% if payment.proof_of_payment %}<a href="{{ payment.proof_of_payment }}" target="_blank" rel="noopener" class="mt-2 inline-block text-sm font-bold text-sky-800 underline">View proof of payment</a>{% endif %}{% elif payment.method == 'Cheque' %}<p class="mt-1 text-sm"><span class="font-bold">Cheque number:</span> {{ payment.cheque_number or '—' }}</p>{% if payment.cheque_image %}<a href="{{ payment.cheque_image }}" target="_blank" rel="noopener" class="mt-2 inline-block text-sm font-bold text-sky-800 underline">View cheque picture</a>{% endif %}{% endif %}{% if payment.reference %}<p class="mt-1 text-sm"><span class="font-bold">Reference:</span> {{ payment.reference }}</p>{% endif %}{% if payment.notes %}<p class="mt-1 text-sm"><span class="font-bold">Notes:</span> {{ payment.notes }}</p>{% endif %}{% if payment.paid_by %}<p class="mt-1 text-sm"><span class="font-bold">Recorded by:</span> {{ payment.paid_by }}</p>{% endif %}</article>{% endfor %}</div><div class="flex justify-end border-t border-slate-200 px-5 py-4"><a href="{{ url_for('utility_bill_invoice', bill_id=row.bill.id) }}" class="rounded bg-sky-800 px-4 py-2.5 text-sm font-bold text-white">View Voucher</a></div></dialog>{% endif %}</td></tr>
+          <tr data-utility-bill-detail data-utility-bill-id="{{ row.bill.id }}" class="hover:bg-slate-50"><td data-utility-bill-serial class="px-2 py-3"></td><td class="px-3 py-3"><span class="font-black text-slate-900">{{ row.bill.utility_type }}</span><span class="block text-xs text-slate-500">{{ row.bill.provider }}</span></td><td class="px-3 py-3">{{ row.bill.billing_period }}</td><td class="px-3 py-3">{{ row.bill.account_reference or '—' }}</td><td class="px-3 py-3">{% if row.summary_row %}<span class="font-bold">{{ row.summary_row.meter_no }}</span>{% if row.summary_row.bill_no %}<span class="block text-xs text-slate-500">Bill {{ row.summary_row.bill_no }}</span>{% endif %}{% if row.summary_row.location %}<span class="block text-xs text-slate-500">{{ row.summary_row.location }}</span>{% endif %}{% else %}—{% endif %}</td><td class="px-3 py-3">{{ row.bill.bill_date }}{% if row.bill.due_date %}<span class="block text-xs text-slate-500">Due {{ row.bill.due_date }}</span>{% endif %}</td><td class="px-3 py-3 text-right font-bold">{{ '{:,.2f}'.format(row.amount) }}</td><td class="px-3 py-3 text-right text-emerald-700">{{ '{:,.2f}'.format(row.paid) }}</td><td class="px-3 py-3 text-right font-bold text-rose-700">{{ '{:,.2f}'.format(row.balance) }}</td><td class="px-3 py-3"><span class="rounded-full px-2.5 py-1 text-[10px] font-black {% if row.status == 'PAID' %}bg-emerald-100 text-emerald-800{% elif row.status == 'OVERDUE' %}bg-rose-100 text-rose-800{% elif row.status == 'PARTIAL' %}bg-amber-100 text-amber-800{% else %}bg-slate-100 text-slate-700{% endif %}">{{ row.status }}</span></td><td class="px-3 py-3">{% if row.payment_owner and row.payment_balance > 0 %}<details><summary class="cursor-pointer font-bold text-sky-800">Record payment</summary><form method="post" enctype="multipart/form-data" data-utility-payment-form class="mt-2 grid w-64 gap-2"><input type="hidden" name="action" value="record_payment"><input type="hidden" name="bill_id" value="{{ row.bill.id }}"><input type="number" name="amount" min="0.01" max="{{ row.payment_balance }}" step="0.01" required placeholder="Amount" class="rounded border border-slate-300 px-2 py-1.5"><input type="date" name="paid_on" value="{{ today }}" required class="rounded border border-slate-300 px-2 py-1.5"><select name="method" data-payment-method class="rounded border border-slate-300 px-2 py-1.5">{% for method in payment_methods %}<option value="{{ method }}">{{ method }}</option>{% endfor %}</select><div data-transfer-fields hidden><label class="grid gap-1 text-xs font-bold text-slate-600">TID<input name="tid" maxlength="100" required disabled class="rounded border border-slate-300 px-2 py-1.5"></label><label class="grid gap-1 text-xs font-bold text-slate-600">Proof of payment<input type="file" name="proof_of_payment" accept="image/png,image/jpeg,image/webp,application/pdf" required disabled class="min-w-0 rounded border border-slate-300 px-2 py-1.5 text-xs"></label></div><div data-cheque-fields hidden><label class="grid gap-1 text-xs font-bold text-slate-600">Cheque number<input name="cheque_number" maxlength="100" required disabled class="rounded border border-slate-300 px-2 py-1.5"></label><label class="grid gap-1 text-xs font-bold text-slate-600">Cheque picture<input type="file" name="cheque_image" accept="image/png,image/jpeg,image/webp" required disabled class="min-w-0 rounded border border-slate-300 px-2 py-1.5 text-xs"></label></div><input name="reference" maxlength="100" placeholder="Reference" class="rounded border border-slate-300 px-2 py-1.5"><button class="rounded bg-sky-700 px-3 py-2 text-xs font-bold text-white">Save payment</button></form></details>{% elif row.payment_owner and row.paid > 0 %}{% set payment_dialog_id = 'payment-details-' ~ row.bill.id ~ '-' ~ loop.index %}<button type="button" onclick="document.getElementById('{{ payment_dialog_id }}').showModal()" class="rounded border border-slate-300 px-3 py-2 text-xs font-bold text-slate-800">View Details</button><dialog id="{{ payment_dialog_id }}" aria-labelledby="{{ payment_dialog_id }}-title" class="max-h-[85vh] w-[min(44rem,calc(100%-2rem))] max-w-none rounded-md border border-slate-300 p-0 shadow-xl backdrop:bg-black/50"><div class="flex items-center justify-between border-b border-slate-200 px-5 py-4"><div><h2 id="{{ payment_dialog_id }}-title" class="text-lg font-black">Payment details</h2><p class="mt-1 text-sm text-slate-500">{{ row.bill.provider }} · {{ row.bill.billing_period }}</p></div><form method="dialog"><button aria-label="Close payment details" class="rounded border border-slate-300 px-3 py-2 text-sm font-bold">Close</button></form></div><div class="max-h-[60vh] space-y-4 overflow-y-auto px-5 py-4">{% for payment in row.bill.payments %}<article class="border-b border-slate-200 pb-4 last:border-0"><div class="flex flex-wrap justify-between gap-2"><strong class="text-slate-950">PKR {{ '{:,.2f}'.format(payment.amount) }}</strong><span class="text-sm text-slate-600">{{ payment.paid_on }}</span></div><p class="mt-1 text-sm"><span class="font-bold">Method:</span> {{ payment.method }}</p>{% if payment.method == 'Bank Transfer' %}<p class="mt-1 text-sm"><span class="font-bold">TID:</span> {{ payment.tid or '—' }}</p>{% if payment.proof_of_payment %}<a href="{{ payment.proof_of_payment }}" target="_blank" rel="noopener" class="mt-2 inline-block text-sm font-bold text-sky-800 underline">View proof of payment</a>{% endif %}{% elif payment.method == 'Cheque' %}<p class="mt-1 text-sm"><span class="font-bold">Cheque number:</span> {{ payment.cheque_number or '—' }}</p>{% if payment.cheque_image %}<a href="{{ payment.cheque_image }}" target="_blank" rel="noopener" class="mt-2 inline-block text-sm font-bold text-sky-800 underline">View cheque picture</a>{% endif %}{% endif %}{% if payment.reference %}<p class="mt-1 text-sm"><span class="font-bold">Reference:</span> {{ payment.reference }}</p>{% endif %}{% if payment.notes %}<p class="mt-1 text-sm"><span class="font-bold">Notes:</span> {{ payment.notes }}</p>{% endif %}{% if payment.paid_by %}<p class="mt-1 text-sm"><span class="font-bold">Recorded by:</span> {{ payment.paid_by }}</p>{% endif %}</article>{% endfor %}</div><div class="flex justify-end border-t border-slate-200 px-5 py-4"><a href="{{ url_for('utility_bill_invoice', bill_id=row.bill.id) }}" class="rounded bg-sky-800 px-4 py-2.5 text-sm font-bold text-white">View Voucher</a></div></dialog>{% endif %}</td></tr>
           {% endfor %}
-          <tr id="utility-bills-no-results" {% if rows %}hidden{% endif %}><td colspan="10" class="px-3 py-10 text-center text-slate-500">No utility bills match this view.</td></tr>
+          <tr id="utility-bills-no-results" {% if rows %}hidden{% endif %}><td colspan="11" class="px-3 py-10 text-center text-slate-500">No utility bills match this view.</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -123,16 +124,17 @@
     text-transform: uppercase;
   }
 
-  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(1)::before { content: "Utility / Provider"; }
-  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(2)::before { content: "Period"; }
-  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(3)::before { content: "Account"; }
-  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(4)::before { content: "Meter / Location"; }
-  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(5)::before { content: "Bill / Due"; }
-  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(6)::before { content: "Amount"; }
-  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(7)::before { content: "Paid"; }
-  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(8)::before { content: "Balance"; }
-  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(9)::before { content: "Status"; }
-  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(10)::before { content: "Payment"; }
+  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(1)::before { content: "S.No"; }
+  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(2)::before { content: "Utility / Provider"; }
+  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(3)::before { content: "Period"; }
+  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(4)::before { content: "Account"; }
+  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(5)::before { content: "Meter / Location"; }
+  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(6)::before { content: "Bill / Due"; }
+  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(7)::before { content: "Amount"; }
+  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(8)::before { content: "Paid"; }
+  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(9)::before { content: "Balance"; }
+  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(10)::before { content: "Status"; }
+  .bill-register-table tbody > tr:not([aria-hidden="true"]):not(.bill-group-header) td:nth-child(11)::before { content: "Payment"; }
 
   .bill-register-table tbody > tr[aria-hidden="true"] {
     display: none;
@@ -216,8 +218,75 @@ document.querySelectorAll('[data-utility-payment-form]').forEach(form => {
   const utilityBillSearch = document.getElementById('utility-bill-search');
   const utilityBillSearchSummaries = Array.from(document.querySelectorAll('[data-utility-bill-summary]'));
   const utilityBillSearchRows = Array.from(document.querySelectorAll('[data-utility-bill-id]:not([data-utility-bill-summary])'));
+  const utilityBillDetailRows = Array.from(document.querySelectorAll('[data-utility-bill-detail]'));
   const utilityBillNoResults = document.getElementById('utility-bills-no-results');
   const utilityBillCurrency = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const utilityBillDeleteForm = document.getElementById('utility-bill-delete-form');
+
+  utilityBillDetailRows.forEach(function (row) {
+    const serial = document.createElement('span');
+    serial.dataset.utilityBillNumber = '';
+    row.querySelector('[data-utility-bill-serial]').prepend(serial);
+  });
+
+  if (utilityBillDeleteForm) {
+    const seenBillIds = new Set();
+    utilityBillDetailRows.forEach(function (row) {
+      const billId = row.dataset.utilityBillId || '';
+      if (!billId || seenBillIds.has(billId)) return;
+      seenBillIds.add(billId);
+      const serialCell = row.querySelector('[data-utility-bill-serial]');
+      if (!serialCell) return;
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.name = 'bill_ids';
+      checkbox.value = billId;
+      checkbox.form = utilityBillDeleteForm.id;
+      checkbox.dataset.utilityBillSelect = '';
+      checkbox.setAttribute('aria-label', `Select utility bill ${billId}`);
+      checkbox.className = 'h-4 w-4 rounded border-slate-300';
+      checkbox.style.marginLeft = '0.35rem';
+      serialCell.appendChild(checkbox);
+    });
+  }
+  const utilityBillSelectCheckboxes = utilityBillDeleteForm
+    ? Array.from(document.querySelectorAll('[data-utility-bill-select]'))
+    : [];
+
+  function updateUtilityBillDeleteControls() {
+    if (!utilityBillDeleteForm) return;
+    const selectedCount = utilityBillSelectCheckboxes.filter(function (checkbox) { return checkbox.checked; }).length;
+    const visibleCheckboxes = utilityBillSelectCheckboxes.filter(function (checkbox) {
+      return !checkbox.closest('[data-utility-bill-detail]').hidden;
+    });
+    const selectedVisibleCount = visibleCheckboxes.filter(function (checkbox) { return checkbox.checked; }).length;
+    const selectVisible = utilityBillDeleteForm.querySelector('[data-select-visible-bills]');
+    const deleteButton = utilityBillDeleteForm.querySelector('[data-delete-selected-bills]');
+    const countLabel = utilityBillDeleteForm.querySelector('[data-selected-bill-count]');
+    selectVisible.checked = visibleCheckboxes.length > 0 && selectedVisibleCount === visibleCheckboxes.length;
+    selectVisible.indeterminate = selectedVisibleCount > 0 && selectedVisibleCount < visibleCheckboxes.length;
+    deleteButton.disabled = selectedCount === 0;
+    countLabel.textContent = `${selectedCount} selected`;
+  }
+
+  if (utilityBillDeleteForm) {
+    utilityBillDeleteForm.querySelector('[data-select-visible-bills]').addEventListener('change', function (event) {
+      const selectVisible = event.target.checked;
+      utilityBillSelectCheckboxes.forEach(function (checkbox) {
+        if (!checkbox.closest('[data-utility-bill-detail]').hidden) checkbox.checked = selectVisible;
+      });
+      updateUtilityBillDeleteControls();
+    });
+    utilityBillSelectCheckboxes.forEach(function (checkbox) {
+      checkbox.addEventListener('change', updateUtilityBillDeleteControls);
+    });
+    utilityBillDeleteForm.addEventListener('submit', function (event) {
+      const selectedCount = utilityBillSelectCheckboxes.filter(function (checkbox) { return checkbox.checked; }).length;
+      if (!selectedCount || !window.confirm(`Permanently delete ${selectedCount} selected utility bill(s) and their payment history?`)) {
+        event.preventDefault();
+      }
+    });
+  }
 
   function updateUtilityBillSearch() {
     const query = utilityBillSearch.value.trim().toLocaleLowerCase();
@@ -238,7 +307,14 @@ document.querySelectorAll('[data-utility-payment-form]').forEach(form => {
       const isSeparator = row.classList.contains('utility-bill-separator');
       row.hidden = isSeparator ? Boolean(query) : !matchingBillIds.has(row.dataset.utilityBillId || '');
     });
+    let serialNumber = 0;
+    utilityBillDetailRows.forEach(function (row) {
+      if (row.hidden) return;
+      serialNumber += 1;
+      row.querySelector('[data-utility-bill-serial]').querySelector('[data-utility-bill-number]').textContent = String(serialNumber);
+    });
     if (utilityBillNoResults) utilityBillNoResults.hidden = matchingBillIds.size > 0;
+    updateUtilityBillDeleteControls();
 
     document.getElementById('utility-bills-count').textContent = String(visibleLineCount);
     document.getElementById('utility-bills-paid').textContent = `PKR ${utilityBillCurrency.format(paidTotal)}`;
@@ -258,5 +334,7 @@ document.querySelectorAll('[data-utility-payment-form]').forEach(form => {
     });
     updateUtilityBillSearch();
   }
+
+  updateUtilityBillDeleteControls();
 </script>
 {% endblock %}

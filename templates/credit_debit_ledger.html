@@ -2,6 +2,27 @@
 {% block content %}
 <style>
   .statement-print-only { display: none; }
+  @media screen {
+    html[data-theme="dark"] .ledger-page nav[aria-label="Company ledger"] {
+      border-color: #3a475d !important;
+      background-color: #101827 !important;
+    }
+    html[data-theme="dark"] .ledger-page .company-ledger-toggle:not([aria-current="page"]) {
+      color: #cbd5e1 !important;
+    }
+    html[data-theme="dark"] .ledger-page .company-ledger-toggle[aria-current="page"][data-company="Canon"] {
+      background-color: #b7955c !important;
+      color: #fff !important;
+    }
+    html[data-theme="dark"] .ledger-page .company-ledger-toggle[aria-current="page"][data-company="Haram"] {
+      background-color: #fff !important;
+      color: #000 !important;
+    }
+    html[data-theme="dark"] .ledger-page .company-ledger-toggle[aria-current="page"][data-company="BOTH"] {
+      background-color: #0e7490 !important;
+      color: #fff !important;
+    }
+  }
   @page { size: A4 portrait; margin: 10mm; }
   @media print {
     html, body { background: #fff !important; color: #000 !important; }
@@ -43,20 +64,19 @@
       <div>
         <p class="text-xs font-bold uppercase text-cyan-700">Canon Registry · Accounts</p>
         <h1 class="mt-1 text-3xl font-black text-slate-950">{% if company_mode %}Company Credit/Debit{% else %}Party Credit/Debit{% endif %}</h1>
-        <p class="mt-2 text-sm text-slate-500">{% if company_mode %}{{ company }} company transactions.{% else %}Review transactions by customer, supplier, utility provider, or worker.{% endif %}</p>
+        <p class="mt-2 text-sm text-slate-500">{% if company_mode %}{{ company }} company transactions.{% elif company == 'BOTH' %}Canon and Haram transactions by customer, supplier, utility provider, or worker.{% else %}{{ company }} transactions by customer, supplier, utility provider, or worker.{% endif %}</p>
       </div>
       <div class="flex items-center gap-2 ledger-no-print">
         <a href="{{ url_for('accounts_portal') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Accounts</a>
       </div>
     </header>
 
-    {% if company_mode %}
     <nav class="ledger-screen-only flex w-full max-w-md rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Company ledger">
-      {% for company_option in ('Canon', 'Haram') %}
-      <a href="{{ url_for('accounts_company_credit_debit', company=company_option, direction=direction, start_date=start_date, end_date=end_date, q=search) }}" {% if company == company_option %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2.5 text-center text-sm font-black {% if company == company_option %}{% if company_option == 'Canon' %}bg-[#b7955c] text-white shadow-sm{% else %}bg-slate-900 text-white shadow-sm{% endif %}{% else %}text-slate-500 hover:text-slate-900{% endif %}">{{ company_option }}</a>
+      {% if company_mode %}{% set company_options = ('Canon', 'Haram') %}{% else %}{% set company_options = ('BOTH', 'Canon', 'Haram') %}{% endif %}
+      {% for company_option in company_options %}
+      <a href="{{ url_for('accounts_company_credit_debit' if company_mode else 'accounts_credit_debit_ledger', company=company_option, direction=direction, start_date=start_date, end_date=end_date, q=search, party=selected_party) }}" data-company="{{ company_option }}" {% if company == company_option %}aria-current="page"{% endif %} class="company-ledger-toggle flex-1 rounded-md px-4 py-2.5 text-center text-sm font-black {% if company == company_option %}{% if company_option == 'Canon' %}bg-[#b7955c] text-white shadow-sm{% elif company_option == 'BOTH' %}bg-cyan-800 text-white shadow-sm{% else %}bg-slate-900 text-white shadow-sm{% endif %}{% else %}text-slate-500 hover:text-slate-900{% endif %}">{{ 'Both' if company_option == 'BOTH' else company_option }}</a>
       {% endfor %}
     </nav>
-    {% endif %}
 
     <section class="ledger-screen-only grid gap-0 border-y border-slate-200 sm:grid-cols-3">
       <div class="border-b border-slate-200 px-4 py-4 sm:border-b-0 sm:border-r"><p class="text-xs font-bold uppercase text-emerald-700">Total credits</p><p id="total-credit" class="mt-1 text-2xl font-black text-emerald-800">PKR {{ '{:,.2f}'.format(total_credit) }}</p></div>
@@ -78,7 +98,7 @@
         <input type="hidden" name="party" value="{{ selected_party }}">
         <label class="text-xs font-bold text-slate-600">Date<input type="date" name="manual_date" value="{{ today }}" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
         <label class="text-xs font-bold text-slate-600">Type<select name="manual_direction" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="CREDIT">Credit</option><option value="DEBIT">Debit</option></select></label>
-        <label class="text-xs font-bold text-slate-600">Company<select name="manual_company" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="Canon" {% if company == 'Canon' %}selected{% endif %}>Canon</option><option value="Haram" {% if company == 'Haram' %}selected{% endif %}>Haram</option></select></label>
+        <label class="text-xs font-bold text-slate-600">Company<select name="manual_company" required class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm"><option value="Canon" {% if company in ('Canon', 'BOTH') %}selected{% endif %}>Canon</option><option value="Haram" {% if company == 'Haram' %}selected{% endif %}>Haram</option></select></label>
         <label class="text-xs font-bold text-slate-600">Amount (PKR)<input type="number" name="manual_amount" min="0.01" step="0.01" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
         <label class="text-xs font-bold text-slate-600 lg:col-span-3">Description<input name="manual_description" maxlength="255" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
         <label class="text-xs font-bold text-slate-600">Party / Payee<input name="manual_party" maxlength="200" value="{{ selected_party }}" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></label>
@@ -91,7 +111,8 @@
     <section class="ledger-no-print border-b border-slate-200 pb-5">
       <form id="ledger-filter-form" method="get" class="grid w-full gap-2 sm:grid-cols-2 lg:max-w-6xl {% if company_mode %}lg:grid-cols-[minmax(14rem,1fr)_9rem_9rem_9rem]{% else %}lg:grid-cols-[minmax(14rem,1.5fr)_minmax(12rem,1fr)_9rem_9rem_9rem]{% endif %}">
         <div><label for="ledger-search" class="mb-1 block text-xs font-bold uppercase text-slate-600">Search transactions</label><input id="ledger-search" name="q" type="search" value="{{ search }}" placeholder="Search descriptions, parties, references, or methods" autocomplete="off" class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm"></div>
-        {% if company_mode %}<input type="hidden" name="company" value="{{ company }}">{% else %}<label for="ledger-party" class="min-w-0 text-xs font-bold text-slate-600">Party<select id="ledger-party" name="party" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal"><option value="">All billing parties</option>{% for party_name in party_names %}<option value="{{ party_name }}" {% if selected_party == party_name %}selected{% endif %}>{{ party_name }}</option>{% endfor %}</select></label>{% endif %}
+        <input type="hidden" name="company" value="{{ company }}">
+        {% if not company_mode %}<label for="ledger-party" class="min-w-0 text-xs font-bold text-slate-600">Party<select id="ledger-party" name="party" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal"><option value="">All billing parties</option>{% for party_name in party_names %}<option value="{{ party_name }}" {% if selected_party == party_name %}selected{% endif %}>{{ party_name }}</option>{% endfor %}</select></label>{% endif %}
         <label for="ledger-direction" class="min-w-0 text-xs font-bold text-slate-600">Direction<select id="ledger-direction" name="direction" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal"><option value="ALL" {% if direction == 'ALL' %}selected{% endif %}>Credits and debits</option><option value="CREDIT" {% if direction == 'CREDIT' %}selected{% endif %}>Credits</option><option value="DEBIT" {% if direction == 'DEBIT' %}selected{% endif %}>Debits</option></select></label>
         <label for="ledger-start-date" class="min-w-0 text-xs font-bold text-slate-600">Start date<input id="ledger-start-date" type="date" name="start_date" value="{{ start_date }}" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal"></label>
         <label for="ledger-end-date" class="min-w-0 text-xs font-bold text-slate-600">End date<input id="ledger-end-date" type="date" name="end_date" value="{{ end_date }}" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm font-normal"></label>

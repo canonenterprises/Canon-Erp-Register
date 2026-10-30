@@ -20,10 +20,11 @@
     <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         {% if articles %}
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse min-w-[700px]">
+            <table class="w-full border-collapse min-w-[700px] text-center">
                 <thead>
                     <tr class="bg-slate-50 text-slate-500 text-sm uppercase">
                         <th class="px-4 py-3">Article No</th>
+                        <th class="px-4 py-3">Party Name</th>
                         <th class="px-4 py-3">Article Name</th>
                         <th class="px-4 py-3">Style</th>
                         <th class="px-4 py-3">Color</th>
@@ -35,12 +36,13 @@
                     {% for article in articles %}
                     <tr class="article-row cursor-pointer border-b border-slate-100 hover:bg-cyan-50/50" data-href="{{ url_for('operation_article_orders', article_id=article.id) }}">
                         <td class="px-4 py-4 font-bold text-slate-800">{{ article.article_no }}</td>
+                        <td class="px-4 py-4">{{ article.party_name or '-' }}</td>
                         <td class="px-4 py-4">{{ article.article_name or '-' }}</td>
                         <td class="px-4 py-4">{{ article.style or '-' }}</td>
                         <td class="px-4 py-4">{{ article.color or '-' }}</td>
                         <td class="px-4 py-4 font-bold">{{ article_order_counts.get(article.id, 0) }}</td>
                         <td class="px-4 py-4">
-                            <div class="flex flex-wrap gap-3">
+                            <div class="flex flex-wrap justify-center gap-3">
                                 <a href="{{ url_for('article_operation_rates', article_id=article.id) }}" class="text-cyan-700 font-bold hover:underline">Article Defaults</a>
                                 <a href="{{ url_for('operation_article_orders', article_id=article.id) }}" class="text-slate-700 font-bold hover:underline">View Orders</a>
                             </div>

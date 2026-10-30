@@ -35,7 +35,20 @@
                 {% endif %}
               </div>
               <p class="mt-1 truncate text-sm font-bold text-slate-900">{{ order.name or 'Unnamed party' }}</p>
-              <p class="mt-1 text-xs text-slate-500">{{ order.article_name or 'Unnamed article' }}{% if order.color %} · {{ order.color }}{% endif %}</p>
+              {% set order_date_parts = (order.date or '').split('-') if order.date else [] %}
+              {% set order_month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] %}
+              {% set order_month_display = '' %}
+              {% if order.date and order_date_parts|length >= 2 and order_date_parts[1]|int > 0 %}
+                {% set order_month_display = order_month_names[(order_date_parts[1]|int) - 1] ~ ' ' ~ order_date_parts[0] %}
+              {% elif order.date %}
+                {% set order_month_display = order.date %}
+              {% endif %}
+              <p class="mt-1 inline-flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <span>{{ order.article_name or 'Unnamed article' }}{% if order.color %} · {{ order.color }}{% endif %}</span>
+                {% if order_month_display %}
+                <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-600">{{ order_month_display }}</span>
+                {% endif %}
+              </p>
             </div>
             <div class="flex flex-col items-start gap-2 sm:items-end">
               <div class="flex flex-wrap items-center justify-end gap-2">

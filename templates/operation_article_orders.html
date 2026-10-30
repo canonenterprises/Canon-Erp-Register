@@ -27,15 +27,16 @@
     <div class="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
         {% if orders %}
         <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse min-w-[800px]">
+            <table class="w-full border-collapse min-w-[800px] text-center">
                 <thead>
                     <tr class="bg-slate-50 text-slate-500 text-sm uppercase">
                         <th class="px-4 py-3">Order No</th>
                         <th class="px-4 py-3">Date</th>
                         <th class="px-4 py-3">Party Name</th>
-                        <th class="px-4 py-3">File No</th>
+                        <th class="px-4 py-3">Article Name</th>
                         <th class="px-4 py-3">Style</th>
                         <th class="px-4 py-3">Color</th>
+                        <th class="px-4 py-3">File No</th>
                         <th class="px-4 py-3">Action</th>
                     </tr>
                 </thead>
@@ -45,9 +46,10 @@
                         <td class="px-4 py-4 font-bold text-slate-800">{{ order.job_no or '-' }}</td>
                         <td class="px-4 py-4">{{ order.date|format_ddmmyyyy if order.date else '-' }}</td>
                         <td class="px-4 py-4">{{ order.name or '-' }}</td>
-                        <td class="px-4 py-4">{{ order.file_no or '-' }}</td>
+                        <td class="px-4 py-4">{{ order.article_name or '-' }}</td>
                         <td class="px-4 py-4">{{ order.style or '-' }}</td>
                         <td class="px-4 py-4">{{ order.color or '-' }}</td>
+                        <td class="px-4 py-4">{{ order.file_no or '-' }}</td>
                         <td class="px-4 py-4">
                             <a href="{{ url_for('operation_order_rates', job_no=order.job_no) }}" class="text-slate-700 font-bold hover:underline">Select Operations</a>
                         </td>

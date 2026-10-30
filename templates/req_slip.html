@@ -9,7 +9,7 @@
         <div class="print-header print-only">
             <!-- Logo + Address (print only, at top left) -->
             <div class="print-company">
-                <img src="{{ url_for('static', filename='canon logo black.webp') }}" alt="Canon Logo" class="h-10 w-auto print-logo">
+                <img src="{{ url_for('static', filename='haram-black.png' if prefill.company == 'Haram' else 'canon logo black.webp') }}" alt="{{ prefill.company or 'Canon' }} Logo" class="h-10 w-auto print-logo">
                 <p class="text-[10px] mt-1 leading-tight">
                     Akhter & Iqbal Compound, Block-C, Ground Floor, L/3, Block-22,<br>
                     F.B. Industrial Area, Opp.Edhi Home, Karachi. Ph. 36342557
@@ -37,27 +37,29 @@
         </div>
 
         <!-- Form -->
-        <form id="req-form" method="POST" action="{{ url_for('req_slip', job_no=selected_job) }}">
+        <form id="req-form" method="POST" action="{{ url_for('req_slip', job_no=selected_job) }}" data-company-locked="{{ 'true' if company_locked else 'false' }}">
             <input type="hidden" name="serial_no" value="{{ serial_no }}">
             <input type="hidden" name="req_id" value="{{ req_id or '' }}">
             <input type="hidden" name="po_no" value="{{ po_no or '' }}">
+            <input type="hidden" name="existing_po_edit" value="{{ 'true' if existing_po_edit else 'false' }}">
+            {% if company_locked %}<input type="hidden" name="company" value="{{ prefill.company }}">{% endif %}
             
             <!-- Header -->
             <div class="flex justify-between items-center mb-4">
                 <div>
                     <h2 class="text-2xl font-extrabold text-slate-800" id="slip-title">Requirement Slip</h2>
                 </div>
-                <span class="px-3 py-1 rounded-full bg-emerald-100 text-black-700 text-m font-bold">P.O No: {{ po_no }}</span>
+                <span class="px-3 py-1 rounded-full bg-emerald-100 text-black-700 text-m font-bold">P.O No: <span id="po-no-display">{{ po_no }}</span></span>
             </div>
 
             <fieldset class="mb-4 flex w-full max-w-md rounded-lg border border-slate-200 bg-slate-100 p-1 no-print" aria-label="Company">
                 <legend class="sr-only">Company</legend>
                 <label class="flex-1 cursor-pointer">
-                    <input type="radio" name="company" value="Canon" class="peer sr-only" {% if prefill.company == 'Canon' %}checked{% endif %} required>
+                    <input type="radio" name="company" value="Canon" data-logo-url="{{ url_for('static', filename='canon logo black.webp') }}" class="peer sr-only" {% if prefill.company == 'Canon' %}checked{% endif %} {% if company_locked %}disabled{% endif %} required>
                     <span class="block rounded-md px-4 py-2.5 text-center text-sm font-black text-slate-500 hover:text-slate-900 peer-checked:bg-[#b7955c] peer-checked:text-white peer-checked:shadow-sm">Canon</span>
                 </label>
                 <label class="flex-1 cursor-pointer">
-                    <input type="radio" name="company" value="Haram" class="peer sr-only" {% if prefill.company == 'Haram' %}checked{% endif %} required>
+                    <input type="radio" name="company" value="Haram" data-logo-url="{{ url_for('static', filename='haram-black.png') }}" class="peer sr-only" {% if prefill.company == 'Haram' %}checked{% endif %} {% if company_locked %}disabled{% endif %} required>
                     <span class="block rounded-md px-4 py-2.5 text-center text-sm font-black text-slate-500 hover:text-slate-900 peer-checked:bg-slate-900 peer-checked:text-white peer-checked:shadow-sm">Haram</span>
                 </label>
             </fieldset>
@@ -142,7 +144,7 @@
             <!-- Signature + Timestamp -->
             <div class="print-only mt-6">
                 <p class="text-xs pt-2">Prepared By: {{ session.get('name') | upper }}</p>
-                <p class="text-xs pt-6">Receiver Signature: ______________________</p>
+                <p class="text-xs pt-6">Authorized By: ______________________</p>
                 <p class="mt-0 text-[10px] text-slate-500 text-right">
                     Printed on: <span id="print-time"></span>
                 </p>
@@ -153,8 +155,8 @@
                 <a href="{{ url_for('saved_requirements', order_id=selected_job) }}" class="w-full sm:w-auto text-center px-4 py-2 rounded-lg bg-slate-950 text-white text-xs font-bold">
                     View Saved Requirements
                 </a>
-                <button type="button" onclick="printSlip('Requirement Slip - Canon Copy')" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold">
-                    Print Canon Copy
+                <button id="print-company-copy-button" type="button" onclick="printCompanyCopy()" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-amber-600 text-white text-xs font-bold">
+                    Print {{ prefill.company or 'Canon' }} Copy
                 </button>
                 <button type="button" onclick="printSlip('Requirement Slip - Customer Copy')" class="w-full sm:w-auto px-4 py-2 rounded-lg bg-sky-600 text-white text-xs font-bold">
                     Print Customer Copy
@@ -165,7 +167,46 @@
             </div>
         </form>
     </div>
+    <div id="requirement-print-loading" class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-950/60 p-4" role="status" aria-live="polite" style="display: none;">
+        <div class="w-full max-w-sm rounded-xl border border-slate-200 bg-white p-6 text-center shadow-2xl">
+            <i class="fa-solid fa-spinner fa-spin text-3xl text-emerald-700" aria-hidden="true"></i>
+            <p id="requirement-print-loading-message" class="mt-3 text-base font-black text-slate-900">Preparing print...</p>
+            <p class="mt-1 text-sm text-slate-500">Loading the selected company logo.</p>
+        </div>
+    </div>
 </div>
+
+<script type="application/json" id="req-po-numbers-by-company">{{ po_numbers_by_company | tojson }}</script>
+<script>
+    const requirementPoNumbersByCompany = JSON.parse(document.getElementById('req-po-numbers-by-company').textContent);
+    const requirementForm = document.getElementById('req-form');
+    function syncRequirementCompanySelection() {
+        if (!requirementForm) return;
+        const selectedCompany = requirementForm.querySelector('input[name="company"]:checked');
+        if (!selectedCompany) return;
+
+        const printButton = document.getElementById('print-company-copy-button');
+        const printLogo = document.querySelector('.print-logo');
+        if (printButton) printButton.textContent = `Print ${selectedCompany.value} Copy`;
+        if (printLogo) {
+            printLogo.src = selectedCompany.dataset.logoUrl;
+            printLogo.alt = `${selectedCompany.value} Logo`;
+        }
+
+        if (requirementForm.dataset.companyLocked !== 'true') {
+            const poNumber = requirementPoNumbersByCompany[selectedCompany.value] || '';
+            requirementForm.querySelector('[name="po_no"]').value = poNumber;
+            document.getElementById('po-no-display').textContent = poNumber;
+        }
+    }
+
+    if (requirementForm) {
+        requirementForm.addEventListener('change', function (event) {
+            if (event.target.matches('input[name="company"]')) syncRequirementCompanySelection();
+        });
+        syncRequirementCompanySelection();
+    }
+</script>
 
 <!-- Validation Script -->
 <script>
@@ -193,7 +234,17 @@ document.getElementById('req-form').addEventListener('submit', function(e) {
     }
 });
 
-function printSlip(titleText) {
+function printCompanyCopy() {
+    syncRequirementCompanySelection();
+    const selectedCompany = document.querySelector('#req-form input[name="company"]:checked');
+    const company = selectedCompany ? selectedCompany.value : 'Canon';
+    printSlip(`Requirement Slip - ${company} Copy`, true);
+}
+
+let requirementPrintRequestId = 0;
+
+async function printSlip(titleText, isCompanyCopy = false) {
+    const requestId = ++requirementPrintRequestId;
     const now = new Date();
     const options = {
         weekday: 'long', year: 'numeric', month: 'long',
@@ -201,24 +252,85 @@ function printSlip(titleText) {
         timeZone: 'Asia/Karachi'
     };
     document.getElementById('print-time').textContent = now.toLocaleString('en-US', options);
-    
-    // Change Heading Title Temporarily for Printing
+    const selectedCompany = document.querySelector('#req-form input[name="company"]:checked');
+    const company = selectedCompany ? selectedCompany.value : 'Canon';
+    const printLogo = document.querySelector('.print-logo');
+    const loadingOverlay = document.getElementById('requirement-print-loading');
+    const loadingMessage = document.getElementById('requirement-print-loading-message');
     const titleElement = document.getElementById('slip-title');
     const originalTitle = titleElement.textContent;
+    const loadingStartedAt = performance.now();
+
+    if (selectedCompany && printLogo) {
+        printLogo.src = selectedCompany.dataset.logoUrl;
+        printLogo.alt = `${selectedCompany.value} Logo`;
+    }
+
+    if (loadingMessage) {
+        loadingMessage.textContent = `Preparing ${company} ${isCompanyCopy ? 'copy' : 'customer copy'}...`;
+    }
+    if (loadingOverlay) {
+        loadingOverlay.classList.remove('hidden');
+        loadingOverlay.classList.add('flex');
+        loadingOverlay.style.display = 'flex';
+    }
+    document.body.setAttribute('aria-busy', 'true');
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    if (requestId !== requirementPrintRequestId) return;
+
+    try {
+        if (printLogo) {
+            if (typeof printLogo.decode === 'function') {
+                await printLogo.decode();
+            } else if (!printLogo.complete) {
+                await new Promise((resolve, reject) => {
+                    printLogo.addEventListener('load', resolve, { once: true });
+                    printLogo.addEventListener('error', reject, { once: true });
+                });
+            }
+            if (printLogo.naturalWidth === 0) throw new Error('Logo did not load.');
+        }
+    } catch (error) {
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+            loadingOverlay.classList.add('hidden');
+            loadingOverlay.classList.remove('flex');
+        }
+        document.body.removeAttribute('aria-busy');
+        alert(`The ${company} logo could not be loaded. Please try printing again.`);
+        return;
+    }
+
+    const remainingLoadingTime = 500 - (performance.now() - loadingStartedAt);
+    if (remainingLoadingTime > 0) {
+        await new Promise(resolve => window.setTimeout(resolve, remainingLoadingTime));
+    }
+    if (requestId !== requirementPrintRequestId) return;
+
     titleElement.textContent = titleText;
+    if (isCompanyCopy) document.body.classList.add('print-canon');
+    if (loadingOverlay) {
+        loadingOverlay.style.display = 'none';
+        loadingOverlay.classList.add('hidden');
+        loadingOverlay.classList.remove('flex');
+    }
+    document.body.removeAttribute('aria-busy');
 
-    // If this is Canon Copy, mark body so print CSS shows canon-only header
-    const isCanon = String(titleText).toLowerCase().includes('canon');
-    if (isCanon) document.body.classList.add('print-canon');
-
-    // Trigger Print
-    window.print();
-
-    // Revert Heading and temporary class after print dialog triggers
-    setTimeout(() => {
+    let restored = false;
+    function restorePrintState() {
+        if (restored) return;
+        restored = true;
         titleElement.textContent = originalTitle;
-        if (isCanon) document.body.classList.remove('print-canon');
-    }, 500);
+        if (isCompanyCopy) document.body.classList.remove('print-canon');
+        window.removeEventListener('afterprint', restorePrintState);
+    }
+
+    window.addEventListener('afterprint', restorePrintState);
+    try {
+        window.print();
+    } finally {
+        window.setTimeout(restorePrintState, 1000);
+    }
 }
 </script>
 
@@ -522,6 +634,16 @@ document.addEventListener('DOMContentLoaded', function(){
 <!-- Print Styles -->
 <style>
 .canon-print{ display:none; }
+@media screen {
+    html[data-theme="dark"] #req-form input[name="company"][value="Canon"]:checked + span {
+        background-color: #b7955c !important;
+        color: #fff !important;
+    }
+    html[data-theme="dark"] #req-form input[name="company"][value="Haram"]:checked + span {
+        background-color: #fff !important;
+        color: #000 !important;
+    }
+}
 #req-form input, #req-form select, #req-form textarea { text-align: center; }
 #req-form table th, #req-form table td:not(.text-right) { text-align: center; }
 #req-form table td.text-right, #req-form table tr td strong { text-align: right; }

@@ -35,20 +35,20 @@
         <input id="challan-search" type="search" placeholder="Search challan number, party, article, shipment..." class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-100">
       </label>
       <div class="mt-5 overflow-x-auto">
-        <table class="w-full min-w-[760px] text-sm">
-          <thead class="border-b border-slate-300 bg-slate-50 text-left text-[10px] font-black uppercase tracking-wider text-slate-500">
+        <table class="w-full min-w-[760px] text-center text-sm">
+          <thead class="border-b border-slate-300 bg-slate-50 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">
             <tr>
               <th class="px-3 py-3">Challan No</th>
               <th class="px-3 py-3">Date</th>
               <th class="px-3 py-3">Party</th>
               <th class="px-3 py-3">Article</th>
               <th class="px-3 py-3">Shipment</th>
-              <th class="px-3 py-3 text-right">METER</th>
-              <th class="px-3 py-3 text-right">Quantity</th>
-              <th class="px-3 py-3 text-right">PACKETS</th>
-              <th class="px-3 py-3 text-right">CTNS</th>
-              <th class="px-3 py-3 text-right">BAILS</th>
-              <th class="px-3 py-3 text-right">Action</th>
+              <th class="px-3 py-3">METER</th>
+              <th class="px-3 py-3">Quantity</th>
+              <th class="px-3 py-3">PACKETS</th>
+              <th class="px-3 py-3">CTNS</th>
+              <th class="px-3 py-3">BAILS</th>
+              <th class="px-3 py-3">Action</th>
             </tr>
           </thead>
           <tbody>
@@ -59,12 +59,12 @@
               <td class="px-3 py-3 font-semibold text-slate-800">{{ challan.party_name or '—' }}</td>
               <td class="px-3 py-3 text-slate-600">{{ challan.article_name or '—' }}</td>
               <td class="px-3 py-3 font-semibold text-slate-700">{{ shipment_summaries.get(challan.id, '—') }}</td>
-              <td class="px-3 py-3 text-right font-black text-sky-700">{% if meter_summaries.get(challan.id, 0) > 0 %}{{ '{:,.2f}'.format(meter_summaries[challan.id]) }} MTR{% else %}—{% endif %}</td>
-              <td class="px-3 py-3 text-right font-black text-slate-800">{% if challan.source_type in ('inventory_return', 'inventory_return_a') %}{{ '{:,.2f}'.format(challan.shipped_meter) }} MTR{% elif direct_pcs_summaries.get(challan.id, 0) > 0 %}{{ '{:,.2f}'.format(direct_pcs_summaries[challan.id]) }} PCS{% else %}—{% endif %}</td>
-              <td class="px-3 py-3 text-right font-black text-slate-800">{{ '{:,.2f}'.format(packet_summaries.get(challan.id, 0)) }}</td>
-              <td class="px-3 py-3 text-right font-black text-slate-800">{{ '{:,.2f}'.format(challan.shipped_ctn or 0) }}</td>
-              <td class="px-3 py-3 text-right font-black text-slate-800">{{ '{:,.2f}'.format(challan.shipped_bails or 0) }}</td>
-              <td class="px-3 py-3 text-right"><a href="{{ url_for('print_challan', challan_id=challan.id) }}" target="_blank" class="inline-flex items-center rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white hover:bg-sky-700">Print</a></td>
+              <td class="px-3 py-3 font-black text-sky-700">{% if meter_summaries.get(challan.id, 0) > 0 %}{{ '{:,.2f}'.format(meter_summaries[challan.id]) }} MTR{% else %}—{% endif %}</td>
+              <td class="px-3 py-3 font-black text-slate-800">{% if challan.source_type in ('inventory_return', 'inventory_return_a') %}{{ '{:,.2f}'.format(challan.shipped_meter) }} MTR{% elif direct_pcs_summaries.get(challan.id, 0) > 0 %}{{ '{:,.2f}'.format(direct_pcs_summaries[challan.id]) }} PCS{% else %}—{% endif %}</td>
+              <td class="px-3 py-3 font-black text-slate-800">{{ '{:,.2f}'.format(packet_summaries.get(challan.id, 0)) }}</td>
+              <td class="px-3 py-3 font-black text-slate-800">{{ '{:,.2f}'.format(challan.shipped_ctn or 0) }}</td>
+              <td class="px-3 py-3 font-black text-slate-800">{{ '{:,.2f}'.format(challan.shipped_bails or 0) }}</td>
+              <td class="px-3 py-3"><a href="{{ url_for('print_challan', challan_id=challan.id) }}" target="_blank" class="inline-flex items-center rounded-lg bg-sky-600 px-3 py-2 text-xs font-black text-white hover:bg-sky-700">Print</a></td>
             </tr>
             {% else %}
             <tr><td colspan="11" class="px-3 py-10 text-center font-semibold text-slate-500">No challans generated yet.</td></tr>

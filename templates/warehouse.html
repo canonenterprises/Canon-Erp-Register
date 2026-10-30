@@ -45,8 +45,21 @@
                 <i class="warehouse-order-chevron fa-solid fa-chevron-right text-xs text-slate-400 transition-transform" aria-hidden="true"></i>
                 <a href="{{ url_for('order_details', job_no=item.order.job_no) }}" class="text-xl font-black text-indigo-700 hover:text-indigo-900 hover:underline" onclick="event.stopPropagation()">{{ item.order.job_no }}</a>
               </div>
+              {% set order_date_parts = (item.order.date or '').split('-') if item.order.date else [] %}
+              {% set order_month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] %}
+              {% set order_month_display = '' %}
+              {% if item.order.date and order_date_parts|length >= 2 and order_date_parts[1]|int > 0 %}
+                {% set order_month_display = order_month_names[(order_date_parts[1]|int) - 1] ~ ' ' ~ order_date_parts[0] %}
+              {% elif item.order.date %}
+                {% set order_month_display = item.order.date %}
+              {% endif %}
               <p class="mt-1 truncate text-xl font-bold text-slate-900">{{ item.order.name or 'Unnamed party' }}</p>
-              <p class="mt-1 text-sm text-slate-500">{{ item.order.article_name or 'Unnamed article' }}{% if item.order.color %} · {{ item.order.color }}{% endif %}</p>
+              <p class="mt-1 inline-flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                <span>{{ item.order.article_name or 'Unnamed article' }}{% if item.order.color %} · {{ item.order.color }}{% endif %}</span>
+                {% if order_month_display %}
+                <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-600">{{ order_month_display }}</span>
+                {% endif %}
+              </p>
               <label class="mt-3 inline-flex items-center gap-2 text-sm font-bold text-slate-600" onclick="event.stopPropagation()">
                 Entries on this challan
                 <input type="number" min="1" step="1" value="1" class="combined-shipment-count w-16 rounded-md border border-slate-300 px-2 py-1 text-center text-sm" aria-label="Shipment entries for {{ item.order.job_no }}">

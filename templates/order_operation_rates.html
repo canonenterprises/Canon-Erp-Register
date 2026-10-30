@@ -20,15 +20,15 @@
         </div>
         <form method="POST" class="p-6">
             <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse min-w-[650px]">
+                <table class="w-full border-collapse min-w-[650px] text-center">
                     <thead>
-                        <tr class="bg-slate-50 text-slate-500 text-sm uppercase">
-                            <th class="px-4 py-3">S.No</th>
-                            <th class="px-4 py-3">Move</th>
-                            <th class="px-4 py-3">Use</th>
-                            <th class="px-4 py-3">Operation</th>
-                            <th class="px-4 py-3">Current Rate</th>
-                            <th class="px-4 py-3">Order Rate Override</th>
+                        <tr class="bg-slate-50 text-center text-slate-500 text-sm uppercase">
+                            <th class="px-4 py-3 text-center">S.No</th>
+                            <th class="px-4 py-3 text-center">Move</th>
+                            <th class="px-4 py-3 text-center">Use</th>
+                            <th class="px-4 py-3 text-center">Operation</th>
+                            <th class="px-4 py-3 text-center">Current Rate</th>
+                            <th class="px-4 py-3 text-center">Order Rate Override</th>
                         </tr>
                     </thead>
                     <tbody id="operation-list">
@@ -36,15 +36,15 @@
                         {% set saved = saved_operations.get(rate.id) %}
                         {% set inherited = inherited_rates.get(rate.operation|upper) %}
                         <tr class="operation-row border-t" draggable="{{ 'false' if read_only_profile and saved_operations else 'true' }}">
-                            <td class="row-number px-4 py-3 font-bold text-slate-500"></td>
-                            <td class="px-4 py-3">{% if not read_only_profile or not saved_operations %}<button type="button" class="drag-handle cursor-grab text-slate-400 hover:text-indigo-600" title="Drag to reorder" aria-label="Drag {{ rate.operation }} to reorder"><i class="fa-solid fa-grip-vertical"></i></button>{% endif %}<input type="hidden" name="operation_order" value="{{ rate.id }}" {% if read_only_profile and saved_operations %}disabled{% endif %}></td>
-                            <td class="px-4 py-3"><input type="checkbox" name="operation_{{ rate.id }}" {% if saved or (not saved_operations and inherited is not none) %}checked{% endif %} class="h-4 w-4" {% if read_only_profile and saved_operations %}disabled{% endif %}></td>
-                            <td class="px-4 py-3 font-bold">
+                            <td class="row-number px-4 py-3 text-center font-bold text-slate-500"></td>
+                            <td class="px-4 py-3 text-center">{% if not read_only_profile or not saved_operations %}<button type="button" class="drag-handle mx-auto block cursor-grab text-slate-400 hover:text-indigo-600" title="Drag to reorder" aria-label="Drag {{ rate.operation }} to reorder"><i class="fa-solid fa-grip-vertical"></i></button>{% endif %}<input type="hidden" name="operation_order" value="{{ rate.id }}" {% if read_only_profile and saved_operations %}disabled{% endif %}></td>
+                            <td class="px-4 py-3 text-center"><input type="checkbox" name="operation_{{ rate.id }}" {% if saved or (not saved_operations and inherited is not none) %}checked{% endif %} class="mx-auto block h-4 w-4" {% if read_only_profile and saved_operations %}disabled{% endif %}></td>
+                            <td class="px-4 py-3 text-center font-bold">
                                 <a href="{{ url_for('operation_rate_history', job_no=order.job_no, operation=rate.operation) }}" class="text-indigo-700 hover:text-indigo-900 hover:underline">{{ rate.operation }}</a>
                             </td>
-                            <td class="px-4 py-3">Rs. {{ '%.2f'|format(inherited if inherited is not none else rate.rate) }}</td>
-                            <td class="px-4 py-3" id="override-cell-{{ rate.id }}">
-                                <div class="flex items-center gap-2">
+                            <td class="px-4 py-3 text-center">Rs. {{ '%.2f'|format(inherited if inherited is not none else rate.rate) }}</td>
+                            <td class="px-4 py-3 text-center" id="override-cell-{{ rate.id }}">
+                                <div class="flex items-center justify-center gap-2">
                                     <span class="override-value text-sm text-slate-500">{{ 'Rs. %.2f'|format(saved.override_rate) if saved and saved.override_rate is not none else 'Use current rate' }}</span>
                                     <input type="hidden" name="override_{{ rate.id }}" id="override-value-{{ rate.id }}" value="{{ '%.2f'|format(saved.override_rate) if saved and saved.override_rate is not none else '' }}">
                                     {% if not read_only_profile %}<button type="button" class="edit-override flex h-8 w-8 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700" data-rate-id="{{ rate.id }}" data-operation="{{ rate.operation }}" data-save-url="{{ url_for('save_order_rate_override', job_no=order.job_no, rate_id=rate.id) }}" title="Edit order override" aria-label="Edit {{ rate.operation }} override"><i class="fa-solid fa-pencil text-xs"></i></button>{% endif %}

@@ -84,7 +84,7 @@
                     <option
                         value="{{ item.id }}"
                         {% if item.id|string == selected_article_id %}selected{% endif %}>
-                        {{ item.article_name or '—' }} | {{ item.style or '—' }} | {{ item.color or '—' }}
+                        {{ item.article_name or '—' }} | {{ item.style or '—' }} | {{ item.color or '—' }} | ART-{{ item.article_no or '—' }}
                     </option>
                     {% endfor %}
                 </select>

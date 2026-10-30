@@ -27,8 +27,26 @@
       {% for row in transit_rows %}
       <article class="warehouse-search-item rounded-xl border border-slate-200 bg-slate-50 p-4" data-search="{{ (row.order.job_no ~ ' ' ~ (row.order.name or '') ~ ' ' ~ (row.order.article_name or row.order.article or '') ~ ' ' ~ row.quality)|lower }}">
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <div><p class="text-[10px] font-bold uppercase text-slate-400">Order</p><p class="mt-1 font-black text-indigo-700">{{ row.order.job_no }}</p><p class="text-xs text-slate-600">{{ row.order.name or 'Unnamed party' }} · {{ row.order.article_name or row.order.article or 'Unnamed article' }}</p></div>
-          <div><p class="text-[10px] font-bold uppercase text-slate-400">Quality</p><p class="mt-1 font-black {% if row.quality == 'AQ' %}text-sky-700{% else %}text-amber-700{% endif %}">{{ row.quality }}</p></div>
+          <div>
+            <p class="text-[10px] font-bold uppercase text-slate-400">Order</p>
+            <p class="mt-1 font-black text-indigo-700">{{ row.order.job_no }}</p>
+            {% set order_date_parts = (row.order.date or '').split('-') if row.order.date else [] %}
+            {% set order_month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] %}
+            {% set order_month_display = '' %}
+            {% if row.order.date and order_date_parts|length >= 2 and order_date_parts[1]|int > 0 %}
+              {% set order_month_display = order_month_names[(order_date_parts[1]|int) - 1] ~ ' ' ~ order_date_parts[0] %}
+            {% elif row.order.date %}
+              {% set order_month_display = row.order.date %}
+            {% endif %}
+            <p class="mt-1 text-xs text-slate-600">{{ row.order.name or 'Unnamed party' }}</p>
+            <p class="mt-1 inline-flex flex-wrap items-center gap-2 text-xs text-slate-500">
+              <span>{{ row.order.article_name or row.order.article or 'Unnamed article' }}{% if row.order.color %} · {{ row.order.color }}{% endif %}</span>
+              {% if order_month_display %}
+              <span class="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-slate-600">{{ order_month_display }}</span>
+              {% endif %}
+            </p>
+          </div>
+          <div><p class="text-[10px] font-bold uppercase text-slate-400">Quality</p><p class="mt-1 font-black {% if row.quality == 'AQ' %}text-sky-700{% else %}text-amber-700{% endif %}">{{ 'A/Q' if row.quality == 'AQ' else 'B/Q' if row.quality == 'BQ' else row.quality }}</p></div>
           <div><p class="text-[10px] font-bold uppercase text-slate-400">Produced</p><p class="mt-1 font-black text-slate-800">{{ '{:,.0f}'.format(row.produced_pcs) }} PCS</p></div>
           <div><p class="text-[10px] font-bold uppercase text-slate-400">In Transit</p><p class="mt-1 font-black text-amber-700">{{ '{:,.2f}'.format(row.transit_pcs) }} PCS</p></div>
           <div><p class="text-[10px] font-bold uppercase text-slate-400">Packet Equivalent</p><p class="mt-1 font-black text-slate-800">{{ '{:,.2f}'.format(row.transit_packets) }}{% if row.order.pcs_poly|float > 0 %} packets{% else %} packets (PCS/packet not set){% endif %}</p></div>
@@ -41,8 +59,8 @@
           <input type="hidden" name="quality" value="{{ row.quality }}">
           <label class="text-xs font-bold text-slate-600">Packets to place
             {% if row.placeable_packets > 0 %}
-            <input type="number" name="packets" min="1" max="{{ row.placeable_packets }}" step="1" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <span class="mt-1 block font-normal text-slate-500">1 packet = {{ '{:,.2f}'.format(row.order.pcs_poly|float) }} PCS · max {{ row.placeable_packets }}</span>
+            <input type="number" name="packets" min="0.01" max="{{ '{:,.2f}'.format(row.transit_packets) }}" step="0.01" inputmode="decimal" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <span class="mt-1 block font-normal text-slate-500">1 packet = {{ '{:,.2f}'.format(row.order.pcs_poly|float) }} PCS · max {{ '{:,.2f}'.format(row.transit_packets) }} packets</span>
             {% else %}
             <input type="number" name="packets" disabled class="mt-1 w-full rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm">
             <span class="mt-1 block font-normal text-slate-500">PCS per poly is unset or fewer than one full packet is in transit.</span>

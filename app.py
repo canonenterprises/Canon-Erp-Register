@@ -5847,16 +5847,19 @@ def render_credit_debit_ledger(company_mode=False):
     if denied:
         return denied
 
-    company = (request.values.get('company') or request.args.get('company') or 'Canon').strip().title()
-    if company not in ('Canon', 'Haram'):
-        company = 'Canon'
+    default_company = 'Canon' if company_mode else 'BOTH'
+    company = (request.values.get('company') or request.args.get('company') or default_company).strip().upper()
+    allowed_companies = ('CANON', 'HARAM') if company_mode else ('BOTH', 'CANON', 'HARAM')
+    if company not in allowed_companies:
+        company = default_company.upper()
+    company = company.title() if company != 'BOTH' else 'BOTH'
     selected_party = (request.values.get('party') or request.args.get('party') or '').strip()
 
     if request.method == 'POST':
         direction_value = (request.form.get('manual_direction') or '').strip().upper()
         description_value = (request.form.get('manual_description') or '').strip()
         date_value = (request.form.get('manual_date') or '').strip()
-        manual_company = (request.form.get('manual_company') or company).strip().title()
+        manual_company = (request.form.get('manual_company') or (company if company in ('Canon', 'Haram') else 'Canon')).strip().title()
         parsed_date = normalize_date(date_value)
         try:
             amount_value = parse_billing_amount(request.form.get('manual_amount'), 'Amount')
@@ -5868,7 +5871,7 @@ def render_credit_debit_ledger(company_mode=False):
                 direction=request.form.get('direction', 'ALL'),
                 start_date=request.form.get('start_date', ''),
                 end_date=request.form.get('end_date', ''),
-                company=company if company_mode else None,
+                company=company,
                 party=request.form.get('party', ''),
             ))
         if direction_value not in ('CREDIT', 'DEBIT'):
@@ -5905,7 +5908,7 @@ def render_credit_debit_ledger(company_mode=False):
             direction=request.form.get('direction', 'ALL'),
             start_date=request.form.get('start_date', ''),
             end_date=request.form.get('end_date', ''),
-            company=company if company_mode else None,
+            company=company,
             party=request.form.get('party', ''),
         ))
 
@@ -6174,7 +6177,7 @@ def render_credit_debit_ledger(company_mode=False):
     }, key=str.casefold)
     visible_entries = [
         entry for entry in entries
-        if (not company_mode or entry['company'] == company)
+        if company == 'BOTH' or entry['company'] == company
         if (not selected_party or entry['party'].casefold() == selected_party.casefold())
         if (direction == 'ALL' or entry['direction'] == direction)
         and (not start_date or entry['sort_date'] >= start_date)
@@ -6195,7 +6198,7 @@ def render_credit_debit_ledger(company_mode=False):
     statement_carried_forward_balance = 0.0
     statement_scope_entries = [
         entry for entry in entries
-        if (not company_mode or entry['company'] == company)
+        if company == 'BOTH' or entry['company'] == company
         if (not selected_party or entry['party'].casefold() == selected_party.casefold())
     ]
     chronological_entries = sorted(
@@ -6607,6 +6610,7 @@ def factory_in_out_ledger():
     def add_movement(
         date_value, direction, category, item, description, reference, quantity,
         unit, quantity_display=None, recorded_at=None, person_in_charge=None,
+        challan_no=None,
     ):
         if quantity_display is None and parse_numeric(quantity) <= 0:
             return
@@ -6616,6 +6620,10 @@ def factory_in_out_ledger():
         if isinstance(date_value, datetime):
             date_value = date_value.strftime('%Y-%m-%d')
         date_text = str(date_value or '').strip()
+        challan_text = str(challan_no or '').strip()
+        reference_text = str(reference or '').strip()
+        if challan_text and reference_text.casefold() == challan_text.casefold():
+            reference_text = ''
         parsed_date = normalize_date(date_text)
         movements.append({
             'sort_date': parsed_date or datetime.min,
@@ -6625,8 +6633,9 @@ def factory_in_out_ledger():
             'category': category,
             'item': item or 'â€”',
             'description': description or 'â€”',
-            'reference': reference or 'â€”',
+            'reference': reference_text or '—',
             'person_in_charge': person_in_charge or '—',
+            'challan_no': challan_text or '—',
             'quantity': quantity_display,
         })
 
@@ -6650,6 +6659,7 @@ def factory_in_out_ledger():
                     'MTR',
                     recorded_at=receipt.created_at,
                     person_in_charge=receipt.created_by,
+                    challan_no=receipt.challan_no,
                 )
         if parse_numeric(receipt.received_cut_pcs) > 0:
             add_movement(
@@ -6663,6 +6673,7 @@ def factory_in_out_ledger():
                 'PCS',
                 recorded_at=receipt.created_at,
                 person_in_charge=receipt.created_by,
+                challan_no=receipt.challan_no,
             )
         if receipt.is_direct_cutting_pcs and parse_numeric(receipt.direct_cutting_pcs) > 0:
             add_movement(
@@ -6676,6 +6687,7 @@ def factory_in_out_ledger():
                 'PCS',
                 recorded_at=receipt.created_at,
                 person_in_charge=receipt.created_by,
+                challan_no=receipt.challan_no,
             )
 
     for inventory in Inventory.query.order_by(Inventory.id.asc()).all():
@@ -6694,6 +6706,7 @@ def factory_in_out_ledger():
                 inventory.unit or 'PCS',
                 recorded_at=inventory.created_at,
                 person_in_charge=inventory.created_by,
+                challan_no=inventory.challan_no,
             )
             continue
         fabric_name = inventory.fabric_for or inventory.fabric_quality or 'Fabric'
@@ -6711,6 +6724,7 @@ def factory_in_out_ledger():
                     'MTR',
                     recorded_at=inventory.created_at,
                     person_in_charge=inventory.created_by,
+                    challan_no=inventory.challan_no,
                 )
 
     accessories = SavedRequirement.query.order_by(SavedRequirement.id.asc()).all()
@@ -6820,6 +6834,7 @@ def factory_in_out_ledger():
                 quantity_display=' · '.join(quantities),
                 recorded_at=challan.created_at,
                 person_in_charge=challan.created_by,
+                challan_no=challan.challan_no,
             )
 
         try:
@@ -6844,6 +6859,7 @@ def factory_in_out_ledger():
                     'MTR',
                     recorded_at=inventory.created_at,
                     person_in_charge=challan.created_by,
+                    challan_no=challan.challan_no,
                 )
 
     for movement in FactoryManualMovement.query.order_by(FactoryManualMovement.id.asc()).all():
@@ -7280,6 +7296,24 @@ def accounts_utility_bills():
     payment_methods = ('Cash', 'Bank Transfer', 'Cheque', 'Other')
     if request.method == 'POST':
         action = request.form.get('action', '')
+        if action == 'delete_bills':
+            profile_role = session.get('profile_role', session.get('role'))
+            if session.get('role') not in ('owner', 'manager') or profile_role not in ('owner', 'manager'):
+                flash('Only owner and manager profiles can delete utility bills.', 'danger')
+                return redirect(url_for('accounts_utility_bills'))
+            bill_ids = list(dict.fromkeys(request.form.getlist('bill_ids', type=int)))
+            if not bill_ids:
+                flash('Select at least one utility bill to delete.', 'danger')
+                return redirect(url_for('accounts_utility_bills'))
+            bills_to_delete = UtilityBill.query.filter(UtilityBill.id.in_(bill_ids)).all()
+            for bill in bills_to_delete:
+                db.session.delete(bill)
+            db.session.commit()
+            deleted_count = len(bills_to_delete)
+            g.activity_action = f'DELETED {deleted_count} UTILITY BILL(S) · IDS {", ".join(str(bill.id) for bill in bills_to_delete)}'
+            flash(f'Deleted {deleted_count} utility bill(s) and their payment history.', 'success')
+            return redirect(url_for('accounts_utility_bills'))
+
         if action == 'create_bill':
             utility_type = (request.form.get('utility_type') or '').strip()
             company = (request.form.get('company') or 'Canon').strip().title()
@@ -7473,6 +7507,10 @@ def accounts_utility_bills():
         utility_types=utility_types,
         payment_methods=payment_methods,
         bank_names=UTILITY_BILL_BANKS,
+        can_delete_bills=(
+            session.get('role') in ('owner', 'manager')
+            and session.get('profile_role', session.get('role')) in ('owner', 'manager')
+        ),
     )
 
 
@@ -8552,18 +8590,7 @@ def manager_dashboard():
     article_heads = []
     seen_heads = set()
     if active_tab == 'list':
-        search_text = article_search.lower() if article_search else ''
         for article in Article.query.order_by(Article.id.desc()).all():
-            if search_text:
-                haystack = ' '.join([
-                    str(article.article_no or ''),
-                    str(article.article_name or ''),
-                    str(article.party_name or ''),
-                    str(article.color or ''),
-                    str(article.style or ''),
-                ]).lower()
-                if search_text not in haystack:
-                    continue
             head_key = (
                 (article.party_name or '').strip().lower(),
                 (article.article_name or '').strip().lower(),
@@ -8583,6 +8610,17 @@ def manager_dashboard():
                 'article_no': article.article_no or '—',
                 'color': article.color or '—',
                 'article_count': len(matching_articles),
+                'search_text': ' '.join(
+                    str(value or '')
+                    for matching_article in matching_articles
+                    for value in (
+                        matching_article.article_no,
+                        matching_article.article_name,
+                        matching_article.party_name,
+                        matching_article.color,
+                        matching_article.style,
+                    )
+                ),
             })
 
     head_articles = []
@@ -8622,17 +8660,8 @@ def manager_dashboard():
             })
     parties = all_orders
     search_results = []
-    if active_tab == 'add_party' and article_search:
-        search_term = f"%{article_search.lower()}%"
-        search_results = Article.query.filter(
-            or_(
-                func.lower(Article.article_no).like(search_term),
-                func.lower(Article.article_name).like(search_term),
-                func.lower(Article.party_name).like(search_term),
-                func.lower(Article.color).like(search_term),
-                func.lower(Article.style).like(search_term),
-            )
-        ).order_by(Article.id.desc()).all()
+    if active_tab == 'add_party':
+        search_results = Article.query.order_by(Article.id.desc()).all()
 
     logs = ProductionLog.query.order_by(ProductionLog.id.desc()).all()
     workers = sorted(WORKERS_DB.keys())
@@ -9751,20 +9780,6 @@ def article_orders(article):
             or_(
                 func.lower(Order.article) == (normalized_article or article).lower(),
                 func.lower(Order.article) == display_article.lower()
-            )
-        )
-
-    if search_term:
-        search_like = f"%{search_term.lower()}%"
-        query = query.filter(
-            or_(
-                func.lower(Order.job_no).like(search_like),
-                func.lower(Order.article).like(search_like),
-                func.lower(Order.article_name).like(search_like),
-                func.lower(Order.name).like(search_like),
-                func.lower(Order.color).like(search_like),
-                func.lower(Order.style).like(search_like),
-                func.lower(Order.date).like(search_like),
             )
         )
 
@@ -11095,12 +11110,14 @@ def worker_dashboard():
 
 
 
-def generate_po_no():
-    # Get the last SavedRequirement id only (avoid selecting missing columns)
-    last_req_row = db.session.query(SavedRequirement.id).order_by(SavedRequirement.id.desc()).first()
-    last_id = last_req_row[0] if last_req_row else None
-    next_po = last_id + 1 if last_id else 1
-    return f"{next_po:03d}"
+def generate_po_no(company='Canon'):
+    existing_numbers = db.session.query(SavedRequirement.po_no).filter_by(company=company).all()
+    sequence_numbers = [
+        int(po_no.strip())
+        for (po_no,) in existing_numbers
+        if re.fullmatch(r'\d+', (po_no or '').strip())
+    ]
+    return f"{max(sequence_numbers, default=0) + 1:03d}"
 
 
 def generate_cutting_sheet_serial():
@@ -11144,6 +11161,16 @@ def req_slip():
     job_no = request.args.get('job_no') or request.args.get('order_id') or request.args.get('auto_job')
     req_id = request.args.get('req_id') or request.form.get('req_id')
     po_no_param = request.args.get('po_no') or request.form.get('po_no')
+    selected_company = (request.values.get('company') or 'Canon').strip().title()
+    if selected_company not in ('Canon', 'Haram'):
+        selected_company = 'Canon'
+    existing_po_edit = bool(
+        request.args.get('po_no') or request.form.get('existing_po_edit') == 'true'
+    )
+    company_locked = bool(req_id or existing_po_edit)
+    po_numbers_by_company = {
+        company: generate_po_no(company) for company in ('Canon', 'Haram')
+    }
     order = Order.query.filter_by(job_no=job_no).first() if job_no else None
     vendors = Vendor.query.order_by(Vendor.name.asc()).all()
     item_master_data = [
@@ -11184,17 +11211,19 @@ def req_slip():
         'requested_by': '',
         'priority': '',
         'supplier': '',
-        'company': 'Canon',
+        'company': selected_company,
         'date': '',
         'for_field': '',
-        'po_no': generate_po_no(),
+        'po_no': po_numbers_by_company[selected_company],
         'serial_no': generate_requirement_serial()
     }
 
     # If PO number provided, load all SavedRequirement rows for that PO and populate multiple item slots
     if po_no_param:
         po_clean = po_no_param.strip()
-        po_rows = SavedRequirement.query.filter_by(order_id=job_no, po_no=po_clean).order_by(SavedRequirement.id.asc()).all() if job_no else []
+        po_rows = SavedRequirement.query.filter_by(
+            order_id=job_no, po_no=po_clean, company=selected_company
+        ).order_by(SavedRequirement.id.asc()).all() if job_no else []
         idx = 1
         for r in po_rows:
             if idx > 6:
@@ -11314,20 +11343,30 @@ def req_slip():
             flash('Choose Canon or Haram for this requirement.', 'danger')
             return redirect(url_for('req_slip', job_no=job_no))
         existing_po = bool(
-            po_no and SavedRequirement.query.filter_by(order_id=job_no, po_no=po_no).first()
+            po_no and SavedRequirement.query.filter_by(
+                order_id=job_no, po_no=po_no, company=company
+            ).first()
         )
+        if not req_id and not existing_po_edit:
+            po_no = generate_po_no(company)
+            existing_po = False
+        elif existing_po_edit and not existing_po:
+            flash('The selected company purchase order could not be found.', 'danger')
+            return redirect(url_for('saved_requirements', order_id=job_no, company=company))
         auto_calculate_rolls = bool(order and not req_id and not existing_po)
 
         if req_id and is_read_only_profile():
             return reject_read_only_edit()
-        if is_read_only_profile() and po_no and SavedRequirement.query.filter_by(order_id=job_no, po_no=po_no).first():
+        if is_read_only_profile() and existing_po:
             return reject_read_only_edit()
 
         # If saving by P.O. (po_no present) and not editing a single saved row (no req_id),
         # replace all existing SavedRequirement rows for this order+po_no with the submitted rows.
-        if po_no and not req_id:
+        if po_no and not req_id and existing_po_edit:
             try:
-                SavedRequirement.query.filter_by(order_id=job_no, po_no=po_no).delete()
+                SavedRequirement.query.filter_by(
+                    order_id=job_no, po_no=po_no, company=company
+                ).delete()
                 db.session.flush()
             except Exception:
                 db.session.rollback()
@@ -11432,7 +11471,9 @@ def req_slip():
 
         if saved:
             if po_no and not req_id:
-                po_requirements = SavedRequirement.query.filter_by(order_id=job_no, po_no=po_no).all()
+                po_requirements = SavedRequirement.query.filter_by(
+                    order_id=job_no, po_no=po_no, company=company
+                ).all()
                 sent_date = datetime.utcnow().strftime('%Y-%m-%d')
                 for po_requirement in po_requirements:
                     po_requirement.accessory_status = 'PO_SENT'
@@ -11442,7 +11483,7 @@ def req_slip():
         else:
             flash('Please enter at least one item before saving.', 'danger')
 
-        return redirect(url_for('saved_requirements', order_id=job_no))
+        return redirect(url_for('saved_requirements', order_id=job_no, company=company))
 
     return render_template(
         'req_slip.html',
@@ -11454,6 +11495,10 @@ def req_slip():
         po_no=prefill['po_no'],
         req_id=req_id,
         prefill=prefill,
+        company=selected_company,
+        company_locked=company_locked,
+        po_numbers_by_company=po_numbers_by_company,
+        existing_po_edit=existing_po_edit,
         vendors=vendors,
         item_master_data=item_master_data,
         article_usage_data=article_usage_data,
@@ -14164,16 +14209,14 @@ def saved_requirements():
     if not session.get('role'): return redirect(url_for('index'))
     order_id = request.args.get('order_id') or request.args.get('job_no') or request.args.get('auto_job')
     po_search = (request.args.get('po_search') or '').strip()
-    base_query = SavedRequirement.query.filter_by(order_id=order_id) if order_id else None
+    company = (request.args.get('company') or 'Canon').strip().title()
+    if company not in ('Canon', 'Haram'):
+        company = 'Canon'
+    base_query = SavedRequirement.query.filter_by(order_id=order_id, company=company) if order_id else None
     if base_query is None:
         requirements = []
     else:
-        if po_search:
-            # case-insensitive match on po_no
-            requirements = base_query.filter(func.lower(SavedRequirement.po_no).like(f"%{po_search.lower()}%"))
-            requirements = requirements.order_by(SavedRequirement.id.desc()).all()
-        else:
-            requirements = base_query.order_by(SavedRequirement.id.desc()).all()
+        requirements = base_query.order_by(SavedRequirement.id.desc()).all()
 
     # Group by PO No (po_no). Preserve order of appearance by using list of tuples.
     grouped = {}
@@ -14188,7 +14231,10 @@ def saved_requirements():
     # Build ordered list of (po_no, [requirements])
     grouped_requirements = [(po, grouped[po]) for po in order_of_pos]
 
-    return render_template('saved_requirements.html', order_id=order_id, grouped_requirements=grouped_requirements, po_search=po_search)
+    return render_template(
+        'saved_requirements.html', order_id=order_id,
+        grouped_requirements=grouped_requirements, po_search=po_search, company=company,
+    )
 
 @app.route('/manager/production_entry', methods=['GET', 'POST'])
 def production_entry():
@@ -18252,6 +18298,7 @@ def fabric_position_summary():
             ]
             chosen_order = same_article_orders[0] if same_article_orders else None
             consumption = get_saved_consumption_for_order(party_key, chosen_order, bucket.get('article_key'))
+            bucket['consumption'] = consumption
             qty_per_bail = get_qty_per_bail_for_order(chosen_order, same_article_orders, bucket.get('article_key'))
 
             if bucket['opening_meter'] == 0:
@@ -18793,6 +18840,18 @@ def article_fabric_and_shipment_summary():
 LOCAL_ACCESSORY_PO_ORDER_ID = 'LOCAL-STOCK'
 
 
+def generate_local_accessory_po_no():
+    existing_numbers = db.session.query(SavedRequirement.po_no).filter_by(
+        order_id=LOCAL_ACCESSORY_PO_ORDER_ID
+    ).all()
+    sequence_numbers = []
+    for (po_number,) in existing_numbers:
+        match = re.fullmatch(r'L-(\d+)', (po_number or '').strip(), re.IGNORECASE)
+        if match:
+            sequence_numbers.append(int(match.group(1)))
+    return f'L-{max(sequence_numbers, default=0) + 1:04d}'
+
+
 @app.route('/stock-portal/accessories', defaults={'portal_page': 'home'}, methods=['GET', 'POST'])
 @app.route('/stock-portal/accessories/<portal_page>', methods=['GET', 'POST'])
 def accessories_portal(portal_page='home'):
@@ -18984,7 +19043,7 @@ def accessories_portal(portal_page='home'):
                 flash('Enter at least one accessory item for the Local PO.', 'danger')
                 return redirect_to_portal('purchase-orders')
 
-            po_no = f'LOCAL-{generate_po_no()}'
+            po_no = generate_local_accessory_po_no()
             sent_at = datetime.utcnow().strftime('%Y-%m-%d')
             for local_item in local_items:
                 rate_text = f"{local_item['rate']:.2f}" if local_item['rate'] > 0 else ''
@@ -19904,6 +19963,15 @@ def accessories_portal(portal_page='home'):
             'serial_no': first_item.serial_no or '' if first_item else '',
             'is_local': po['is_local'],
             'company': po['company'],
+            'logo_url': url_for(
+                'static',
+                filename='haram-black.png' if (po['company'] or '').strip().casefold() == 'haram' else 'canon logo black.webp',
+            ),
+            'company_address': (
+                'Akhter & Iqbal Compound, Block-C, Ground Floor, L/3, Block-22,\n'
+                'F.B. Industrial Area, Opp. Edhi Home, Karachi. Ph. 36342557'
+            ),
+            'prepared_by': (session.get('name') or session.get('user') or '').strip(),
             'items': po_lines,
             'total': po_total,
         }
@@ -20028,10 +20096,9 @@ def warehouse_in_transit():
         if pcs_per_packet <= 0:
             flash('Set PCS per poly on the order before placing packets in the warehouse.', 'danger')
             return redirect(url_for('warehouse_in_transit'))
-        if packets <= 0 or abs(packets - round(packets)) > 0.000001:
-            flash('Enter a whole number of packets to place.', 'danger')
+        if packets <= 0:
+            flash('Enter a positive number of packets to place.', 'danger')
             return redirect(url_for('warehouse_in_transit'))
-        packets = round(packets)
         quantity = packets * pcs_per_packet
         if location_type not in {'RACK_SHELF', 'FLOOR', 'CABINET', 'CUPBOARD'}:
             flash('Choose a valid warehouse location type.', 'danger')
@@ -20049,6 +20116,13 @@ def warehouse_in_transit():
         )
         located = warehouse_finished_goods_by_quality(order.job_no)[quality]
         transit_qty = max(0.0, quality_balance - located)
+        available_packets = transit_qty / pcs_per_packet if pcs_per_packet > 0 else 0.0
+        if packets > available_packets + 0.01:
+            flash(
+                f'Cannot place more than the {available_packets:.2f} packet-equivalent {quality} PCS currently in transit.',
+                'danger',
+            )
+            return redirect(url_for('warehouse_in_transit'))
         if quantity > transit_qty + 0.000001:
             flash(
                 f'Cannot place more than the {transit_qty:g} {quality} PCS currently in transit.',
@@ -20106,7 +20180,7 @@ def warehouse_in_transit():
                 'produced_pcs': shipping[produced_key],
                 'transit_pcs': transit_qty,
                 'transit_packets': transit_qty / pcs_per_packet if pcs_per_packet > 0 else 0.0,
-                'placeable_packets': math.floor(transit_qty / pcs_per_packet + 1e-10) if pcs_per_packet > 0 else 0,
+                'placeable_packets': transit_qty / pcs_per_packet if pcs_per_packet > 0 else 0.0,
             })
     placed_locations = WarehouseFinishedGoodsLocation.query.filter(
         WarehouseFinishedGoodsLocation.quantity > 0
@@ -21217,6 +21291,25 @@ def billing_portal():
             ).upper()
             flash(f'Payment of PKR {amount:,.2f} recorded for {invoice.invoice_no}.', 'success')
             return redirect(url_for('billing_portal', invoice_id=invoice.id, shipper=selected_shipper))
+
+        if action == 'delete_invoice':
+            invoice_id = request.form.get('invoice_id', type=int)
+            invoice = BillingInvoice.query.get(invoice_id) if invoice_id else None
+            if not invoice:
+                flash('Invoice not found.', 'danger')
+                return redirect(url_for('billing_portal', shipper=selected_shipper))
+            if normalize_challan_shipper(invoice.challan.shipped_by_party) != selected_shipper:
+                abort(404)
+            bill = CustomerBill.query.filter_by(challan_id=invoice.challan_id).first()
+            if bill:
+                db.session.delete(bill)
+            db.session.delete(invoice)
+            db.session.commit()
+            g.activity_action = (
+                f'DELETED INVOICE {invoice.invoice_no} · {invoice.party_name} · {invoice.total:,.2f}'
+            ).upper()
+            flash(f'Invoice {invoice.invoice_no} and its linked bill were deleted.', 'success')
+            return redirect(url_for('billing_portal', shipper=selected_shipper))
 
         flash('Choose a valid billing action.', 'danger')
         return redirect(url_for('billing_portal', shipper=selected_shipper))
