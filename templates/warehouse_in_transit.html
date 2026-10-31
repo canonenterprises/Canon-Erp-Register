@@ -46,7 +46,7 @@
               {% endif %}
             </p>
           </div>
-          <div><p class="text-[10px] font-bold uppercase text-slate-400">Quality</p><p class="mt-1 font-black {% if row.quality == 'AQ' %}text-sky-700{% else %}text-amber-700{% endif %}">{{ 'A/Q' if row.quality == 'AQ' else 'B/Q' if row.quality == 'BQ' else row.quality }}</p></div>
+          <div><p class="text-[10px] font-bold uppercase text-slate-400">Quality</p><p class="mt-1 font-black {% if row.quality == 'AQ' %}text-sky-700{% else %}text-amber-700{% endif %}">{{ 'A/QUALITY' if row.quality == 'AQ' else 'B/QUALITY' if row.quality == 'BQ' else row.quality }}</p></div>
           <div><p class="text-[10px] font-bold uppercase text-slate-400">Produced</p><p class="mt-1 font-black text-slate-800">{{ '{:,.0f}'.format(row.produced_pcs) }} PCS</p></div>
           <div><p class="text-[10px] font-bold uppercase text-slate-400">In Transit</p><p class="mt-1 font-black text-amber-700">{{ '{:,.2f}'.format(row.transit_pcs) }} PCS</p></div>
           <div><p class="text-[10px] font-bold uppercase text-slate-400">Packet Equivalent</p><p class="mt-1 font-black text-slate-800">{{ '{:,.2f}'.format(row.transit_packets) }}{% if row.order.pcs_poly|float > 0 %} packets{% else %} packets (PCS/packet not set){% endif %}</p></div>

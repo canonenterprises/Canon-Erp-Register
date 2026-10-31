@@ -6,11 +6,14 @@
         <div>
             <p class="text-sm font-bold uppercase tracking-[0.22em] text-slate-700">Fabric Position Summary</p>
             <h1 class="mt-2 text-2xl font-black uppercase">{{ party_name or 'Party' }}</h1>
-            <p class="mt-2 text-sm font-bold text-slate-700">{% if start_date and start_date|length == 10 %}{{ start_date[8:10] }}-{{ start_date[5:7] }}-{{ start_date[:4] }}{% else %}{{ start_date }}{% endif %} TO {% if end_date and end_date|length == 10 %}{{ end_date[8:10] }}-{{ end_date[5:7] }}-{{ end_date[:4] }}{% else %}{{ end_date }}{% endif %}</p>
+            {% set report_month_names = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'] %}
+            {% set formatted_start_date = start_date[8:10] ~ '-' ~ report_month_names[start_date[5:7]|int - 1] ~ '-' ~ start_date[:4] if start_date and start_date|length == 10 else start_date %}
+            {% set formatted_end_date = end_date[8:10] ~ '-' ~ report_month_names[end_date[5:7]|int - 1] ~ '-' ~ end_date[:4] if end_date and end_date|length == 10 else end_date %}
+            <p class="mt-2 text-sm font-bold text-slate-700">{% if yearly_report %}<span class="font-black tracking-wider">YEARLY REPORT</span><span class="mx-2">·</span>{% elif monthly_report %}<span class="font-black tracking-wider">MONTHLY REPORT</span><span class="mx-2">·</span>{% endif %}{{ formatted_start_date }} TO {{ formatted_end_date }}</p>
         </div>
         <div class="no-print mt-4 flex flex-wrap justify-center gap-2">
             <a href="{{ url_for('fabric_ledger') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Fabric Ledger</a>
-            <button type="button" id="open-article-print-dialog" {% if not rows %}disabled{% endif %} class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Summary</button>
+            <button type="button" id="open-article-print-dialog" {% if not rows %}disabled{% endif %} class="print-gold-button inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"><i class="fa-solid fa-print" aria-hidden="true"></i> Print Summary</button>
         </div>
     </header>
 
@@ -33,6 +36,7 @@
                     <tr class="border-t border-slate-300"><th class="px-3 py-2 text-left font-bold uppercase">A/Q Shipment Sent to Party{% if row.sent_challans %} ({{ row.sent_challans|join(', ') }}){% endif %}{% if row.consumption > 0 %} (PER DOZ {{ '%g'|format(row.consumption) }} MTR){% endif %}</th><td class="border-l border-slate-700 px-3 py-2 text-center">{% if row.sent_bails_display is not none %}{{ row.sent_bails_display }}{% else %}{{ '{:,.2f}'.format(row.sent_bails) }}{% endif %}</td><td class="border-l border-slate-700 px-3 py-2 text-center">{{ '{:,.2f}'.format(row.sent_meter) }}</td></tr>
                     <tr class="border-t border-slate-300"><th class="px-3 py-2 text-left font-bold uppercase">B/Quality Shipment ({{ '{:,.0f}'.format(row.b_shipped_pcs) }} PCS){% if row.b_shipped_challans %} ({{ row.b_shipped_challans|join(', ') }}){% endif %}</th><td class="border-l border-slate-700 px-3 py-2 text-center">{% if row.b_shipped_bails_display is not none %}{{ row.b_shipped_bails_display }}{% else %}{{ '{:,.3f}'.format(row.b_shipped_bails) }}{% endif %}</td><td class="border-l border-slate-700 px-3 py-2 text-center">{{ '{:,.3f}'.format(row.b_shipped_meter) }}</td></tr>
                     <tr class="border-t border-slate-300"><th class="px-3 py-2 text-left font-bold uppercase">B/Quality Returned ({{ '{:,.0f}'.format(row.b_returned_meter) }} MTR){% if row.b_returned_challans %} ({{ row.b_returned_challans|join(', ') }}){% endif %}</th><td class="border-l border-slate-700 px-3 py-2 text-center">{% if row.b_returned_bails_display is not none %}{{ row.b_returned_bails_display }}{% else %}{{ '{:,.2f}'.format(row.b_returned_bails) }}{% endif %}</td><td class="border-l border-slate-700 px-3 py-2 text-center">{{ '{:,.2f}'.format(row.b_returned_meter) }}</td></tr>
+                    <tr class="fabric-shortage-print-row border-t border-slate-300" data-print-article="{{ loop.index0 }}"><th class="px-3 py-2 text-left font-bold uppercase">FABRIC L SHORTAGE</th><td class="border-l border-slate-700 px-3 py-2 text-center">{% if row.fabric_shortage_bails_display is not none %}{{ row.fabric_shortage_bails_display }}{% elif row.fabric_shortage_meter is not none %}{{ '{:,.2f}'.format(row.fabric_shortage_bails) }}{% else %}—{% endif %}</td><td class="border-l border-slate-700 px-3 py-2 text-center">{% if row.fabric_shortage_meter is not none %}{{ '{:,.2f}'.format(row.fabric_shortage_meter) }}{% else %}—{% endif %}</td></tr>
                     <tr class="border-t-2 border-slate-700 bg-slate-50"><th class="px-3 py-2 text-left font-black uppercase">Balance Fabric in Factory</th><td class="border-l border-slate-700 px-3 py-2 text-center font-black">{% if row.balance_bails_display is not none %}{{ row.balance_bails_display }}{% else %}{{ '{:,.2f}'.format(row.balance_bails) }}{% endif %}</td><td class="border-l border-slate-700 px-3 py-2 text-center font-black">{{ '{:,.3f}'.format(row.balance_meter) }}</td></tr>
                 </tbody>
             </table>
@@ -66,20 +70,26 @@
             </label>
             <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {% for row in rows %}
-                <label class="flex min-h-16 cursor-pointer items-start gap-3 rounded-md border border-slate-200 p-3 text-sm text-slate-700 hover:bg-slate-50">
-                    <input type="checkbox" class="article-print-checkbox mt-0.5 h-4 w-4 accent-slate-900" value="{{ loop.index0 }}" checked>
-                    <span class="min-w-0">
-                        <span class="block font-bold text-slate-900">{{ row.article_name or row.article }}</span>
-                        {% if row.article_style or row.article_color %}<span class="mt-0.5 block text-xs text-slate-500">{{ row.article_style or '' }}{% if row.article_style and row.article_color %} · {% endif %}{{ row.article_color or '' }}</span>{% endif %}
-                    </span>
-                </label>
+                <div class="article-print-option flex min-h-28 flex-col justify-between rounded-md border p-3 text-sm">
+                    <label class="flex cursor-pointer items-start gap-3">
+                        <input type="checkbox" class="article-print-checkbox mt-0.5 h-4 w-4 accent-slate-900" value="{{ loop.index0 }}" checked>
+                        <span class="min-w-0">
+                            <span class="block font-bold text-slate-900">{{ row.article_name or row.article }}</span>
+                            {% if row.article_style or row.article_color %}<span class="mt-0.5 block text-xs text-slate-500">{{ row.article_style or '' }}{% if row.article_style and row.article_color %} · {% endif %}{{ row.article_color or '' }}</span>{% endif %}
+                        </span>
+                    </label>
+                    <label class="mt-3 flex cursor-pointer items-center gap-2 border-t border-slate-200 pt-3 text-xs font-bold uppercase text-slate-700">
+                        <input type="checkbox" class="fabric-shortage-print-checkbox h-4 w-4 accent-slate-900" value="{{ loop.index0 }}" checked>
+                        <span>FABRIC L SHORTAGE</span>
+                    </label>
+                </div>
                 {% endfor %}
             </div>
             <p id="article-print-error" class="mt-3 hidden text-sm font-semibold text-rose-700" role="alert">Select at least one article to print.</p>
         </div>
         <footer class="flex justify-end gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-6">
             <button type="button" id="cancel-article-print" class="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-100">Cancel</button>
-            <button type="button" id="confirm-article-print" class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800"><i class="fa-solid fa-print" aria-hidden="true"></i> Print</button>
+            <button type="button" id="confirm-article-print" class="print-gold-button inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold text-white"><i class="fa-solid fa-print" aria-hidden="true"></i> Print</button>
         </footer>
     </div>
 </dialog>
@@ -93,12 +103,43 @@
 {% endif %}
 <style>
     .report-print-footer { display: none; }
+    .print-gold-button { background-color: #b7955c; }
+    .print-gold-button:hover { background-color: #9b7e4e; }
+    #article-print-dialog .article-print-option {
+        background-color: #ffffff;
+        border-color: #cbd5e1;
+        color: #334155;
+        transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    }
+    #article-print-dialog .article-print-option:hover,
+    #article-print-dialog .article-print-option:focus-within {
+        background-color: #f1f5f9;
+        border-color: #64748b;
+        box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.18);
+    }
+    @media screen {
+        html[data-theme="dark"] #article-print-dialog .article-print-option {
+            background-color: #0f172a !important;
+            border-color: #475569 !important;
+            color: #e2e8f0 !important;
+        }
+        html[data-theme="dark"] #article-print-dialog .article-print-option:hover,
+        html[data-theme="dark"] #article-print-dialog .article-print-option:focus-within {
+            background-color: #263449 !important;
+            border-color: #94a3b8 !important;
+        }
+        html[data-theme="dark"] #article-print-dialog .article-print-option label {
+            border-color: #475569 !important;
+            color: #e2e8f0 !important;
+        }
+    }
 @media print {
     @page { size: A4 portrait; margin: 5mm 5mm 2mm; }
     body { background: white !important; }
     .no-print { display: none !important; }
     .article-block { break-inside: avoid; margin-bottom: 8mm; }
     .article-block.print-excluded { display: none !important; }
+    .fabric-shortage-print-row.print-excluded { display: none !important; }
     .article-block h2 { font-size: 16pt; }
     .article-block table { font-size: 10pt; }
     .report-print-footer { position: fixed; right: 0; bottom: 4mm; left: 0; display: flex; flex-direction: column; gap: 1.5mm; margin-top: 0; font-size: 9pt; }
@@ -114,6 +155,8 @@
         const confirmArticlePrint = document.getElementById('confirm-article-print');
         const selectAllPrintArticles = document.getElementById('select-all-print-articles');
         const articlePrintCheckboxes = Array.from(document.querySelectorAll('.article-print-checkbox'));
+        const fabricShortagePrintCheckboxes = Array.from(document.querySelectorAll('.fabric-shortage-print-checkbox'));
+        const fabricShortagePrintRows = Array.from(document.querySelectorAll('.fabric-shortage-print-row'));
         const articlePrintError = document.getElementById('article-print-error');
         const articlePrintLoading = document.getElementById('article-print-loading');
 
@@ -139,10 +182,20 @@
                 articlePrintError.classList.remove('hidden');
                 return;
             }
+            const selectedShortageIndexes = new Set(
+                fabricShortagePrintCheckboxes.filter(checkbox => checkbox.checked).map(checkbox => checkbox.value)
+            );
 
-            const articleSections = Array.from(document.querySelectorAll('[data-print-article]'));
+            const articleSections = Array.from(document.querySelectorAll('section.article-block[data-print-article]'));
             articleSections.forEach(section => {
                 section.classList.toggle('print-excluded', !selectedIndexes.has(section.dataset.printArticle));
+            });
+            fabricShortagePrintRows.forEach(row => {
+                const index = row.dataset.printArticle;
+                row.classList.toggle(
+                    'print-excluded',
+                    !selectedIndexes.has(index) || !selectedShortageIndexes.has(index)
+                );
             });
             articlePrintDialog.close();
             const loadingStartedAt = performance.now();
@@ -158,6 +211,7 @@
 
             window.addEventListener('afterprint', function restoreArticleSelection() {
                 articleSections.forEach(section => section.classList.remove('print-excluded'));
+                fabricShortagePrintRows.forEach(row => row.classList.remove('print-excluded'));
                 window.removeEventListener('afterprint', restoreArticleSelection);
             });
             window.print();

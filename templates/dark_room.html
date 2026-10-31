@@ -10,8 +10,8 @@
       <label for="dark-room-quality-filter" class="block text-xs font-bold uppercase text-slate-500">Quality
         <select id="dark-room-quality-filter" class="mt-1 w-full rounded border px-3 py-2 text-sm sm:w-48">
           <option value="">All qualities</option>
-          <option value="A">A-QUALITY</option>
-          <option value="B">B-QUALITY</option>
+          <option value="A">A/QUALITY</option>
+          <option value="B">B/QUALITY</option>
         </select>
       </label>
     </div>
@@ -26,7 +26,7 @@
             <td class="p-3 font-bold">{{ row.article or 'Unassigned' }}</td>
             <td class="p-3">{{ row.style }}</td>
             <td class="p-3">{{ row.serial_no or '—' }}</td>
-            <td class="p-3">{{ row.quality }}-QUALITY</td>
+            <td class="p-3">{{ 'A/QUALITY' if row.quality|upper == 'A' else 'B-QUALITY' }}</td>
             <td class="p-3 text-right">{{ '%.2f'|format(row.quantity) }} m</td>
             <td class="p-3 text-right font-bold">{{ '%.2f'|format(row.remaining) }} m</td>
             <td class="p-3"><form method="post" class="flex items-center gap-2"><input type="hidden" name="record_id" value="{{ row.id }}"><input type="number" name="quantity" min="0.01" max="{{ row.remaining }}" step="0.01" required placeholder="Qty" class="w-24 rounded border px-2 py-1"><button class="rounded bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white">Reimburse</button></form></td>

@@ -17817,6 +17817,14 @@ def fabric_ledger():
         movement.pop('_sort_at', None)
         movement.pop('_sort_id', None)
 
+    current_year = datetime.now().year
+    fabric_position_year_options = {current_year, current_year + 1}
+    for date_column in (Order.date, Inventory.recv_date, ShipmentRecord.shipped_at, ChallanRecord.challan_date):
+        for (date_value,) in db.session.query(date_column).filter(date_column.isnot(None)).all():
+            parsed_date = normalize_date(date_value)
+            if parsed_date:
+                fabric_position_year_options.add(parsed_date.year)
+
     return render_template(
         'fabric_ledger.html', stock_rows=stock_rows, totals=totals,
         by_quality=sorted(by_quality.items()), by_supplier=sorted(by_supplier.items()),
@@ -17824,6 +17832,9 @@ def fabric_ledger():
         all_qualities=all_qualities, all_suppliers=all_suppliers,
         search=search, quality_filter=quality_filter, supplier_filter=supplier_filter,
         status_filter=status_filter, status_options=status_options, sort_order=sort_order, movements=movements, party_names=party_names,
+        fabric_position_year_options=sorted(fabric_position_year_options), current_year=current_year,
+        fabric_position_month_options=[(month, calendar.month_name[month]) for month in range(1, 13)],
+        current_month=datetime.now().month,
         show_fabric_report_sections='fabric_reports' in getattr(g, 'page_access_keys', set()),
         can_view_dark_room=session.get('role') in ('owner', 'manager') and not is_read_only_profile(),
     )
@@ -17913,8 +17924,29 @@ def fabric_position_summary():
         return redirect(url_for('index'))
 
     party_name = (request.args.get('party_name') or '').strip()
-    start_value = (request.args.get('start_date') or '').strip()
-    end_value = (request.args.get('end_date') or '').strip()
+    date_mode = (request.args.get('date_mode') or '').strip().lower()
+    selected_year = request.args.get('year', type=int)
+    selected_month = request.args.get('month', type=int)
+    valid_selected_year = selected_year is not None and 1900 <= selected_year <= 9998
+    monthly_report = (
+        date_mode == 'month'
+        and valid_selected_year
+        and selected_month is not None
+        and 1 <= selected_month <= 12
+    )
+    yearly_report = (
+        date_mode not in ('custom', 'month')
+        and valid_selected_year
+    )
+    if monthly_report:
+        start_value = f'{selected_year}-{selected_month:02d}-01'
+        end_value = f'{selected_year}-{selected_month:02d}-{calendar.monthrange(selected_year, selected_month)[1]:02d}'
+    elif yearly_report:
+        start_value = f'{selected_year}-01-01'
+        end_value = f'{selected_year}-12-31'
+    else:
+        start_value = (request.args.get('start_date') or '').strip()
+        end_value = (request.args.get('end_date') or '').strip()
     start_date = normalize_date(start_value).date() if normalize_date(start_value) else None
     end_date = normalize_date(end_value).date() if normalize_date(end_value) else None
     rows = []
@@ -18070,11 +18102,24 @@ def fabric_position_summary():
                 'b_returned_meter': 0.0, 'b_returned_bails': 0.0,
                 'b_returned_bails_display': None,
                 'b_returned_challans': [],
+                'fabric_shortage_total': 0.0,
+                'fabric_shortage_count': 0,
+                'fabric_shortage_received_meter': 0.0,
+                'fabric_shortage_meter': None,
+                'fabric_shortage_bails': 0.0,
+                'fabric_shortage_bails_display': None,
             })
 
         for inventory in inventories:
             order = order_map.get(inventory.order_id)
             bucket = article_bucket(order)
+            if not inventory.is_direct_cutting_pcs:
+                shortage_value = calculate_inventory_cutting_average(
+                    inventory.serial_no, inventory.order_id
+                ) or inventory.meter_note
+                if str(shortage_value or '').strip():
+                    bucket['fabric_shortage_total'] += parse_numeric(shortage_value)
+                    bucket['fabric_shortage_count'] += 1
             inventory_received_date = normalize_date(inventory.recv_date)
             b_returned_meter = (
                 max(0.0, parse_numeric(inventory.b_returned_quantity))
@@ -18084,6 +18129,9 @@ def fabric_position_summary():
                 parse_numeric(inventory.fabric_qty_a)
                 + parse_numeric(inventory.fabric_qty_b)
             )
+            shortage_received_meter = parse_numeric(inventory.fabric_qty_a)
+            if inventory.fabric_b_enabled:
+                shortage_received_meter += parse_numeric(inventory.fabric_qty_b)
             received_bails = parse_numeric(inventory.receive_cut_pcs)
             if inventory_received_date and inventory_received_date.date() < start_date:
                 bucket['opening_meter'] += received_meter
@@ -18107,6 +18155,8 @@ def fabric_position_summary():
             elif in_range(inventory.recv_date):
                 bucket['received_meter'] += received_meter
                 bucket['received_bails'] += received_bails
+                if not inventory.is_direct_cutting_pcs:
+                    bucket['fabric_shortage_received_meter'] += shortage_received_meter
 
         inventory_rows = InventoryRow.query.filter(InventoryRow.inventory_id.in_(inventory_ids)).all() if inventory_ids else []
         for row in inventory_rows:
@@ -18301,6 +18351,18 @@ def fabric_position_summary():
             bucket['consumption'] = consumption
             qty_per_bail = get_qty_per_bail_for_order(chosen_order, same_article_orders, bucket.get('article_key'))
 
+            if bucket['fabric_shortage_count']:
+                average_received_percent = bucket['fabric_shortage_total'] / bucket['fabric_shortage_count']
+                shortage_percent = max(0.0, 100.0 - average_received_percent)
+                bucket['fabric_shortage_meter'] = bucket['fabric_shortage_received_meter'] * shortage_percent / 100.0
+                if bucket['fabric_shortage_meter'] <= 0:
+                    bucket['fabric_shortage_bails'] = 0.0
+                elif consumption > 0 and qty_per_bail > 0:
+                    req_per_dozen = bucket['fabric_shortage_meter'] / consumption
+                    bucket['fabric_shortage_bails'] = round(req_per_dozen / qty_per_bail, 2)
+                else:
+                    bucket['fabric_shortage_bails_display'] = 'N/A'
+
             if bucket['opening_meter'] == 0:
                 bucket['opening_bails'] = 0.0
                 bucket['opening_bails_display'] = None
@@ -18338,6 +18400,7 @@ def fabric_position_summary():
                 - bucket['sent_meter']
                 - bucket['b_shipped_meter']
                 - bucket['b_returned_meter']
+                - (bucket['fabric_shortage_meter'] or 0.0)
             )
 
             if bucket['balance_meter'] == 0:
@@ -18355,6 +18418,7 @@ def fabric_position_summary():
     return render_template(
         'fabric_position_summary.html', rows=rows, party_name=party_name,
         start_date=start_value, end_date=end_value,
+        yearly_report=yearly_report, monthly_report=monthly_report,
         prepared_by=session.get('name') or session.get('user') or 'System',
     )
 
@@ -20099,7 +20163,7 @@ def warehouse_in_transit():
         if packets <= 0:
             flash('Enter a positive number of packets to place.', 'danger')
             return redirect(url_for('warehouse_in_transit'))
-        quantity = packets * pcs_per_packet
+        requested_quantity = packets * pcs_per_packet
         if location_type not in {'RACK_SHELF', 'FLOOR', 'CABINET', 'CUPBOARD'}:
             flash('Choose a valid warehouse location type.', 'danger')
             return redirect(url_for('warehouse_in_transit'))
@@ -20117,18 +20181,14 @@ def warehouse_in_transit():
         located = warehouse_finished_goods_by_quality(order.job_no)[quality]
         transit_qty = max(0.0, quality_balance - located)
         available_packets = transit_qty / pcs_per_packet if pcs_per_packet > 0 else 0.0
-        if packets > available_packets + 0.01:
+        displayed_available_packets = round(available_packets, 2)
+        if packets > displayed_available_packets + 0.000001:
             flash(
                 f'Cannot place more than the {available_packets:.2f} packet-equivalent {quality} PCS currently in transit.',
                 'danger',
             )
             return redirect(url_for('warehouse_in_transit'))
-        if quantity > transit_qty + 0.000001:
-            flash(
-                f'Cannot place more than the {transit_qty:g} {quality} PCS currently in transit.',
-                'danger',
-            )
-            return redirect(url_for('warehouse_in_transit'))
+        quantity = min(requested_quantity, transit_qty)
 
         location = WarehouseFinishedGoodsLocation(
             order_id=order.job_no,
@@ -22208,6 +22268,8 @@ def set_order_fulfillment_status(job_no):
                 values['packets'] = parse_numeric(request.form.get(f'shipment_{prefix}_packets'))
             if any(value < 0 for value in values.values()):
                 raise ValueError('Shipment quantities cannot be negative.')
+            if abs(values['pcs'] - round(values['pcs'])) > 0.000001:
+                raise ValueError('Direct shipment PCS must be a whole number.')
             if values['packets'] > 0 and pcs_per_packet <= 0:
                 raise ValueError('PCS per packet must be configured before sending packets.')
             if values['ctn'] > 0 and (pcs_per_packet <= 0 or shipping['packets_per_ctn'] <= 0):
@@ -22227,6 +22289,14 @@ def set_order_fulfillment_status(job_no):
                 + values['ctn'] * shipping['packets_per_ctn'] * pcs_per_packet
                 + values['bails'] * shipping['packets_per_bail'] * pcs_per_packet
             )
+            package_rounding_tolerance = 0.005 * pcs_per_packet * (
+                (1 if values['packets'] > 0 else 0)
+                + (shipping['packets_per_ctn'] if values['ctn'] > 0 else 0)
+                + (shipping['packets_per_bail'] if values['bails'] > 0 else 0)
+            )
+            if abs(values['total_pcs'] - round(values['total_pcs'])) > package_rounding_tolerance + 0.000001:
+                raise ValueError('Shipment PCS must be a whole number.')
+            values['total_pcs'] = round(values['total_pcs'])
             return values
 
         try:
@@ -22430,6 +22500,8 @@ def create_combined_shipment():
                 }
                 if any(value < 0 for value in values[quality].values()):
                     raise ValueError('Shipment quantities cannot be negative.')
+                if abs(values[quality]['pcs'] - round(values[quality]['pcs'])) > 0.000001:
+                    raise ValueError('Direct shipment PCS must be a whole number.')
                 if values[quality]['packets'] > 0 and pcs_per_packet <= 0:
                     raise ValueError(f'PCS per packet is not configured for {job_number}.')
                 if values[quality]['ctn'] > 0 and (pcs_per_packet <= 0 or shipping['packets_per_ctn'] <= 0):
@@ -22442,6 +22514,14 @@ def create_combined_shipment():
                     + values[quality]['ctn'] * shipping['packets_per_ctn'] * pcs_per_packet
                     + values[quality]['bails'] * shipping['packets_per_bail'] * pcs_per_packet
                 )
+                package_rounding_tolerance = 0.005 * pcs_per_packet * (
+                    (1 if values[quality]['packets'] > 0 else 0)
+                    + (shipping['packets_per_ctn'] if values[quality]['ctn'] > 0 else 0)
+                    + (shipping['packets_per_bail'] if values[quality]['bails'] > 0 else 0)
+                )
+                if abs(values[quality]['total_pcs'] - round(values[quality]['total_pcs'])) > package_rounding_tolerance + 0.000001:
+                    raise ValueError('Shipment PCS must be a whole number.')
+                values[quality]['total_pcs'] = round(values[quality]['total_pcs'])
                 values[quality]['packet_equivalent'] = (
                     values[quality]['pcs'] / pcs_per_packet if pcs_per_packet > 0 else 0.0
                 ) + values[quality]['packets'] + (

@@ -95,7 +95,7 @@
                 <p class="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-slate-500">Production quality split</p>
                 <div class="grid grid-cols-2 gap-3">
                   <div class="rounded-xl border border-sky-100 bg-sky-50 p-3">
-                    <p class="text-[10px] font-bold uppercase text-sky-600">A/Q total</p>
+                    <p class="text-[10px] font-bold uppercase text-sky-600">A/QUALITY total</p>
                     <p class="mt-1 text-2xl font-black text-sky-900">{{ '{:,.0f}'.format(item.total_aq_pcs) }}</p>
                     <p class="mt-1 text-xs text-sky-700">Produced, not yet shipped: {{ '{:,.0f}'.format(item.balance_aq_pcs) }} PCS</p>
                   </div>
@@ -107,13 +107,13 @@
                 </div>
                 <div class="mt-3 grid grid-cols-2 gap-3">
                   <div class="rounded-xl border border-sky-200 bg-white p-3 shadow-sm">
-                    <p class="text-[10px] font-bold uppercase text-sky-700">Warehouse A/Q</p>
-                    <p class="mt-1 text-2xl font-black text-sky-900" data-remaining="aq-pcs">{{ '{:,.2f}'.format(item.dispatchable_aq_pcs) }}</p>
+                    <p class="text-[10px] font-bold uppercase text-sky-700">Warehouse A/QUALITY</p>
+                    <p class="mt-1 text-2xl font-black text-sky-900" data-remaining="aq-pcs">{{ '{:,.0f}'.format(item.dispatchable_aq_pcs) }}</p>
                     <p class="mt-1 text-xs text-sky-700">PCS remaining</p>
                   </div>
                   <div class="rounded-xl border border-amber-200 bg-white p-3 shadow-sm">
                     <p class="text-[10px] font-bold uppercase text-amber-700">Warehouse B/Q</p>
-                    <p class="mt-1 text-2xl font-black text-amber-900" data-remaining="bq-pcs">{{ '{:,.2f}'.format(item.dispatchable_bq_pcs) }}</p>
+                    <p class="mt-1 text-2xl font-black text-amber-900" data-remaining="bq-pcs">{{ '{:,.0f}'.format(item.dispatchable_bq_pcs) }}</p>
                     <p class="mt-1 text-xs text-amber-800">PCS remaining</p>
                   </div>
                 </div>
@@ -147,15 +147,15 @@
                     </thead>
                     <tbody>
                       <tr class="border-t border-slate-200 bg-sky-50/60">
-                        <th class="px-1 py-2 text-left font-black text-sky-800 sm:px-3">A/Q</th>
+                        <th class="px-1 py-2 text-left font-black text-sky-800 sm:px-3">A/QUALITY</th>
                         {% for unit in ('pcs', 'packets', 'ctn', 'bails') %}
-                        <td class="px-1 py-2 sm:px-2"><input type="number" name="shipment_aq_{{ unit }}" min="0" step="0.01" value="0" class="shipment-unit-input min-w-0 w-full rounded-lg border border-sky-200 bg-white px-1.5 py-2 text-xs font-black text-slate-900 sm:px-2 sm:text-sm" placeholder="0" aria-label="A/Q {{ unit }}"></td>
+                        <td class="px-1 py-2 sm:px-2"><input type="number" name="shipment_aq_{{ unit }}" min="0" step="{{ '1' if unit == 'pcs' else '0.01' }}" value="0" class="shipment-unit-input min-w-0 w-full rounded-lg border border-sky-200 bg-white px-1.5 py-2 text-xs font-black text-slate-900 sm:px-2 sm:text-sm" placeholder="0" aria-label="A/QUALITY {{ unit }}"></td>
                         {% endfor %}
                       </tr>
                       <tr class="border-t border-slate-200 bg-amber-50/60">
-                        <th class="px-1 py-2 text-left font-black text-amber-800 sm:px-3">B/Q</th>
+                        <th class="px-1 py-2 text-left font-black text-amber-800 sm:px-3">B/QUALITY</th>
                         {% for unit in ('pcs', 'packets', 'ctn', 'bails') %}
-                        <td class="px-1 py-2 sm:px-2"><input type="number" name="shipment_bq_{{ unit }}" min="0" step="0.01" value="0" class="shipment-unit-input min-w-0 w-full rounded-lg border border-amber-200 bg-white px-1.5 py-2 text-xs font-black text-slate-900 sm:px-2 sm:text-sm" placeholder="0" aria-label="B/Q {{ unit }}"></td>
+                        <td class="px-1 py-2 sm:px-2"><input type="number" name="shipment_bq_{{ unit }}" min="0" step="{{ '1' if unit == 'pcs' else '0.01' }}" value="0" class="shipment-unit-input min-w-0 w-full rounded-lg border border-amber-200 bg-white px-1.5 py-2 text-xs font-black text-slate-900 sm:px-2 sm:text-sm" placeholder="0" aria-label="B/QUALITY {{ unit }}"></td>
                         {% endfor %}
                       </tr>
                     </tbody>
@@ -164,7 +164,7 @@
                 <p class="text-[10px] text-slate-500">1 packet = {{ item.order.pcs_poly or 0 }} PCS · {{ item.packets_per_ctn|round(2) }} packets/carton · {{ item.packets_per_bail|round(2) }} packets/bail</p>
                 <div class="space-y-3 rounded-xl bg-slate-50 p-3 text-[10px] font-bold text-slate-700">
                   <div class="grid grid-cols-3 gap-3">
-                    <div class="rounded-lg bg-white p-2.5 shadow-sm"><span class="block">A/Q PCS</span><strong class="mt-1 block text-lg text-sky-700" data-result="aq-pcs">0.00</strong></div>
+                    <div class="rounded-lg bg-white p-2.5 shadow-sm"><span class="block">A/QUALITY PCS</span><strong class="mt-1 block text-lg text-sky-700" data-result="aq-pcs">0.00</strong></div>
                     <div class="rounded-lg bg-white p-2.5 shadow-sm"><span class="block">B/Q PCS</span><strong class="mt-1 block text-lg text-amber-700" data-result="bq-pcs">0.00</strong></div>
                     <div class="rounded-lg bg-white p-2.5 shadow-sm"><span class="block">Total PCS</span><strong class="mt-1 block text-lg text-slate-900" data-result="pcs">0.00</strong></div>
                   </div>
@@ -194,7 +194,7 @@
 
       <div class="mt-5 space-y-6">
         <div>
-          <h3 class="mb-3 text-xs font-black uppercase tracking-[0.2em] text-emerald-700">A/Q returns</h3>
+          <h3 class="mb-3 text-xs font-black uppercase tracking-[0.2em] text-emerald-700">A/QUALITY returns</h3>
           {% if ready_a_return_shipments %}
           <div class="space-y-3">
             {% for inventory in ready_a_return_shipments %}
@@ -224,7 +224,7 @@
         </div>
 
         <div>
-          <h3 class="mb-3 text-xs font-black uppercase tracking-[0.2em] text-sky-700">B/Q returns</h3>
+          <h3 class="mb-3 text-xs font-black uppercase tracking-[0.2em] text-sky-700">B/QUALITY returns</h3>
           {% if ready_b_return_shipments %}
           <div class="space-y-3">
             {% for inventory in ready_b_return_shipments %}
@@ -348,9 +348,15 @@ document.querySelectorAll('.shipment-controls').forEach(function (controls) {
     const packets = value('packets');
     const ctn = value('ctn');
     const bails = value('bails');
+    const pcsRoundingTolerance = 0.005 * pcsPoly * (
+      (packets > 0 ? 1 : 0)
+      + (ctn > 0 ? packetsPerCtn : 0)
+      + (bails > 0 ? packetsPerBail : 0)
+    );
     return {
       pcs: pcs + packets * pcsPoly + ctn * packetsPerCtn * pcsPoly + bails * packetsPerBail * pcsPoly,
       packetEquivalent: (pcsPoly > 0 ? pcs / pcsPoly : 0) + packets + ctn * packetsPerCtn + bails * packetsPerBail,
+      pcsRoundingTolerance: pcsRoundingTolerance,
       ctn: ctn,
       bails: bails,
     };
@@ -359,9 +365,9 @@ document.querySelectorAll('.shipment-controls').forEach(function (controls) {
   function updateShipmentPreview() {
     const aq = qualityTotals('aq');
     const bq = qualityTotals('bq');
-    aqPcsResult.textContent = aq.pcs.toFixed(2);
-    bqPcsResult.textContent = bq.pcs.toFixed(2);
-    pcsResult.textContent = (aq.pcs + bq.pcs).toFixed(2);
+    aqPcsResult.textContent = aq.pcs.toFixed(0);
+    bqPcsResult.textContent = bq.pcs.toFixed(0);
+    pcsResult.textContent = (aq.pcs + bq.pcs).toFixed(0);
     packetsResult.textContent = (aq.packetEquivalent + bq.packetEquivalent).toFixed(2);
     packagesResult.textContent = aq.ctn + bq.ctn + ' / ' + (aq.bails + bq.bails);
 
@@ -381,12 +387,24 @@ document.querySelectorAll('.shipment-controls').forEach(function (controls) {
       bails: packetsPerBail > 0 ? remainingPackets / packetsPerBail : 0,
     };
     Object.entries(remainingValues).forEach(function ([key, value]) {
-      if (remainingResults[key]) remainingResults[key].textContent = value.toFixed(2);
+      if (remainingResults[key]) {
+        const precision = ['aq-pcs', 'bq-pcs', 'pcs'].includes(key) ? 0 : 2;
+        remainingResults[key].textContent = value.toFixed(precision);
+      }
     });
   }
 
   controls.querySelectorAll('.shipment-unit-input').forEach(function (input) {
     input.addEventListener('input', updateShipmentPreview);
+  });
+  controls.closest('form')?.addEventListener('submit', function (event) {
+    const hasFractionalPcs = [qualityTotals('aq'), qualityTotals('bq')].some(function (totals) {
+      return Math.abs(totals.pcs - Math.round(totals.pcs)) > totals.pcsRoundingTolerance + 0.000001;
+    });
+    if (hasFractionalPcs) {
+      event.preventDefault();
+      window.alert('Shipment PCS must be a whole number.');
+    }
   });
   updateShipmentPreview();
 });

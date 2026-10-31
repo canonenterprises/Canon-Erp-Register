@@ -35,7 +35,7 @@
               <tr class="border-t border-slate-200 bg-{{ color_class }}-50/60">
                 <th class="px-2 py-3 text-left font-black text-{{ color_class }}-800">{{ quality|upper }}</th>
                 {% for unit in ('pcs', 'packets', 'ctn', 'bails') %}
-                <td class="px-2 py-3"><input type="number" name="combined_{{ quality }}_{{ unit }}_{{ index }}" min="0" step="0.01" value="0" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-black text-slate-900" placeholder="0"></td>
+                <td class="px-2 py-3"><input type="number" name="combined_{{ quality }}_{{ unit }}_{{ index }}" min="0" step="{{ '1' if unit == 'pcs' else '0.01' }}" value="0" class="w-full rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-black text-slate-900" placeholder="0"></td>
                 {% endfor %}
               </tr>
               {% endfor %}

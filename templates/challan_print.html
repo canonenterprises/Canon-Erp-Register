@@ -247,7 +247,7 @@
                             {{ '{:,.2f}'.format(challan.shipped_meter) }}
                             <em class="text-[10px] not-italic font-bold text-amber-400">MTR</em>
                         {% else %}
-                            {{ '{:,.2f}'.format(shipment_total_pcs) }}
+                            {{ '{:,.0f}'.format(shipment_total_pcs) }}
                             <em class="text-[10px] not-italic font-bold text-amber-400">PCS</em>
                         {% endif %}
                     </strong>

@@ -60,7 +60,7 @@
               <td class="px-3 py-3 text-slate-600">{{ challan.article_name or '—' }}</td>
               <td class="px-3 py-3 font-semibold text-slate-700">{{ shipment_summaries.get(challan.id, '—') }}</td>
               <td class="px-3 py-3 font-black text-sky-700">{% if meter_summaries.get(challan.id, 0) > 0 %}{{ '{:,.2f}'.format(meter_summaries[challan.id]) }} MTR{% else %}—{% endif %}</td>
-              <td class="px-3 py-3 font-black text-slate-800">{% if challan.source_type in ('inventory_return', 'inventory_return_a') %}{{ '{:,.2f}'.format(challan.shipped_meter) }} MTR{% elif direct_pcs_summaries.get(challan.id, 0) > 0 %}{{ '{:,.2f}'.format(direct_pcs_summaries[challan.id]) }} PCS{% else %}—{% endif %}</td>
+              <td class="px-3 py-3 font-black text-slate-800">{% if challan.source_type in ('inventory_return', 'inventory_return_a') %}{{ '{:,.2f}'.format(challan.shipped_meter) }} MTR{% elif direct_pcs_summaries.get(challan.id, 0) > 0 %}{{ '{:,.0f}'.format(direct_pcs_summaries[challan.id]) }} PCS{% else %}—{% endif %}</td>
               <td class="px-3 py-3 font-black text-slate-800">{{ '{:,.2f}'.format(packet_summaries.get(challan.id, 0)) }}</td>
               <td class="px-3 py-3 font-black text-slate-800">{{ '{:,.2f}'.format(challan.shipped_ctn or 0) }}</td>
               <td class="px-3 py-3 font-black text-slate-800">{{ '{:,.2f}'.format(challan.shipped_bails or 0) }}</td>

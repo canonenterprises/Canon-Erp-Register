@@ -133,26 +133,26 @@
                       {% if unit_box_count == 1 %}{% set unit_grid_class = 'grid-cols-1' %}{% elif unit_box_count == 2 %}{% set unit_grid_class = 'grid-cols-1 sm:grid-cols-2' %}{% elif unit_box_count == 3 %}{% set unit_grid_class = 'grid-cols-1 sm:grid-cols-3' %}{% else %}{% set unit_grid_class = 'grid-cols-1 sm:grid-cols-4' %}{% endif %}
                       <div class="grid {{ unit_grid_class }} gap-2">
                         {% if (shipment.shipped_aq_direct_pcs|default(0, true)|float) + (shipment.shipped_bq_direct_pcs|default(0, true)|float) > 0 %}
-                        <div class="rounded-xl bg-slate-50 p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-slate-400">Direct PCS</p><p class="mt-1 font-black text-slate-800">{{ '{:,.2f}'.format((shipment.shipped_aq_direct_pcs|default(0, true)|float) + (shipment.shipped_bq_direct_pcs|default(0, true)|float)) }}</p><p class="mt-1 text-[10px] font-semibold text-slate-500">A/Q {{ '{:,.2f}'.format(shipment.shipped_aq_direct_pcs|default(0, true)|float) }} · B/Q {{ '{:,.2f}'.format(shipment.shipped_bq_direct_pcs|default(0, true)|float) }}</p></div>
+                        <div class="rounded-xl bg-slate-50 p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-slate-400">Direct PCS</p><p class="mt-1 font-black text-slate-800">{{ '{:,.0f}'.format((shipment.shipped_aq_direct_pcs|default(0, true)|float) + (shipment.shipped_bq_direct_pcs|default(0, true)|float)) }}</p><p class="mt-1 text-[10px] font-semibold text-slate-500">A/QUALITY {{ '{:,.0f}'.format(shipment.shipped_aq_direct_pcs|default(0, true)|float) }} · B/QUALITY {{ '{:,.0f}'.format(shipment.shipped_bq_direct_pcs|default(0, true)|float) }}</p></div>
                         {% endif %}
                         {% if (shipment.shipped_aq_packets|default(0, true)|float) + (shipment.shipped_bq_packets|default(0, true)|float) > 0 %}
-                        <div class="rounded-xl bg-sky-50 p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-sky-600">Packets entered</p><p class="mt-1 font-black text-sky-800">{{ '{:,.2f}'.format((shipment.shipped_aq_packets|default(0, true)|float) + (shipment.shipped_bq_packets|default(0, true)|float)) }}</p><p class="mt-1 text-[10px] font-semibold text-slate-500">A/Q {{ '{:,.2f}'.format(shipment.shipped_aq_packets|default(0, true)|float) }} · B/Q {{ '{:,.2f}'.format(shipment.shipped_bq_packets|default(0, true)|float) }}</p></div>
+                        <div class="rounded-xl bg-sky-50 p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-sky-600">Packets entered</p><p class="mt-1 font-black text-sky-800">{{ '{:,.2f}'.format((shipment.shipped_aq_packets|default(0, true)|float) + (shipment.shipped_bq_packets|default(0, true)|float)) }}</p><p class="mt-1 text-[10px] font-semibold text-slate-500">A/QUALITY {{ '{:,.2f}'.format(shipment.shipped_aq_packets|default(0, true)|float) }} · B/QUALITY {{ '{:,.2f}'.format(shipment.shipped_bq_packets|default(0, true)|float) }}</p></div>
                         {% endif %}
                         {% if shipment.shipped_ctn|default(0, true)|float > 0 %}
-                        <div class="rounded-xl bg-violet-50 p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-violet-600">CTN entered</p><p class="mt-1 font-black text-violet-800">{{ '{:,.2f}'.format(shipment.shipped_ctn|default(0, true)|float) }}</p><p class="mt-1 text-[10px] font-semibold text-slate-500">A/Q {{ '{:,.2f}'.format(shipment.shipped_aq_ctn|default(0, true)|float) }} · B/Q {{ '{:,.2f}'.format(shipment.shipped_bq_ctn|default(0, true)|float) }}</p></div>
+                        <div class="rounded-xl bg-violet-50 p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-violet-600">CTN entered</p><p class="mt-1 font-black text-violet-800">{{ '{:,.2f}'.format(shipment.shipped_ctn|default(0, true)|float) }}</p><p class="mt-1 text-[10px] font-semibold text-slate-500">A/QUALITY {{ '{:,.2f}'.format(shipment.shipped_aq_ctn|default(0, true)|float) }} · B/QUALITY {{ '{:,.2f}'.format(shipment.shipped_bq_ctn|default(0, true)|float) }}</p></div>
                         {% endif %}
                         {% if shipment.shipped_bails|default(0, true)|float > 0 %}
-                        <div class="rounded-xl bg-amber-50 p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-amber-700">Bails entered</p><p class="mt-1 font-black text-amber-800">{{ '{:,.2f}'.format(shipment.shipped_bails|default(0, true)|float) }}</p><p class="mt-1 text-[10px] font-semibold text-slate-500">A/Q {{ '{:,.2f}'.format(shipment.shipped_aq_bails|default(0, true)|float) }} · B/Q {{ '{:,.2f}'.format(shipment.shipped_bq_bails|default(0, true)|float) }}</p></div>
+                        <div class="rounded-xl bg-amber-50 p-3 text-center shadow-sm"><p class="text-[9px] font-bold uppercase text-amber-700">Bails entered</p><p class="mt-1 font-black text-amber-800">{{ '{:,.2f}'.format(shipment.shipped_bails|default(0, true)|float) }}</p><p class="mt-1 text-[10px] font-semibold text-slate-500">A/QUALITY {{ '{:,.2f}'.format(shipment.shipped_aq_bails|default(0, true)|float) }} · B/QUALITY {{ '{:,.2f}'.format(shipment.shipped_bq_bails|default(0, true)|float) }}</p></div>
                         {% endif %}
                       </div>
 
                       <div class="grid grid-cols-2 gap-3">
                         <div class="rounded-xl border border-sky-100 bg-sky-50 p-3">
-                          <p class="text-[10px] font-bold uppercase text-sky-600">A/Q shipped PCS</p>
+                          <p class="text-[10px] font-bold uppercase text-sky-600">A/QUALITY shipped PCS</p>
                           <p class="mt-1 text-2xl font-black text-sky-900">{{ '{:,.0f}'.format(shipment.shipped_aq_pcs) }}</p>
                         </div>
                         <div class="rounded-xl border border-amber-100 bg-amber-50 p-3">
-                          <p class="text-[10px] font-bold uppercase text-amber-700">B/Q shipped PCS</p>
+                          <p class="text-[10px] font-bold uppercase text-amber-700">B/QUALITY shipped PCS</p>
                           <p class="mt-1 text-2xl font-black text-amber-900">{{ '{:,.0f}'.format(shipment.shipped_bq_pcs) }}</p>
                         </div>
                       </div>
