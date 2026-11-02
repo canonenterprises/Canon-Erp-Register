@@ -2690,7 +2690,7 @@ def update_receiving_challan_schema():
 
 
 ADMIN_USERS = {
-    "owner": {"password": "123", "role": "owner", "name": "MUHAMMAD IQBAL"},
+    "m.iqbal": {"password": "haram-iqbal", "role": "owner", "name": "MUHAMMAD IQBAL"},
     "arsalaniqbal": {"password": "canon-arsalan", "role": "manager", "name": "Arsalan Iqbal"},
     "assistant1": {"password": "123", "role": "assistant_manager", "name": "Hashir Kamran"},
 }
@@ -10229,6 +10229,7 @@ PAGE_ACCESS_OPTIONS = [
 SPECIAL_ACCESS_OPTIONS = [
     ('fabric_reports', 'Fabric report sections', ('stock',)),
     ('cut_wise_accessory_issue', 'Cut-wise accessory issue', ('manager', 'operations', 'assistant_manager')),
+    ('order_accessories_costs', 'Order Accessories cost details', ('manager', 'operations', 'assistant_manager')),
     ('local_po_generation', 'Local PO generation', ('manager', 'operations', 'assistant_manager', 'stock')),
     ('allow_full_access_vendors', 'Allow Full Access of Vendors', ('manager', 'operations', 'assistant_manager')),
     ('allow_full_access_item_list', 'Allow Full Access of Item List', ('manager', 'operations', 'assistant_manager')),
@@ -10280,6 +10281,7 @@ def account_page_access(account):
         return available_pages - {
             'fabric_reports', 'local_po_generation',
             'allow_full_access_vendors', 'allow_full_access_item_list',
+            'order_accessories_costs',
         }
     if not isinstance(configured_pages, list):
         return set()
@@ -10293,6 +10295,7 @@ def account_page_access(account):
         configured_page_keys.discard('fabric_reports')
     if 'order_accessories' not in configured_page_keys:
         configured_page_keys.discard('cut_wise_accessory_issue')
+        configured_page_keys.discard('order_accessories_costs')
     if 'accessories' not in configured_page_keys:
         configured_page_keys.discard('local_po_generation')
     if 'vendor_rates' not in configured_page_keys:
@@ -10489,6 +10492,7 @@ def portal_controls():
             page_access.discard('fabric_reports')
         if 'order_accessories' not in page_access:
             page_access.discard('cut_wise_accessory_issue')
+            page_access.discard('order_accessories_costs')
         if 'accessories' not in page_access:
             page_access.discard('local_po_generation')
         if 'vendor_rates' not in page_access:
