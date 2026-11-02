@@ -16,7 +16,8 @@
         </div>
     </header>
 
-    {% if session.get('role') == 'owner' or 'order_accessories_costs' in page_access_keys %}
+    {% set profile_role = session.get('profile_role', session.get('role')) %}
+    {% if profile_role in ('owner', 'admin') or (profile_role == 'manager' and session.get('role') == 'manager') %}
     <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
         <div class="border-l-4 border-cyan-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Total Estimated Cost</p><p class="mt-2 text-xl font-black text-slate-900">{% if totals.estimated_cost_available %}Rs. {{ '{:,.2f}'.format(totals.estimated_cost) }}{% else %}Rate unavailable{% endif %}</p></div>
         <div class="border-l-4 border-violet-500 bg-white p-4 shadow-sm"><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Net accessory cost</p><p class="mt-2 text-xl font-black text-slate-900">Rs. {{ '{:,.2f}'.format(totals.cost) }}</p></div>

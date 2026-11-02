@@ -2691,8 +2691,7 @@ def update_receiving_challan_schema():
 
 ADMIN_USERS = {
     "m.iqbal": {"password": "haram-iqbal", "role": "owner", "name": "MUHAMMAD IQBAL"},
-    "arsalaniqbal": {"password": "canon-arsalan", "role": "manager", "name": "Arsalan Iqbal"},
-    "assistant1": {"password": "123", "role": "assistant_manager", "name": "Hashir Kamran"},
+    "m.kamran": {"password": "haram-kamran", "role": "admin", "name": "MUHAMMAD KAMRAN"},
 }
 
 
@@ -2783,35 +2782,21 @@ def save_party_article_consumption(party_name, article_key, consumption_value):
 
 
 def seed_portal_accounts():
+    PortalAccount.query.filter(
+        PortalAccount.role.in_(('owner', 'admin')),
+        ~PortalAccount.username.in_(ADMIN_USERS),
+    ).delete(synchronize_session=False)
     for username, account in ADMIN_USERS.items():
         existing_account = PortalAccount.query.filter_by(username=username).first()
         if not existing_account:
-            access = ['manager', 'accounts', 'stock', 'challan'] if account['role'] == 'manager' else ['assistant_manager', 'stock', 'challan'] if account['role'] == 'assistant_manager' else []
-            db.session.add(PortalAccount(username=username, portal_access=json.dumps(access), **account))
-        elif existing_account.role == 'manager':
-            try:
-                access = json.loads(existing_account.portal_access or '[]')
-            except (TypeError, ValueError):
-                access = []
-            if not isinstance(access, list):
-                access = []
-            if 'costing' in access:
-                access.remove('costing')
-                existing_account.portal_access = json.dumps(access)
-            if 'accounts' not in access:
-                access.append('accounts')
-                existing_account.portal_access = json.dumps(access)
-        elif existing_account.role == 'assistant_manager':
-            try:
-                access = json.loads(existing_account.portal_access or '[]')
-            except (TypeError, ValueError):
-                access = []
-            if not isinstance(access, list):
-                access = []
-            for portal in ('assistant_manager', 'stock', 'challan'):
-                if portal not in access:
-                    access.append(portal)
-                    existing_account.portal_access = json.dumps(access)
+            existing_account = PortalAccount(username=username, **account)
+            db.session.add(existing_account)
+        else:
+            existing_account.password = account['password']
+            existing_account.role = account['role']
+            existing_account.name = account['name']
+        existing_account.portal_access = '[]'
+        existing_account.page_access = None
     db.session.commit()
 
 
@@ -5679,10 +5664,11 @@ def login(target_role):
         portal_account = PortalAccount.query.filter_by(username=username).first()
         if portal_account and portal_account.password == password:
             account_role = portal_account.role
+            effective_role = 'owner' if account_role == 'admin' else account_role
             if target_role in ALL_PORTALS:
-                if account_role == 'owner' or target_role in account_portals(portal_account):
-                    session_role = 'manager' if account_role == 'operations_manager' else account_role
-                    session.update({'user': username, 'role': session_role, 'profile_role': account_role, 'name': normalize_profile_name(portal_account.name)})
+                if effective_role == 'owner' or target_role in account_portals(portal_account):
+                    session_role = 'manager' if effective_role == 'operations_manager' else effective_role
+                    session.update({'user': username, 'role': session_role, 'profile_role': effective_role, 'name': normalize_profile_name(portal_account.name)})
                     record_activity('Logged in', status_code=302)
                     default_endpoint = {
                         'manager': 'manager_dashboard',
@@ -5695,16 +5681,17 @@ def login(target_role):
                     return redirect_after_portal_login(default_endpoint)
                 flash('This profile does not have access to the selected portal.', 'danger')
                 return render_template('login.html', role=target_role)
-            if target_role != account_role:
+            if target_role != effective_role:
                 flash('Please use the correct portal for this account.', 'danger')
                 return render_template('login.html', role=target_role)
             session.update({
-                'user': username, 
-                'role': account_role, 
+                'user': username,
+                'role': effective_role,
+                'profile_role': effective_role,
                 'name': normalize_profile_name(portal_account.name)
             })
             record_activity('Logged in', profile_role=account_role, status_code=302)
-            if account_role == 'owner':
+            if effective_role == 'owner':
                 return redirect_after_portal_login('owner_dashboard')
             return redirect_after_portal_login('manager_dashboard')
         
@@ -9865,7 +9852,7 @@ def activity_log():
             ActivityLog.actor_profile_role.ilike(search_like),
             ActivityLog.action.ilike(search_like),
             ActivityLog.path.ilike(search_like),
-            ActivityLog.path.ilike(search_like),
+            ActivityLog.endpoint.ilike(search_like),
         ))
 
     total_count = query.count()
@@ -9880,6 +9867,25 @@ def activity_log():
             entry.display_action = humanize_activity(entry.method, entry.endpoint)
         else:
             entry.display_action = entry.action.upper()
+    if request.args.get('format') == 'json':
+        return jsonify({
+            'entries': [{
+                'created_at': pakistan_time(entry.created_at).strftime('%d %b %Y, %I:%M:%S %p'),
+                'actor_name': entry.actor_name or entry.actor_username or 'Unknown',
+                'actor_username': entry.actor_username or '',
+                'role': (
+                    'STOCK MANAGER'
+                    if (entry.actor_profile_role or '').lower() == 'stock'
+                    else (entry.actor_profile_role or '—').replace('_', ' ').title()
+                ),
+                'action': entry.display_action,
+            } for entry in entries],
+            'page': page,
+            'page_count': page_count,
+            'total_count': total_count,
+            'newer_url': url_for('activity_log', q=search, page=page - 1) if page > 1 else None,
+            'older_url': url_for('activity_log', q=search, page=page + 1) if page < page_count else None,
+        })
     return render_template(
         'activity_log.html',
         entries=entries,
@@ -10212,6 +10218,10 @@ PAGE_ACCESS_OPTIONS = [
     ('stock_home', 'Stock Portal', ('stock',)),
     ('fabric', 'Fabric Ledger & Reports', ('stock',)),
     ('accessories', 'Accessories', ('manager', 'operations', 'assistant_manager', 'stock')),
+    ('accessories_purchase_orders', 'Purchase Order', ('manager', 'operations', 'assistant_manager', 'stock')),
+    ('accessories_unallocated_stock', 'Unallocated Stock', ('manager', 'operations', 'assistant_manager', 'stock')),
+    ('accessories_issuance_store_finder', 'Issuance Store Finder', ('manager', 'operations', 'assistant_manager', 'stock')),
+    ('accessories_issued_returned_items', 'Issued/Returned Items', ('manager', 'operations', 'assistant_manager', 'stock')),
     ('warehouse', 'Warehouse', ('stock',)),
     ('warehouse_in_transit', 'In Transit to Warehouse', ('stock',)),
     ('shipments', 'Goods Delivery & Shipments', ('stock',)),
@@ -10229,8 +10239,10 @@ PAGE_ACCESS_OPTIONS = [
 SPECIAL_ACCESS_OPTIONS = [
     ('fabric_reports', 'Fabric report sections', ('stock',)),
     ('cut_wise_accessory_issue', 'Cut-wise accessory issue', ('manager', 'operations', 'assistant_manager')),
-    ('order_accessories_costs', 'Order Accessories cost details', ('manager', 'operations', 'assistant_manager')),
     ('local_po_generation', 'Local PO generation', ('manager', 'operations', 'assistant_manager', 'stock')),
+    ('accessories_receive_po', 'Receive PO', ('manager', 'operations', 'assistant_manager', 'stock')),
+    ('accessories_place_stock', 'Place stock', ('manager', 'operations', 'assistant_manager', 'stock')),
+    ('accessories_return_to_supplier', 'Return to supplier', ('manager', 'operations', 'assistant_manager', 'stock')),
     ('allow_full_access_vendors', 'Allow Full Access of Vendors', ('manager', 'operations', 'assistant_manager')),
     ('allow_full_access_item_list', 'Allow Full Access of Item List', ('manager', 'operations', 'assistant_manager')),
 ]
@@ -10281,7 +10293,8 @@ def account_page_access(account):
         return available_pages - {
             'fabric_reports', 'local_po_generation',
             'allow_full_access_vendors', 'allow_full_access_item_list',
-            'order_accessories_costs',
+            'accessories_receive_po',
+            'accessories_place_stock', 'accessories_return_to_supplier',
         }
     if not isinstance(configured_pages, list):
         return set()
@@ -10295,9 +10308,24 @@ def account_page_access(account):
         configured_page_keys.discard('fabric_reports')
     if 'order_accessories' not in configured_page_keys:
         configured_page_keys.discard('cut_wise_accessory_issue')
-        configured_page_keys.discard('order_accessories_costs')
     if 'accessories' not in configured_page_keys:
         configured_page_keys.discard('local_po_generation')
+        configured_page_keys.difference_update({
+            'accessories_purchase_orders',
+            'accessories_unallocated_stock',
+            'accessories_issuance_store_finder',
+            'accessories_issued_returned_items',
+            'accessories_receive_po',
+            'accessories_place_stock',
+            'accessories_return_to_supplier',
+        })
+    if 'accessories_purchase_orders' not in configured_page_keys:
+        configured_page_keys.discard('accessories_receive_po')
+    if 'accessories_unallocated_stock' not in configured_page_keys:
+        configured_page_keys.difference_update({
+            'accessories_place_stock',
+            'accessories_return_to_supplier',
+        })
     if 'vendor_rates' not in configured_page_keys:
         configured_page_keys.discard('allow_full_access_vendors')
     if 'item_list' not in configured_page_keys:
@@ -10375,6 +10403,22 @@ def required_page_for_request():
         return 'fabric_reports'
     if path.startswith('/stock-portal/fabric-ledger'):
         return 'fabric'
+    if path.startswith('/stock-portal/accessories/'):
+        accessory_path = path[len('/stock-portal/accessories/'):]
+        if accessory_path == 'purchase-orders' or accessory_path.startswith('purchase-orders/'):
+            return 'accessories_purchase_orders'
+        if accessory_path == 'unallocated-stock' or accessory_path.startswith('unallocated-stock/'):
+            return 'accessories_unallocated_stock'
+        if accessory_path == 'cut-data':
+            return (
+                'accessories_issuance_store_finder',
+                'accessories_issued_returned_items',
+            )
+        if accessory_path == 'issuance-store-finder' or accessory_path.startswith('issuance-store-finder/'):
+            return 'accessories_issuance_store_finder'
+        if accessory_path == 'issued-returned-items' or accessory_path.startswith(('issued-returned-items/', 'supplier-return/')):
+            return 'accessories_issued_returned_items'
+        return 'accessories'
     if path.startswith('/stock-portal/accessories'):
         return 'accessories'
     if path.startswith('/stock-portal/warehouse/in-transit'):
@@ -10433,7 +10477,11 @@ def enforce_profile_portal_access():
                 return None
             if required_page == 'article_head_detail' and 'orders' in g.page_access_keys:
                 return None
-            if required_page in g.page_access_keys:
+            if (
+                any(page in g.page_access_keys for page in required_page)
+                if isinstance(required_page, tuple)
+                else required_page in g.page_access_keys
+            ):
                 return None
             abort(403)
     elif required_portal is None:
@@ -10457,7 +10505,9 @@ def portal_controls():
     if not owner_only():
         return redirect(url_for('index'))
 
-    accounts = PortalAccount.query.filter(PortalAccount.role != 'owner').order_by(PortalAccount.id).all()
+    accounts = PortalAccount.query.filter(
+        ~PortalAccount.role.in_(('owner', 'admin'))
+    ).order_by(PortalAccount.id).all()
     editing_account = PortalAccount.query.filter_by(
         id=request.args.get('edit_id', type=int)
     ).first() if request.args.get('edit_id') else None
@@ -10467,7 +10517,7 @@ def portal_controls():
         account = PortalAccount.query.filter_by(id=account_id).first()
 
         if action == 'delete':
-            if not account or account.role == 'owner':
+            if not account or account.role in ('owner', 'admin'):
                 flash('Portal account not found.', 'danger')
             else:
                 db.session.delete(account)
@@ -10492,9 +10542,21 @@ def portal_controls():
             page_access.discard('fabric_reports')
         if 'order_accessories' not in page_access:
             page_access.discard('cut_wise_accessory_issue')
-            page_access.discard('order_accessories_costs')
         if 'accessories' not in page_access:
             page_access.discard('local_po_generation')
+            page_access.difference_update({
+                'accessories_purchase_orders',
+                'accessories_unallocated_stock',
+                'accessories_issuance_store_finder',
+                'accessories_issued_returned_items',
+            })
+        if 'accessories_purchase_orders' not in page_access:
+            page_access.discard('accessories_receive_po')
+        if 'accessories_unallocated_stock' not in page_access:
+            page_access.difference_update({
+                'accessories_place_stock',
+                'accessories_return_to_supplier',
+            })
         if 'vendor_rates' not in page_access:
             page_access.discard('allow_full_access_vendors')
         if 'item_list' not in page_access:
@@ -10514,7 +10576,7 @@ def portal_controls():
                 db.session.add(PortalAccount(name=name, username=username, password=password, role=role, portal_access=json.dumps(portal_access), page_access=json.dumps(page_access)))
                 db.session.commit()
                 flash('Portal profile created.', 'success')
-        elif not account or account.role == 'owner':
+        elif not account or account.role in ('owner', 'admin'):
             flash('Portal account not found.', 'danger')
         elif role not in PROFILE_BASE_PORTAL:
             flash('Please select a valid portal.', 'danger')
@@ -18927,7 +18989,27 @@ def accessories_portal(portal_page='home'):
         return redirect(url_for('index'))
     if portal_page not in {'home', 'purchase-orders', 'unallocated-stock', 'issuance-store-finder', 'issued-returned-items'}:
         abort(404)
+    action_pages = {
+        'record_party_accessory': 'accessories_purchase_orders',
+        'create_local_po': 'accessories_purchase_orders',
+        'mark_po_sent': 'accessories_purchase_orders',
+        'mark_received': 'accessories_receive_po',
+        'put_away': 'accessories_place_stock',
+        'return_to_supplier': 'accessories_return_to_supplier',
+        'move_stock': 'accessories_issuance_store_finder',
+        'save_issue': 'accessories_issuance_store_finder',
+        'return_issue': 'accessories_issued_returned_items',
+        'edit_issue': 'accessories_issued_returned_items',
+        'delete_issue': 'accessories_issued_returned_items',
+    }
+    if request.method == 'POST':
+        required_action_page = action_pages.get(request.form.get('action'))
+        if required_action_page and required_action_page not in getattr(g, 'page_access_keys', set()):
+            abort(403)
     can_create_local_po = owner_only() or 'local_po_generation' in getattr(g, 'page_access_keys', set())
+    can_receive_po = owner_only() or 'accessories_receive_po' in getattr(g, 'page_access_keys', set())
+    can_place_accessory_stock = owner_only() or 'accessories_place_stock' in getattr(g, 'page_access_keys', set())
+    can_return_accessory_to_supplier = owner_only() or 'accessories_return_to_supplier' in getattr(g, 'page_access_keys', set())
     selected_po_company = (
         request.args.get('company')
         or request.form.get('company')
@@ -19158,12 +19240,6 @@ def accessories_portal(portal_page='home'):
             except ValueError as exc:
                 flash(str(exc), 'danger')
                 return redirect_to_portal('unallocated-stock')
-            piece_units = {'pc', 'pcs', 'piece', 'pieces'}
-            item_unit = (item.unit or '').strip().casefold()
-            if item_unit not in piece_units and not is_whole_stock_quantity(item, storage_values['quantity']):
-                flash(f'{item.unit or "Stock"} must be placed away in whole quantities.', 'danger')
-                return redirect_to_portal('unallocated-stock')
-
             unlocated_qty = get_accessory_unlocated_qty(item)
             if storage_values['quantity'] > unlocated_qty + 0.000001:
                 flash(
@@ -20067,6 +20143,9 @@ def accessories_portal(portal_page='home'):
         stock_category_options=stock_category_options,
         category_filter=category_filter,
         can_create_local_po=can_create_local_po,
+        can_receive_po=can_receive_po,
+        can_place_accessory_stock=can_place_accessory_stock,
+        can_return_accessory_to_supplier=can_return_accessory_to_supplier,
         selected_po_company=selected_po_company,
         status_filter=status_filter, search=search,
         accessory_summary=get_accessory_stock_summary(),
@@ -22746,6 +22825,3 @@ def delete_order_shipment(job_no):
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
     # Isse aapko browser mein error message dikhega (sirf testing ke liye)
-
-
-

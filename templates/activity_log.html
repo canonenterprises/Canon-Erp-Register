@@ -6,23 +6,20 @@
       <div>
         <p class="text-xs font-bold uppercase text-emerald-800">Administration</p>
         <h1 class="mt-1 text-3xl font-black text-slate-950">Activity Log</h1>
-        <p class="mt-2 text-sm text-slate-600">{{ total_count }} recorded event(s), newest first.</p>
+        <p id="activity-count" class="mt-2 text-sm text-slate-600">{{ total_count }} recorded event(s), newest first.</p>
       </div>
       <a href="{{ url_for('owner_dashboard') if session.get('role') == 'owner' else url_for('manager_dashboard') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
         <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> {{ 'Owner' if session.get('role') == 'owner' else 'Manager' }} dashboard
       </a>
     </header>
 
-    <form method="get" action="{{ url_for('activity_log') }}" class="flex flex-wrap items-end gap-3 border-b border-slate-200 pb-5">
+    <form id="activity-search-form" method="get" action="{{ url_for('activity_log') }}" data-search-url="{{ url_for('activity_log') }}" class="flex flex-wrap items-end gap-3 border-b border-slate-200 pb-5">
       <label for="activity-search" class="min-w-0 flex-1 text-xs font-bold uppercase text-slate-600">
         Search profile or activity
         <input id="activity-search" name="q" value="{{ search }}" type="search" placeholder="Name, role, route, or action" class="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal normal-case text-slate-900">
-        <input id="activity-search" name="q" value="{{ search }}" type="search" placeholder="Name, role, or activity" class="mt-1 block w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm font-normal normal-case text-slate-900">
       </label>
-      <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-700">
-        <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Search
-      </button>
-      {% if search %}<a href="{{ url_for('activity_log') }}" class="px-2 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-950">Clear</a>{% endif %}
+      <a id="activity-search-clear" href="{{ url_for('activity_log') }}" {% if not search %}hidden{% endif %} class="px-2 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-950">Clear</a>
+      <p id="activity-search-status" class="sr-only" role="status" aria-live="polite"></p>
     </form>
 
     <div class="overflow-x-auto border-y border-slate-200">
@@ -30,7 +27,7 @@
         <thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-600">
           <tr><th class="px-3 py-3">Date &amp; time (PKT)</th><th class="px-3 py-3">Profile</th><th class="px-3 py-3">Role</th><th class="px-3 py-3">Activity</th></tr>
         </thead>
-        <tbody class="divide-y divide-slate-100">
+        <tbody id="activity-entries" class="divide-y divide-slate-100">
           {% for entry in entries %}
           <tr class="hover:bg-slate-50">
             <td class="whitespace-nowrap px-3 py-3 text-slate-600">{{ (entry.created_at|pakistan_time).strftime('%d %b %Y, %I:%M:%S %p') }}</td>
@@ -47,12 +44,133 @@
     </div>
 
     <nav class="flex items-center justify-between gap-3 text-sm" aria-label="Activity log pages">
-      <span class="text-slate-600">Page {{ page }} of {{ page_count }}</span>
+      <span id="activity-page" class="text-slate-600">Page {{ page }} of {{ page_count }}</span>
       <div class="flex gap-2">
-        {% if page > 1 %}<a href="{{ url_for('activity_log', q=search, page=page - 1) }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-slate-700 hover:bg-slate-50">Newer</a>{% endif %}
-        {% if page < page_count %}<a href="{{ url_for('activity_log', q=search, page=page + 1) }}" class="rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-slate-700 hover:bg-slate-50">Older</a>{% endif %}
+        <a id="activity-newer" {% if page <= 1 %}hidden{% else %}href="{{ url_for('activity_log', q=search, page=page - 1) }}"{% endif %} class="rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-slate-700 hover:bg-slate-50">Newer</a>
+        <a id="activity-older" {% if page >= page_count %}hidden{% else %}href="{{ url_for('activity_log', q=search, page=page + 1) }}"{% endif %} class="rounded-md border border-slate-300 bg-white px-3 py-2 font-bold text-slate-700 hover:bg-slate-50">Older</a>
       </div>
     </nav>
   </div>
 </div>
+<script>
+  (() => {
+    const form = document.getElementById('activity-search-form');
+    const searchInput = document.getElementById('activity-search');
+    const entriesBody = document.getElementById('activity-entries');
+    const searchStatus = document.getElementById('activity-search-status');
+    const countLabel = document.getElementById('activity-count');
+    const pageLabel = document.getElementById('activity-page');
+    const clearLink = document.getElementById('activity-search-clear');
+    const newerLink = document.getElementById('activity-newer');
+    const olderLink = document.getElementById('activity-older');
+    let debounceTimer;
+    let activeRequest;
+
+    function setPageLink(link, href) {
+      link.hidden = !href;
+      if (href) link.href = href;
+      else link.removeAttribute('href');
+    }
+
+    function renderEntries(entries) {
+      entriesBody.replaceChildren();
+      if (!entries.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 4;
+        cell.className = 'px-3 py-12 text-center text-slate-500';
+        cell.textContent = 'No activity found.';
+        row.append(cell);
+        entriesBody.append(row);
+        return;
+      }
+
+      for (const entry of entries) {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-50';
+        const dateCell = document.createElement('td');
+        dateCell.className = 'whitespace-nowrap px-3 py-3 text-slate-600';
+        dateCell.textContent = entry.created_at;
+        const profileCell = document.createElement('td');
+        profileCell.className = 'px-3 py-3 font-bold text-slate-900';
+        profileCell.append(document.createTextNode(entry.actor_name));
+        const username = document.createElement('span');
+        username.className = 'mt-0.5 block text-xs font-normal text-slate-500';
+        username.textContent = entry.actor_username;
+        profileCell.append(username);
+        const roleCell = document.createElement('td');
+        roleCell.className = 'px-3 py-3 text-slate-600';
+        roleCell.textContent = entry.role;
+        const actionCell = document.createElement('td');
+        actionCell.className = 'px-3 py-3 font-semibold text-slate-800';
+        actionCell.textContent = entry.action;
+        row.append(dateCell, profileCell, roleCell, actionCell);
+        entriesBody.append(row);
+      }
+    }
+
+    async function searchActivity() {
+      if (activeRequest) activeRequest.abort();
+      activeRequest = new AbortController();
+      const query = searchInput.value.trim();
+      const requestUrl = new URL(form.dataset.searchUrl, window.location.origin);
+      requestUrl.searchParams.set('q', query);
+      requestUrl.searchParams.set('format', 'json');
+      searchStatus.textContent = 'Searching activity…';
+
+      try {
+        const response = await fetch(requestUrl, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          signal: activeRequest.signal,
+        });
+        if (!response.ok) throw new Error('Could not search activity.');
+        const result = await response.json();
+        renderEntries(result.entries);
+        countLabel.textContent = `${result.total_count} recorded event(s), newest first.`;
+        pageLabel.textContent = `Page ${result.page} of ${result.page_count}`;
+        setPageLink(newerLink, result.newer_url);
+        setPageLink(olderLink, result.older_url);
+        clearLink.hidden = !query;
+        const pageUrl = new URL(window.location.href);
+        if (query) pageUrl.searchParams.set('q', query);
+        else pageUrl.searchParams.delete('q');
+        pageUrl.searchParams.delete('page');
+        window.history.replaceState({}, '', pageUrl);
+        searchStatus.textContent = `${result.total_count} activity result(s).`;
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        searchStatus.textContent = error.message || 'Could not search activity.';
+      }
+    }
+
+    searchInput.addEventListener('input', () => {
+      window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(searchActivity, 250);
+    });
+    form.addEventListener('submit', (event) => {
+      event.preventDefault();
+      window.clearTimeout(debounceTimer);
+      searchActivity();
+    });
+    clearLink.addEventListener('click', (event) => {
+      event.preventDefault();
+      searchInput.value = '';
+      window.clearTimeout(debounceTimer);
+      searchActivity();
+      searchInput.focus();
+    });
+    newerLink.addEventListener('click', (event) => {
+      if (searchInput.value.trim()) {
+        event.preventDefault();
+        window.location.assign(newerLink.href);
+      }
+    });
+    olderLink.addEventListener('click', (event) => {
+      if (searchInput.value.trim()) {
+        event.preventDefault();
+        window.location.assign(olderLink.href);
+      }
+    });
+  })();
+</script>
 {% endblock %}
