@@ -34,6 +34,14 @@
                 background-image: url("{{ url_for('static', filename='bg7dark.webp') }}") !important;
                 color: #e2e8f0 !important;
             }
+            @media (aspect-ratio: 1 / 1) {
+                html:not([data-theme="dark"]) body {
+                    background-image: url("{{ url_for('static', filename='square-bg-light.webp') }}") !important;
+                }
+                html[data-theme="dark"] body {
+                    background-image: url("{{ url_for('static', filename='square-bg-dark.webp') }}") !important;
+                }
+            }
             html[data-theme="dark"] [class~="bg-white"],
             html[data-theme="dark"] [class*="bg-white/"],
             html[data-theme="dark"] [class*="bg-slate-50/"],
