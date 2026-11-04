@@ -2,7 +2,7 @@
 {% block content %}
 <div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
     <div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-6 sm:p-8">
-        <header class="relative overflow-hidden rounded-[2rem] bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
+        <header class="portal-orbit-header relative overflow-hidden rounded-[2rem] bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
             <div class="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-emerald-300">Worker performance center</p>
@@ -20,8 +20,10 @@
                     <a href="{{ url_for('logout') }}" class="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-slate-200 transition hover:bg-white/20" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
                 </div>
             </div>
-            <div class="absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-emerald-400/15"></div>
-            <div class="absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+            <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+            <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+            <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+            <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
         </header>
 
         <section class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">

@@ -13,8 +13,74 @@
           {% endfor %}
         </nav>
       </div>
-      <a href="{{ url_for('accounts_accessories_billing') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> All Vendors</a>
+      <div class="flex items-center gap-3"><a id="billing-notification-bell" href="{{ url_for('accounts_billing_notification_history', area='accessory_billing') }}" class="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50" aria-label="View accessory billing notification history"><i class="fa-solid fa-bell" aria-hidden="true"></i>{% if billing_notification_active_count %}<span class="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-700 px-1 text-[10px] font-black text-white">{{ billing_notification_active_count }}</span>{% endif %}</a><a href="{{ url_for('accounts_accessories_billing') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> All Vendors</a></div>
     </header>
+
+    {% if show_billing_notification_cards and billing_notification_items %}
+    <aside class="fixed right-4 top-24 z-[70] flex max-h-[calc(100vh-7rem)] w-[min(32rem,calc(100vw-2rem))] flex-col gap-3 overflow-y-auto" aria-label="Accessory billing notifications">
+      <section data-notification-card class="rounded-xl border-2 border-amber-500 bg-amber-50 p-5 text-slate-800 shadow-xl" role="status" aria-live="polite">
+        <div class="flex items-start gap-4"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-amber-700 text-white" aria-hidden="true"><i class="fa-solid fa-circle-info"></i></span><div class="min-w-0 flex-1"><div class="flex items-start justify-between gap-3"><h2 class="font-black text-slate-900">Accessory billing needs attention</h2><button type="button" data-dismiss-notification class="shrink-0 rounded p-1 text-xl leading-none text-amber-700 hover:bg-amber-100" aria-label="Dismiss accessory billing notification">&times;</button></div><p class="mt-1 text-sm text-slate-600">{{ billing_notification_active_count }} unpaid PO(s) or voucher(s) need attention.</p><ul class="mt-2 space-y-1 text-xs text-slate-600">{% for item in billing_notification_items %}<li>{{ item.title }} · {{ item.message }}</li>{% endfor %}{% if billing_notification_active_count > billing_notification_items|length %}<li>and {{ billing_notification_active_count - billing_notification_items|length }} more</li>{% endif %}</ul><a href="{{ url_for('accounts_accessories_billing') }}" class="mt-3 inline-flex rounded-md bg-amber-700 px-3 py-2 text-sm font-bold text-white hover:bg-amber-800">View suppliers</a></div></div>
+      </section>
+    </aside>
+    <script>
+      function flyBillingNotificationToBell(card) {
+        const bell = document.getElementById('billing-notification-bell');
+        if (!bell) {
+          card.remove();
+          return;
+        }
+        const cardBounds = card.getBoundingClientRect();
+        const bellBounds = bell.getBoundingClientRect();
+        const startX = cardBounds.left + cardBounds.width / 2;
+        const startY = cardBounds.top + cardBounds.height / 2;
+        const targetX = bellBounds.left + bellBounds.width / 2;
+        const targetY = bellBounds.top + bellBounds.height / 2;
+        const plane = document.createElement('span');
+        plane.setAttribute('aria-hidden', 'true');
+        plane.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+        plane.style.cssText = `position:fixed;left:0;top:0;z-index:2147483647;display:grid;width:48px;height:48px;place-items:center;border:2px solid #b45309;border-radius:9999px;background:#fffbeb;color:#b45309;font-size:20px;box-shadow:0 8px 24px rgb(15 23 42 / 0.3);pointer-events:none;transform:translate3d(${startX}px,${startY}px,0) translate(-50%,-50%) scale(0.9);will-change:transform,opacity`;
+        document.body.appendChild(plane);
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const loopX = (startX + targetX) / 2;
+        const loopY = (startY + targetY) / 2;
+        const loopRadius = 38;
+        const flightKeyframes = reducedMotion ? [
+          { transform: `translate3d(${startX}px,${startY}px,0) translate(-50%,-50%) scale(0.9)`, opacity: 1 },
+          { transform: `translate3d(${targetX}px,${targetY}px,0) translate(-50%,-50%) scale(0.2)`, opacity: 0 },
+        ] : [
+          { transform: `translate3d(${startX}px,${startY}px,0) translate(-50%,-50%) scale(0.9) rotate(-8deg)`, opacity: 1 },
+          { transform: `translate3d(${loopX}px,${loopY - loopRadius}px,0) translate(-50%,-50%) scale(0.8) rotate(0deg)`, opacity: 1, offset: 0.25 },
+          { transform: `translate3d(${loopX + loopRadius}px,${loopY}px,0) translate(-50%,-50%) scale(0.8) rotate(90deg)`, opacity: 1, offset: 0.36 },
+          { transform: `translate3d(${loopX}px,${loopY + loopRadius}px,0) translate(-50%,-50%) scale(0.8) rotate(180deg)`, opacity: 1, offset: 0.47 },
+          { transform: `translate3d(${loopX - loopRadius}px,${loopY}px,0) translate(-50%,-50%) scale(0.8) rotate(270deg)`, opacity: 1, offset: 0.58 },
+          { transform: `translate3d(${loopX}px,${loopY - loopRadius}px,0) translate(-50%,-50%) scale(0.8) rotate(360deg)`, opacity: 1, offset: 0.69 },
+          { transform: `translate3d(${targetX}px,${targetY}px,0) translate(-50%,-50%) scale(0.2) rotate(385deg)`, opacity: 0 },
+        ];
+        const flight = plane.animate(flightKeyframes, {
+          duration: reducedMotion ? 500 : 1900,
+          easing: 'cubic-bezier(0.2,0.75,0.25,1)',
+        });
+        card.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(0.75)', opacity: 0 }], {
+          duration: 260,
+          easing: 'ease-in',
+          fill: 'forwards',
+        });
+        flight.onfinish = () => {
+          plane.remove();
+          card.remove();
+          bell.classList.add('animate-pulse');
+          window.setTimeout(() => bell.classList.remove('animate-pulse'), 700);
+        };
+      }
+      document.querySelectorAll('[data-notification-card]').forEach(card => {
+        const autoDismiss = window.setTimeout(() => flyBillingNotificationToBell(card), 15000);
+        card.querySelector('[data-dismiss-notification]')?.addEventListener('click', () => {
+          window.clearTimeout(autoDismiss);
+          flyBillingNotificationToBell(card);
+        });
+      });
+    </script>
+    {% endif %}
 
     {% if pending_vouchers %}
     <section class="space-y-3 border-b border-slate-200 pb-6">

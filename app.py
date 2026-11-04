@@ -1,4 +1,5 @@
 ﻿import os
+import hashlib
 import json
 import math
 from decimal import Decimal, ROUND_DOWN
@@ -54,6 +55,46 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
 print("SQLAlchemy initialized")
+
+
+def render_error_page(status_code, title, message, icon):
+    return render_template(
+        'error.html',
+        status_code=status_code,
+        error_title=title,
+        error_message=message,
+        error_icon=icon,
+    ), status_code
+
+
+@app.errorhandler(403)
+def forbidden_error(_error):
+    return render_error_page(
+        403,
+        'Access restricted',
+        'Your current profile does not have permission to open this page.',
+        'fa-lock',
+    )
+
+
+@app.errorhandler(404)
+def not_found_error(_error):
+    return render_error_page(
+        404,
+        'Page not found',
+        'This page may have moved, or the address may be incorrect.',
+        'fa-file-circle-question',
+    )
+
+
+@app.errorhandler(500)
+def internal_server_error(_error):
+    return render_error_page(
+        500,
+        'Something went wrong',
+        'The request could not be completed. Please try again in a moment.',
+        'fa-triangle-exclamation',
+    )
 
 
 
@@ -2034,6 +2075,7 @@ def get_order_shipping_snapshot(order):
     packets_per_bail = parse_numeric(order.qty_bail)
     return {
         'completed_pcs': completed_pcs,
+        'cut_quality_split': quality_split,
         'total_order_pcs': parse_numeric(order.new_qty_pcs or order.qty) or parse_numeric(order.new_qty_dozen) * 12,
         'total_aq_pcs': total_aq_pcs,
         'total_bq_pcs': total_bq_pcs,
@@ -2060,6 +2102,40 @@ def warehouse_finished_goods_by_quality(order_id):
         if quality in totals:
             totals[quality] += max(0.0, parse_numeric(location.quantity))
     return totals
+
+
+def warehouse_cut_transit_quantities(order_id, quality, cut_quality_split):
+    produced_key = 'aq_pcs' if quality == 'AQ' else 'bq_pcs'
+    cuts_by_number = {}
+    for cut in cut_quality_split:
+        cut_no = str(cut['cut_no'])
+        produced_pcs = max(0.0, parse_numeric(cut[produced_key]))
+        if produced_pcs > 0:
+            cuts_by_number[cut_no] = cuts_by_number.get(cut_no, 0.0) + produced_pcs
+
+    placed_by_cut = {cut_no: 0.0 for cut_no in cuts_by_number}
+    unassigned_placed = 0.0
+    locations = WarehouseFinishedGoodsLocation.query.filter_by(
+        order_id=order_id, quality=quality
+    ).all()
+    for location in locations:
+        quantity = max(0.0, parse_numeric(location.quantity))
+        cut_no = str(location.cut_no or '').strip()
+        if cut_no in placed_by_cut:
+            placed_by_cut[cut_no] += quantity
+        else:
+            unassigned_placed += quantity
+
+    transit_by_cut = {}
+    for cut_no, produced_pcs in cuts_by_number.items():
+        explicitly_placed = placed_by_cut[cut_no]
+        remaining_capacity = max(0.0, produced_pcs - explicitly_placed)
+        legacy_placed = min(unassigned_placed, remaining_capacity)
+        unassigned_placed -= legacy_placed
+        transit_by_cut[cut_no] = max(
+            0.0, produced_pcs - explicitly_placed - legacy_placed
+        )
+    return transit_by_cut
 
 
 def warehouse_finished_goods_snapshot(order, shipping):
@@ -3154,6 +3230,7 @@ class WarehouseFinishedGoodsLocation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     order_id = db.Column(db.String(50), nullable=False, index=True)
     quality = db.Column(db.String(2), nullable=False, index=True)
+    cut_no = db.Column(db.String(50), nullable=True)
     location_type = db.Column(db.String(20), nullable=False)
     department = db.Column(db.String(100), nullable=False)
     room = db.Column(db.String(100), nullable=False)
@@ -3494,6 +3571,34 @@ class PettyCashMonthClose(db.Model):
     closed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     __table_args__ = (
         db.UniqueConstraint('month_key', 'company', name='uq_petty_cash_month_company'),
+    )
+
+
+class FactoryMaintenanceEntry(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.String(10), nullable=False, index=True)
+    month_key = db.Column(db.String(7), nullable=False, index=True)
+    transaction_type = db.Column(db.String(20), nullable=False, index=True)
+    company = db.Column(db.String(30), nullable=False, index=True)
+    description = db.Column(db.String(255), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    created_by = db.Column(db.String(100), default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class FactoryMaintenanceMonthClose(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    month_key = db.Column(db.String(7), nullable=False)
+    company = db.Column(db.String(30), nullable=False)
+    returned_amount = db.Column(db.Float, nullable=False, default=0)
+    company_ledger_entry_id = db.Column(
+        db.Integer, db.ForeignKey('manual_credit_debit_entry.id')
+    )
+    closed_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    __table_args__ = (
+        db.UniqueConstraint(
+            'month_key', 'company', name='uq_factory_maintenance_month_company'
+        ),
     )
 
 
@@ -5122,6 +5227,15 @@ def ensure_vendor_schema(engine):
 with app.app_context():
     print("Creating tables...")
     db.create_all()
+    warehouse_location_columns = {
+        column['name']
+        for column in inspect(db.engine).get_columns('warehouse_finished_goods_location')
+    }
+    if 'cut_no' not in warehouse_location_columns:
+        with db.engine.begin() as conn:
+            conn.execute(text(
+                'ALTER TABLE warehouse_finished_goods_location ADD COLUMN cut_no VARCHAR(50)'
+            ))
     worker_columns = {column['name'] for column in inspect(db.engine).get_columns('worker')}
     if 'is_permanent' not in worker_columns:
         with db.engine.begin() as conn:
@@ -6521,6 +6635,279 @@ def accounts_petty_cash():
     )
 
 
+def settle_factory_maintenance_months(current_month, closed_at=None):
+    closed_at = closed_at or datetime.utcnow()
+    previous_months = db.session.query(
+        FactoryMaintenanceEntry.month_key, FactoryMaintenanceEntry.company
+    ).filter(
+        FactoryMaintenanceEntry.month_key < current_month
+    ).distinct().order_by(
+        FactoryMaintenanceEntry.month_key, FactoryMaintenanceEntry.company
+    ).all()
+
+    for month_key, company in previous_months:
+        if FactoryMaintenanceMonthClose.query.filter_by(
+            month_key=month_key, company=company
+        ).first():
+            continue
+        year, month = (int(part) for part in month_key.split('-'))
+        month_end_date = f"{month_key}-{calendar.monthrange(year, month)[1]:02d}"
+        month_entries = FactoryMaintenanceEntry.query.filter_by(
+            month_key=month_key, company=company
+        ).all()
+        returned_amount = max(round(sum(
+            entry.amount if entry.transaction_type == 'ALLOCATION'
+            else -entry.amount if entry.transaction_type == 'EXPENSE'
+            else 0
+            for entry in month_entries
+        ), 2), 0.0)
+        close = FactoryMaintenanceMonthClose(
+            month_key=month_key,
+            company=company,
+            returned_amount=returned_amount,
+            closed_at=closed_at,
+        )
+        db.session.add(close)
+        if returned_amount > 0:
+            ledger_entry = ManualCreditDebitEntry(
+                date=month_end_date,
+                direction='CREDIT',
+                description=f'Factory maintenance balance returned for {month_key}',
+                reference=f'FACTORY-MAINTENANCE-CLOSE-{month_key}-{company.upper()}',
+                method='Factory maintenance cash return',
+                amount=returned_amount,
+                party_name='Factory Maintenance & Upgrades',
+                company=company,
+                created_by='System',
+            )
+            db.session.add(ledger_entry)
+            db.session.flush()
+            close.company_ledger_entry_id = ledger_entry.id
+        db.session.add(FactoryMaintenanceEntry(
+            date=month_end_date,
+            month_key=month_key,
+            transaction_type='RETURN',
+            company=company,
+            description=f'Month-end balance returned to {company}',
+            amount=returned_amount,
+            created_by='System',
+            created_at=closed_at,
+        ))
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            if not FactoryMaintenanceMonthClose.query.filter_by(
+                month_key=month_key, company=company
+            ).first():
+                raise
+
+
+@app.route('/accounts/factory-maintenance', methods=['GET', 'POST'])
+def accounts_factory_maintenance():
+    denied = accounts_management_access('accounts')
+    if denied:
+        return denied
+
+    now = datetime.utcnow()
+    current_month = now.strftime('%Y-%m')
+    settle_factory_maintenance_months(current_month, now)
+
+    if request.method == 'POST':
+        action = (request.form.get('action') or 'create').strip().lower()
+        if action in ('edit_entry', 'delete_entry'):
+            entry_id = request.form.get('entry_id', type=int)
+            entry = db.session.get(FactoryMaintenanceEntry, entry_id) if entry_id else None
+            if not entry:
+                abort(404)
+            try:
+                if entry.transaction_type not in ('ALLOCATION', 'EXPENSE'):
+                    raise ValueError('Automatic month-end returns cannot be changed.')
+                if entry.month_key != current_month or FactoryMaintenanceMonthClose.query.filter_by(
+                    month_key=entry.month_key, company=entry.company
+                ).first():
+                    raise ValueError('Only entries in the open month can be changed.')
+
+                ledger_entry = None
+                if entry.transaction_type == 'ALLOCATION':
+                    ledger_entry = ManualCreditDebitEntry.query.filter_by(
+                        reference=f'FACTORY-MAINTENANCE-{entry.id}'
+                    ).first()
+
+                if action == 'delete_entry':
+                    if ledger_entry:
+                        db.session.delete(ledger_entry)
+                    g.activity_action = (
+                        f'DELETED FACTORY MAINTENANCE {entry.transaction_type} '
+                        f'PKR {entry.amount:,.2f} · {entry.company} · {entry.description}'
+                    ).upper()
+                    db.session.delete(entry)
+                    db.session.commit()
+                    flash('Factory maintenance entry deleted.', 'success')
+                    return redirect(url_for('accounts_factory_maintenance'))
+
+                company = (request.form.get('company') or '').strip().title()
+                description = (request.form.get('description') or '').strip()
+                parsed_date = normalize_date((request.form.get('date') or '').strip())
+                amount = parse_billing_amount(request.form.get('amount'), 'Amount')
+                if company not in ('Canon', 'Haram'):
+                    raise ValueError('Choose Canon or Haram as the funding company.')
+                if not parsed_date or parsed_date.strftime('%Y-%m') != current_month:
+                    raise ValueError('Entries must be dated within the current month.')
+                if parsed_date.date() > now.date():
+                    raise ValueError('Entries cannot be dated in the future.')
+                if not description:
+                    raise ValueError('Description is required.')
+                if amount <= 0:
+                    raise ValueError('Amount must be greater than zero.')
+                if entry.transaction_type == 'EXPENSE':
+                    entries = FactoryMaintenanceEntry.query.filter_by(
+                        month_key=current_month, company=company
+                    ).all()
+                    balance = round(sum(
+                        item.amount if item.transaction_type == 'ALLOCATION'
+                        else -item.amount if item.transaction_type == 'EXPENSE'
+                        else 0
+                        for item in entries if item.id != entry.id
+                    ), 2)
+                    if amount > balance:
+                        raise ValueError(
+                            f'Expense exceeds the {company} maintenance balance '
+                            f'of PKR {balance:,.2f}.'
+                        )
+
+                entry.date = parsed_date.strftime('%Y-%m-%d')
+                entry.company = company
+                entry.description = description
+                entry.amount = amount
+                if entry.transaction_type == 'ALLOCATION':
+                    if not ledger_entry:
+                        ledger_entry = ManualCreditDebitEntry(
+                            direction='DEBIT',
+                            reference=f'FACTORY-MAINTENANCE-{entry.id}',
+                            method='Factory maintenance cash transfer',
+                            party_name='Factory Maintenance & Upgrades',
+                            created_by=entry.created_by or '',
+                        )
+                        db.session.add(ledger_entry)
+                    ledger_entry.date = entry.date
+                    ledger_entry.description = f'Factory maintenance allocation: {description}'
+                    ledger_entry.amount = amount
+                    ledger_entry.company = company
+
+                db.session.commit()
+                g.activity_action = (
+                    f'EDITED FACTORY MAINTENANCE {entry.transaction_type} '
+                    f'PKR {amount:,.2f} · {company} · {description}'
+                ).upper()
+                flash('Factory maintenance entry updated.', 'success')
+            except ValueError as exc:
+                db.session.rollback()
+                flash(str(exc), 'danger')
+            return redirect(url_for('accounts_factory_maintenance'))
+
+        transaction_type = (request.form.get('transaction_type') or '').strip().upper()
+        company = (request.form.get('company') or '').strip().title()
+        description = (request.form.get('description') or '').strip()
+        try:
+            amount = parse_billing_amount(request.form.get('amount'), 'Amount')
+            parsed_date = normalize_date((request.form.get('date') or '').strip())
+            if transaction_type not in ('ALLOCATION', 'EXPENSE'):
+                raise ValueError('Choose an allocation or expense entry.')
+            if company not in ('Canon', 'Haram'):
+                raise ValueError('Choose Canon or Haram as the funding company.')
+            if not parsed_date or parsed_date.strftime('%Y-%m') != current_month:
+                raise ValueError('Entries must be dated within the current month.')
+            if parsed_date.date() > now.date():
+                raise ValueError('Entries cannot be dated in the future.')
+            if not description:
+                raise ValueError('Description is required.')
+            if amount <= 0:
+                raise ValueError('Amount must be greater than zero.')
+
+            entries = FactoryMaintenanceEntry.query.filter_by(
+                month_key=current_month, company=company
+            ).all()
+            balance = round(sum(
+                item.amount if item.transaction_type == 'ALLOCATION'
+                else -item.amount if item.transaction_type == 'EXPENSE'
+                else 0
+                for item in entries
+            ), 2)
+            if transaction_type == 'EXPENSE' and amount > balance:
+                raise ValueError(
+                    f'Expense exceeds the {company} maintenance balance '
+                    f'of PKR {balance:,.2f}.'
+                )
+
+            entry_date = parsed_date.strftime('%Y-%m-%d')
+            entry = FactoryMaintenanceEntry(
+                date=entry_date,
+                month_key=current_month,
+                transaction_type=transaction_type,
+                company=company,
+                description=description,
+                amount=amount,
+                created_by=session.get('name') or session.get('user') or '',
+            )
+            db.session.add(entry)
+            db.session.flush()
+            if transaction_type == 'ALLOCATION':
+                db.session.add(ManualCreditDebitEntry(
+                    date=entry_date,
+                    direction='DEBIT',
+                    description=f'Factory maintenance allocation: {description}',
+                    reference=f'FACTORY-MAINTENANCE-{entry.id}',
+                    method='Factory maintenance cash transfer',
+                    amount=amount,
+                    party_name='Factory Maintenance & Upgrades',
+                    company=company,
+                    created_by=session.get('name') or session.get('user') or '',
+                ))
+            db.session.commit()
+            g.activity_action = (
+                f'FACTORY MAINTENANCE {transaction_type} PKR {amount:,.2f} '
+                f'· {company} · {description}'
+            ).upper()
+            flash(
+                'Factory maintenance allocation recorded.' if transaction_type == 'ALLOCATION'
+                else 'Factory maintenance expense recorded.',
+                'success',
+            )
+        except ValueError as exc:
+            db.session.rollback()
+            flash(str(exc), 'danger')
+        return redirect(url_for('accounts_factory_maintenance'))
+
+    current_entries = FactoryMaintenanceEntry.query.filter_by(
+        month_key=current_month
+    ).all()
+    balances = {'Canon': 0.0, 'Haram': 0.0}
+    for entry in current_entries:
+        if entry.transaction_type == 'ALLOCATION':
+            balances[entry.company] += entry.amount
+        elif entry.transaction_type == 'EXPENSE':
+            balances[entry.company] -= entry.amount
+    balances = {
+        company: round(max(amount, 0.0), 2)
+        for company, amount in balances.items()
+    }
+    entries = FactoryMaintenanceEntry.query.order_by(
+        FactoryMaintenanceEntry.date.desc(), FactoryMaintenanceEntry.id.desc()
+    ).limit(200).all()
+    return render_template(
+        'factory_maintenance.html',
+        entries=entries,
+        balances=balances,
+        total_balance=round(sum(balances.values()), 2),
+        current_month=current_month,
+        current_month_label=datetime.strptime(
+            current_month, '%Y-%m'
+        ).strftime('%B %Y'),
+        today=now.strftime('%Y-%m-%d'),
+    )
+
+
 @app.route('/factory-in-out-ledger', methods=['GET', 'POST'])
 def factory_in_out_ledger():
     if session.get('role') not in ('owner', 'manager', 'assistant_manager'):
@@ -6953,11 +7340,24 @@ def accounts_accessories_billing():
             ),
         })
     suppliers.sort(key=lambda row: row['supplier'].casefold())
+    accessory_notifications = sync_billing_notifications(
+        'accessory_billing',
+        get_accessory_billing_notifications(),
+    )
+    show_accessory_notification_cards = (
+        request.method == 'GET'
+        and not session.get('accessory_billing_notification_cards_seen', False)
+    )
+    if request.method == 'GET':
+        session['accessory_billing_notification_cards_seen'] = True
     return render_template(
         'accessory_billing.html',
         suppliers=suppliers,
         search=request.args.get('q', ''),
         total_billed=sum(group['total_billed'] for group in supplier_groups.values()),
+        billing_notification_active_count=len(accessory_notifications),
+        billing_notification_items=accessory_notifications[:4],
+        show_billing_notification_cards=show_accessory_notification_cards,
     )
 
 
@@ -7172,6 +7572,16 @@ def accounts_accessories_billing_vendor():
         for group in unpaid_pos if group['voucher']
     }.values())
     pending_vouchers.sort(key=lambda voucher: voucher.created_at or datetime.min, reverse=True)
+    accessory_notifications = sync_billing_notifications(
+        'accessory_billing',
+        get_accessory_billing_notifications(),
+    )
+    show_accessory_notification_cards = (
+        request.method == 'GET'
+        and not session.get('accessory_billing_notification_cards_seen', False)
+    )
+    if request.method == 'GET':
+        session['accessory_billing_notification_cards_seen'] = True
     return render_template(
         'accessory_billing_vendor.html',
         supplier=supplier,
@@ -7182,6 +7592,9 @@ def accounts_accessories_billing_vendor():
         company=company,
         company_options=('Canon', 'Haram'),
         today=datetime.now(timezone(timedelta(hours=5), name='PKT')).strftime('%Y-%m-%d'),
+        billing_notification_active_count=len(accessory_notifications),
+        billing_notification_items=accessory_notifications[:4],
+        show_billing_notification_cards=show_accessory_notification_cards,
     )
 
 
@@ -7484,6 +7897,37 @@ def accounts_utility_bills():
         totals['amount'] += bill.amount
         totals['paid'] += paid
         totals['balance'] += balance
+    company_bill_notifications = []
+    for bill in bills:
+        paid = sum(payment.amount for payment in bill.payments)
+        balance = round(max(bill.amount - paid, 0.0), 2)
+        if balance <= 0:
+            continue
+        is_overdue = bool(bill.due_date and bill.due_date < today)
+        company_bill_notifications.append({
+            'notification_type': 'company_bill_payment',
+            'reference_key': str(bill.id),
+            'title': (
+                'Overdue rent payment' if is_overdue and bill.utility_type == 'Rental Payment'
+                else 'Unpaid rent payment' if bill.utility_type == 'Rental Payment'
+                else 'Overdue company bill' if is_overdue
+                else 'Unpaid company bill'
+            ),
+            'message': (
+                f'{bill.utility_type} · {bill.provider} · {bill.company} · '
+                f'{bill.billing_period} · PKR {balance:,.2f} outstanding'
+            ),
+        })
+    company_bill_notifications = sync_billing_notifications(
+        'company_bills',
+        company_bill_notifications,
+    )
+    show_company_bill_notification_cards = (
+        request.method == 'GET'
+        and not session.get('company_bills_notification_cards_seen', False)
+    )
+    if request.method == 'GET':
+        session['company_bills_notification_cards_seen'] = True
     return render_template(
         'utility_bills.html',
         rows=rows,
@@ -7498,6 +7942,9 @@ def accounts_utility_bills():
             session.get('role') in ('owner', 'manager')
             and session.get('profile_role', session.get('role')) in ('owner', 'manager')
         ),
+        billing_notification_active_count=len(company_bill_notifications),
+        billing_notification_items=company_bill_notifications[:4],
+        show_billing_notification_cards=show_company_bill_notification_cards,
     )
 
 
@@ -10232,6 +10679,7 @@ PAGE_ACCESS_OPTIONS = [
     ('credit_debit', 'Party Credit/Debit', ('accounts',)),
     ('company_credit_debit', 'Company Credit/Debit', ('accounts',)),
     ('petty_cash', 'Petty Cash', ('accounts',)),
+    ('factory_maintenance', 'Factory Maintenance & Upgrades', ('accounts',)),
     ('accessories_billing', 'Accessories Billing', ('accounts',)),
     ('utility_bills', 'Utility Bills', ('accounts',)),
     ('utility_bill_summary', 'Utility Bill Summary', ('accounts',)),
@@ -10387,6 +10835,8 @@ def required_page_for_request():
         return 'credit_debit'
     if path.startswith('/accounts/petty-cash'):
         return 'petty_cash'
+    if path.startswith('/accounts/factory-maintenance'):
+        return 'factory_maintenance'
     if path.startswith('/accounts/utility-bill-summary'):
         return 'utility_bill_summary'
     if path.startswith('/accounts/accessories-billing'):
@@ -19861,6 +20311,39 @@ def accessories_portal(portal_page='home'):
             else 'LOW' if stock['available_percentage'] < 25
             else 'NORMAL'
         )
+    stock_notification_items = []
+    if portal_page == 'home':
+        for stock in stock_positions:
+            is_out_of_stock = stock['available'] <= 0.000001
+            if not is_out_of_stock and stock['stock_level'] != 'EXTREMELY LOW':
+                continue
+            variant = ' · '.join(value for value in (stock['size'], stock['quality']) if value)
+            stock_notification_items.append({
+                'notification_type': (
+                    'accessory_stock_out_of_stock' if is_out_of_stock
+                    else 'accessory_stock_extremely_low'
+                ),
+                'reference_key': hashlib.sha256(
+                    '\x1f'.join(stock['key']).encode('utf-8')
+                ).hexdigest(),
+                'title': 'Out of stock accessory' if is_out_of_stock else 'Extremely low accessory stock',
+                'message': (
+                    f"{stock['item']} · {variant + ' · ' if variant else ''}"
+                    f"{stock['available']:,.2f} / {stock['received']:,.2f} {stock['unit']} available · "
+                    f"{stock['available_percentage']:.1f}% remaining"
+                ),
+            })
+        stock_notification_items = sync_billing_notifications(
+            'accessory_stock',
+            stock_notification_items,
+        )
+    show_accessory_stock_notification_cards = (
+        portal_page == 'home'
+        and request.method == 'GET'
+        and not session.get('accessory_stock_notification_cards_seen', False)
+    )
+    if portal_page == 'home' and request.method == 'GET':
+        session['accessory_stock_notification_cards_seen'] = True
     stock_category_options = sorted(
         {stock['category'] for stock in stock_positions if stock['category']},
         key=str.casefold,
@@ -20158,6 +20641,9 @@ def accessories_portal(portal_page='home'):
         local_po_today=datetime.now().strftime('%Y-%m-%d'),
         issue_article_material_items=issue_article_material_items,
         stock_positions=stock_positions, storage_rows=storage_rows,
+        stock_notification_items=stock_notification_items[:4],
+        stock_notification_active_count=len(stock_notification_items),
+        show_accessory_stock_notification_cards=show_accessory_stock_notification_cards,
         storage_item_groups=storage_item_groups,
         storage_location_count=len(storage_location_groups),
         put_away_items=put_away_items, location_search=location_search,
@@ -20231,6 +20717,7 @@ def warehouse_in_transit():
     if request.method == 'POST':
         order = Order.query.filter_by(job_no=(request.form.get('order_id') or '').strip()).first()
         quality = (request.form.get('quality') or '').strip().upper()
+        selected_cut_no = (request.form.get('cut_no') or '').strip()
         department_name = (request.form.get('department') or '').strip()
         location_type = (request.form.get('location_type') or '').strip().upper()
         gala = (request.form.get('gala') or '').strip()
@@ -20257,12 +20744,21 @@ def warehouse_in_transit():
             flash('Choose a valid department for warehouse placement.', 'danger')
             return redirect(url_for('warehouse_in_transit'))
         shipping = get_order_shipping_snapshot(order)
-        quality_balance = (
-            shipping['balance_aq_pcs'] if quality == 'AQ'
-            else shipping['balance_bq_pcs']
-        )
-        located = warehouse_finished_goods_by_quality(order.job_no)[quality]
-        transit_qty = max(0.0, quality_balance - located)
+        if selected_cut_no:
+            cut_transit = warehouse_cut_transit_quantities(
+                order.job_no, quality, shipping['cut_quality_split']
+            )
+            if selected_cut_no not in cut_transit:
+                flash('Choose a valid produced cut for warehouse placement.', 'danger')
+                return redirect(url_for('warehouse_in_transit'))
+            transit_qty = cut_transit[selected_cut_no]
+        else:
+            quality_balance = (
+                shipping['balance_aq_pcs'] if quality == 'AQ'
+                else shipping['balance_bq_pcs']
+            )
+            located = warehouse_finished_goods_by_quality(order.job_no)[quality]
+            transit_qty = max(0.0, quality_balance - located)
         available_packets = transit_qty / pcs_per_packet if pcs_per_packet > 0 else 0.0
         displayed_available_packets = round(available_packets, 2)
         if packets > displayed_available_packets + 0.000001:
@@ -20276,6 +20772,7 @@ def warehouse_in_transit():
         location = WarehouseFinishedGoodsLocation(
             order_id=order.job_no,
             quality=quality,
+            cut_no=selected_cut_no or None,
             location_type=location_type,
             department=department.name,
             room='',
@@ -20317,10 +20814,37 @@ def warehouse_in_transit():
             transit_qty = max(0.0, shipping[balance_key] - shipping[located_key])
             if transit_qty <= 0.000001:
                 continue
+            cut_produced_key = 'aq_pcs' if quality == 'AQ' else 'bq_pcs'
+            cut_rows_by_number = {}
+            for cut in shipping['cut_quality_split']:
+                cut_no = str(cut['cut_no'])
+                produced_pcs = max(0.0, parse_numeric(cut[cut_produced_key]))
+                if produced_pcs <= 0:
+                    continue
+                cut_row = cut_rows_by_number.setdefault(cut_no, {
+                    'cut_no': cut_no,
+                    'produced_pcs': 0.0,
+                })
+                cut_row['produced_pcs'] += produced_pcs
+            cut_transit = warehouse_cut_transit_quantities(
+                order.job_no, quality, shipping['cut_quality_split']
+            )
+            cuts = [
+                {
+                    **cut,
+                    'transit_pcs': cut_transit.get(cut['cut_no'], 0.0),
+                    'transit_packets': (
+                        cut_transit.get(cut['cut_no'], 0.0) / pcs_per_packet
+                        if pcs_per_packet > 0 else 0.0
+                    ),
+                }
+                for cut in cut_rows_by_number.values()
+            ]
             transit_rows.append({
                 'order': order,
                 'quality': quality,
                 'produced_pcs': shipping[produced_key],
+                'cuts': cuts,
                 'transit_pcs': transit_qty,
                 'transit_packets': transit_qty / pcs_per_packet if pcs_per_packet > 0 else 0.0,
                 'placeable_packets': transit_qty / pcs_per_packet if pcs_per_packet > 0 else 0.0,
@@ -21681,15 +22205,164 @@ def billing_portal():
     )
 
 
+def sync_billing_notifications(scope, active_items):
+    active_by_key = {
+        (item['notification_type'], item['reference_key']): item
+        for item in active_items
+    }
+    saved_active_notifications = BillingNotification.query.filter_by(
+        shipper=scope,
+        resolved_at=None,
+    ).all()
+    saved_active_keys = set()
+    notifications_changed = False
+    for notification in saved_active_notifications:
+        key = (notification.notification_type, notification.reference_key)
+        if key not in active_by_key:
+            notification.resolved_at = datetime.utcnow()
+            notifications_changed = True
+        else:
+            saved_active_keys.add(key)
+            item = active_by_key[key]
+            if notification.title != item['title'] or notification.message != item['message']:
+                notification.title = item['title']
+                notification.message = item['message']
+                notifications_changed = True
+    for key, item in active_by_key.items():
+        if key in saved_active_keys:
+            continue
+        db.session.add(BillingNotification(
+            shipper=scope,
+            notification_type=item['notification_type'],
+            reference_key=item['reference_key'],
+            title=item['title'],
+            message=item['message'],
+        ))
+        notifications_changed = True
+    if notifications_changed:
+        db.session.commit()
+    return list(active_by_key.values())
+
+
+def get_accessory_billing_notifications():
+    requirements = SavedRequirement.query.filter(
+        SavedRequirement.supplier.isnot(None),
+        func.trim(SavedRequirement.supplier) != '',
+    ).order_by(SavedRequirement.id.asc()).all()
+    po_groups = {}
+    for entry in requirements:
+        if is_party_supplied_stock_layer(entry):
+            continue
+        supplier = (entry.supplier or '').strip()
+        po_no = (entry.po_no or '').strip()
+        if not supplier or not po_no:
+            continue
+        company = 'Haram' if (entry.company or 'Canon').casefold() == 'haram' else 'Canon'
+        key = (supplier.casefold(), company, po_no.casefold())
+        group = po_groups.setdefault(key, {
+            'supplier': supplier,
+            'company': company,
+            'po_no': po_no,
+            'total_amount': 0.0,
+            'reference_id': entry.id,
+        })
+        group['total_amount'] += parse_numeric(entry.bill_amount)
+
+    voucher_by_po = {}
+    for entry in AccessoryBillVoucherPO.query.all():
+        voucher = entry.voucher
+        if not voucher:
+            continue
+        company = 'Haram' if (voucher.company or 'Canon').casefold() == 'haram' else 'Canon'
+        voucher_by_po[(
+            (entry.supplier or '').strip().casefold(),
+            company,
+            (entry.po_no or '').strip().casefold(),
+        )] = voucher
+
+    active_items = []
+    seen_vouchers = set()
+    for key, group in po_groups.items():
+        voucher = voucher_by_po.get(key)
+        if voucher:
+            if voucher.paid_on or voucher.id in seen_vouchers:
+                continue
+            seen_vouchers.add(voucher.id)
+            active_items.append({
+                'notification_type': 'accessory_pending_voucher',
+                'reference_key': str(voucher.id),
+                'title': 'Accessory voucher awaiting payment',
+                'message': (
+                    f'Voucher {voucher.voucher_no} · {group["supplier"]} · '
+                    f'{group["company"]} · PKR {voucher.total_amount:,.2f}'
+                ),
+            })
+        elif group['total_amount'] > 0:
+            active_items.append({
+                'notification_type': 'accessory_unvouchered_po',
+                'reference_key': str(group['reference_id']),
+                'title': 'Accessory PO not yet vouchered',
+                'message': (
+                    f'PO {group["po_no"]} · {group["supplier"]} · '
+                    f'{group["company"]} · PKR {group["total_amount"]:,.2f}'
+                ),
+            })
+    return active_items
+
+
 @app.route('/stock-portal/billing/notifications')
 def billing_notification_history():
     if not stock_portal_access_required():
         return redirect(url_for('index'))
-
     selected_shipper = normalize_challan_shipper(request.args.get('shipper'))
-    notifications = BillingNotification.query.filter_by(
-        shipper=selected_shipper
-    ).order_by(
+    return render_billing_notification_history(
+        scope=selected_shipper,
+        scope_label=f'{selected_shipper} customer billing',
+        back_url=url_for('billing_portal', shipper=selected_shipper),
+        back_label='Back to Billing',
+        area='customer',
+        selected_shipper=selected_shipper,
+    )
+
+
+@app.route('/stock-portal/accessories/notifications')
+def accessory_stock_notification_history():
+    if not stock_portal_access_required():
+        return redirect(url_for('index'))
+    return render_billing_notification_history(
+        scope='accessory_stock',
+        scope_label='Accessory Stock',
+        back_url=url_for('accessories_portal'),
+        back_label='Back to Accessories',
+        area='accessory_stock',
+    )
+
+
+@app.route('/accounts/billing/notifications')
+def accounts_billing_notification_history():
+    denied = accounts_management_access('accounts')
+    if denied:
+        return denied
+    notification_area = (request.args.get('area') or '').strip()
+    if notification_area == 'company_bills':
+        scope_label = 'Company Bills & Rent'
+        back_url = url_for('accounts_utility_bills')
+    elif notification_area == 'accessory_billing':
+        scope_label = 'Accessory Billing'
+        back_url = url_for('accounts_accessories_billing')
+    else:
+        abort(404)
+    return render_billing_notification_history(
+        scope=notification_area,
+        scope_label=scope_label,
+        back_url=back_url,
+        back_label='Back to ' + scope_label,
+        area=notification_area,
+    )
+
+
+def render_billing_notification_history(scope, scope_label, back_url, back_label, area, selected_shipper=''):
+    notifications = BillingNotification.query.filter_by(shipper=scope).order_by(
         BillingNotification.resolved_at.is_not(None),
         BillingNotification.created_at.desc(),
         BillingNotification.id.desc(),
@@ -21698,6 +22371,10 @@ def billing_notification_history():
         'billing_notification_history.html',
         notifications=notifications,
         selected_shipper=selected_shipper,
+        notification_area=area,
+        notification_scope_label=scope_label,
+        history_back_url=back_url,
+        history_back_label=back_label,
         active_count=sum(notification.resolved_at is None for notification in notifications),
     )
 

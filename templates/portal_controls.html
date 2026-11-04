@@ -3,7 +3,7 @@
 {% block content %}
 <div class="portal-controls-page min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8 md:pb-20">
     <div class="mx-auto max-w-4xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-6 sm:p-8">
-        <header class="rounded-2xl bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
+        <header class="portal-orbit-header rounded-2xl bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
             <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">Master controls</p>
@@ -14,6 +14,10 @@
                     <i class="fa-solid fa-arrow-left"></i> Owner dashboard
                 </a>
             </div>
+            <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+            <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+            <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+            <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
         </header>
 
         <section class="portal-controls-create rounded-2xl border border-cyan-100 bg-cyan-50/40 p-5 shadow-sm sm:p-6">

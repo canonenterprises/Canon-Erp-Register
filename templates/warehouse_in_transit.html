@@ -2,7 +2,7 @@
 {% block content %}
 <div class="min-h-screen -m-2 bg-slate-50 p-4 pb-32 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
   <div class="mx-auto max-w-7xl space-y-6">
-    <header class="flex flex-col gap-4 rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:flex-row sm:items-center sm:justify-between sm:p-8">
+    <header class="portal-orbit-header flex flex-col gap-4 rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:flex-row sm:items-center sm:justify-between sm:p-8">
       <div>
         <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-300">Warehouse</p>
         <h1 class="mt-2 text-3xl font-black">In Transit to Warehouse</h1>
@@ -12,6 +12,10 @@
         <a href="{{ url_for('warehouse_portal') }}" class="rounded-lg border border-white/30 px-4 py-2 text-sm font-bold text-white hover:bg-white/10">Warehouse Dispatch</a>
         <a href="{{ url_for('stock_portal') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Stock Portal</a>
       </div>
+      <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+      <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+      <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+      <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
     </header>
 
     <label class="block rounded-xl border border-slate-200 bg-white p-4 text-sm font-bold text-slate-700 shadow-sm">
@@ -29,7 +33,13 @@
         <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <p class="text-[10px] font-bold uppercase text-slate-400">Order</p>
-            <p class="mt-1 font-black text-indigo-700">{{ row.order.job_no }}</p>
+            <div class="mt-1 flex flex-wrap items-center gap-2">
+              <p class="font-black text-indigo-700">{{ row.order.job_no }}</p>
+              <select class="transit-cut-select rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-bold text-slate-700" data-pcs-per-packet="{{ row.order.pcs_poly|float }}" aria-label="Filter produced and in-transit PCS by cut">
+                <option value="" data-produced="{{ row.produced_pcs }}" data-transit="{{ row.transit_pcs }}" data-packets="{{ row.transit_packets }}">All cuts</option>
+                {% for cut in row.cuts %}<option value="{{ cut.cut_no }}" data-produced="{{ cut.produced_pcs }}" data-transit="{{ cut.transit_pcs }}" data-packets="{{ cut.transit_packets }}">Cut {{ cut.cut_no }} · {{ '{:,.0f}'.format(cut.produced_pcs) }} PCS</option>{% endfor %}
+              </select>
+            </div>
             {% set order_date_parts = (row.order.date or '').split('-') if row.order.date else [] %}
             {% set order_month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] %}
             {% set order_month_display = '' %}
@@ -47,9 +57,9 @@
             </p>
           </div>
           <div><p class="text-[10px] font-bold uppercase text-slate-400">Quality</p><p class="mt-1 font-black {% if row.quality == 'AQ' %}text-sky-700{% else %}text-amber-700{% endif %}">{{ 'A/QUALITY' if row.quality == 'AQ' else 'B/QUALITY' if row.quality == 'BQ' else row.quality }}</p></div>
-          <div><p class="text-[10px] font-bold uppercase text-slate-400">Produced</p><p class="mt-1 font-black text-slate-800">{{ '{:,.0f}'.format(row.produced_pcs) }} PCS</p></div>
-          <div><p class="text-[10px] font-bold uppercase text-slate-400">In Transit</p><p class="mt-1 font-black text-amber-700">{{ '{:,.2f}'.format(row.transit_pcs) }} PCS</p></div>
-          <div><p class="text-[10px] font-bold uppercase text-slate-400">Packet Equivalent</p><p class="mt-1 font-black text-slate-800">{{ '{:,.2f}'.format(row.transit_packets) }}{% if row.order.pcs_poly|float > 0 %} packets{% else %} packets (PCS/packet not set){% endif %}</p></div>
+          <div><p class="text-[10px] font-bold uppercase text-slate-400">Produced</p><p class="produced-pcs-value mt-1 font-black text-slate-800">{{ '{:,.0f}'.format(row.produced_pcs) }} PCS</p></div>
+          <div><p class="text-[10px] font-bold uppercase text-slate-400">In Transit</p><p class="mt-1 font-black text-amber-700"><span class="transit-pcs-value">{{ '{:,.2f}'.format(row.transit_pcs) }}</span> PCS</p></div>
+          <div><p class="text-[10px] font-bold uppercase text-slate-400">Packet Equivalent</p><p class="mt-1 font-black text-slate-800"><span class="transit-packets-value">{{ '{:,.2f}'.format(row.transit_packets) }}</span>{% if row.order.pcs_poly|float > 0 %} packets{% else %} packets (PCS/packet not set){% endif %}</p></div>
         </div>
         <button type="button" class="warehouse-place-toggle mt-4 w-full rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm font-black text-amber-800 hover:bg-amber-100" aria-expanded="false">
           Place in warehouse
@@ -57,10 +67,11 @@
         <form method="post" class="warehouse-place-form mt-4 hidden grid gap-3 rounded-xl border border-amber-100 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
           <input type="hidden" name="order_id" value="{{ row.order.job_no }}">
           <input type="hidden" name="quality" value="{{ row.quality }}">
+          <input type="hidden" name="cut_no" value="">
           <label class="text-xs font-bold text-slate-600">Packets to place
             {% if row.placeable_packets > 0 %}
-            <input type="number" name="packets" min="0.01" max="{{ '{:,.2f}'.format(row.transit_packets) }}" step="0.01" inputmode="decimal" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            <span class="mt-1 block font-normal text-slate-500">1 packet = {{ '{:,.2f}'.format(row.order.pcs_poly|float) }} PCS · max {{ '{:,.2f}'.format(row.transit_packets) }} packets</span>
+            <input type="number" name="packets" min="0.01" max="{{ row.transit_packets }}" step="0.01" inputmode="decimal" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <span class="placement-packet-limit mt-1 block font-normal text-slate-500">1 packet = {{ '{:,.2f}'.format(row.order.pcs_poly|float) }} PCS · max {{ '{:,.2f}'.format(row.transit_packets) }} packets</span>
             {% else %}
             <input type="number" name="packets" disabled class="mt-1 w-full rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm">
             <span class="mt-1 block font-normal text-slate-500">PCS per poly is unset or fewer than one full packet is in transit.</span>
@@ -83,7 +94,7 @@
           <label class="text-xs font-bold text-slate-600">Gala (optional)
             <input type="text" name="gala" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
           </label>
-          <div class="flex items-end"><button type="submit" {% if row.placeable_packets <= 0 %}disabled{% endif %} class="w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-black text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-slate-300">Place in Warehouse</button></div>
+          <div class="flex items-end"><button type="submit" {% if row.placeable_packets <= 0 %}disabled{% endif %} class="warehouse-place-submit w-full rounded-lg bg-amber-600 px-4 py-2.5 text-sm font-black text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-slate-300">Place in Warehouse</button></div>
         </form>
       </article>
       {% else %}
@@ -154,6 +165,37 @@
 <script>
   const warehouseDepartmentRooms = {{ department_store_rooms|tojson }};
   const warehouseSearchInput = document.getElementById('warehouse-live-search');
+  document.querySelectorAll('.transit-cut-select').forEach(function (select) {
+    select.addEventListener('change', function () {
+      const card = select.closest('.warehouse-search-item');
+      const selectedCut = select.options[select.selectedIndex];
+      if (!card || !selectedCut) return;
+      const producedPcs = Number(selectedCut.dataset.produced) || 0;
+      const transitPcs = Number(selectedCut.dataset.transit) || 0;
+      const transitPackets = Number(selectedCut.dataset.packets) || 0;
+      const formatPcs = function (value, fractionDigits) {
+        return value.toLocaleString(undefined, { minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits });
+      };
+      card.querySelector('.produced-pcs-value').textContent = `${formatPcs(producedPcs, 0)} PCS`;
+      card.querySelector('.transit-pcs-value').textContent = formatPcs(transitPcs, 2);
+      card.querySelector('.transit-packets-value').textContent = formatPcs(transitPackets, 2);
+
+      const cutInput = card.querySelector('input[name="cut_no"]');
+      if (cutInput) cutInput.value = select.value;
+      const packetInput = card.querySelector('input[name="packets"]');
+      const placeButton = card.querySelector('.warehouse-place-submit');
+      const packetLimit = card.querySelector('.placement-packet-limit');
+      const pcsPerPacket = Number(select.dataset.pcsPerPacket) || 0;
+      if (packetInput) {
+        packetInput.max = transitPackets.toFixed(2);
+        packetInput.disabled = transitPackets <= 0 || pcsPerPacket <= 0;
+      }
+      if (placeButton) placeButton.disabled = transitPackets <= 0 || pcsPerPacket <= 0;
+      if (packetLimit) {
+        packetLimit.textContent = `1 packet = ${formatPcs(pcsPerPacket, 2)} PCS · max ${formatPcs(transitPackets, 2)} packets`;
+      }
+    });
+  });
   if (warehouseSearchInput) {
     document.querySelectorAll('section').forEach(function (section) {
       const searchItems = Array.from(section.querySelectorAll('.warehouse-search-item'));

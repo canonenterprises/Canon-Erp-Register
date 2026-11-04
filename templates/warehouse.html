@@ -2,7 +2,7 @@
 {% block content %}
 <div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
   <div class="mx-auto max-w-7xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-    <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+    <header class="portal-orbit-header rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-amber-300">Stock Portal</p>
@@ -10,11 +10,15 @@
         </div>
         <div class="flex flex-wrap gap-2">
           {% if 'warehouse_in_transit' in page_access_keys %}
-          <a href="{{ url_for('warehouse_in_transit') }}" class="inline-flex items-center rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 hover:bg-amber-300">In Transit to Warehouse</a>
+          <a href="{{ url_for('warehouse_in_transit') }}" class="warehouse-transit-link inline-flex items-center rounded-lg bg-amber-400 px-3 py-2 text-sm font-bold text-slate-950 hover:bg-amber-300">In Transit to Warehouse</a>
           {% endif %}
           <a href="{{ url_for('stock_portal') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Stock Portal</a>
         </div>
       </div>
+      <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+      <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+      <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+      <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
     </header>
 
     <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -438,6 +442,9 @@ html[data-theme="dark"] .warehouse-order-details .rounded-lg.bg-white {
 }
 html[data-theme="dark"] .warehouse-order-details .shipment-controls > .space-y-3.rounded-xl.bg-slate-50 {
   background-color: #202c40 !important;
+}
+html[data-theme="dark"] .warehouse-transit-link {
+  color: #000 !important;
 }
 </style>
 {% endblock %}

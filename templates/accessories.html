@@ -48,7 +48,7 @@
 {% endmacro %}
 <div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
   <div class="mx-auto max-w-7xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-    <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+    <header class="portal-orbit-header rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p class="text-[10px] font-bold uppercase tracking-[0.22em] text-violet-300">Stock Portal</p>
@@ -61,6 +61,10 @@
           <a href="{{ url_for('stock_portal') }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Stock Portal</a>
         </div>
       </div>
+      <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+      <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+      <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+      <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
     </header>
 
     <nav class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Accessory sub-portals">
@@ -384,7 +388,19 @@
 
     {% if portal_page == 'home' %}
     <section class="overflow-x-auto rounded-2xl border border-slate-200">
-      <h2 class="border-b border-slate-200 bg-slate-50 px-4 py-3 text-lg font-black text-slate-800">CONSOLIDATED RECEIVED ACCESSORY STOCK</h2>
+      <header class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3"><h2 class="text-lg font-black text-slate-800">CONSOLIDATED RECEIVED ACCESSORY STOCK</h2><a id="accessory-stock-notification-bell" href="{{ url_for('accessory_stock_notification_history') }}" class="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-100" aria-label="View accessory stock notification history"><i class="fa-solid fa-bell" aria-hidden="true"></i>{% if stock_notification_active_count %}<span class="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-700 px-1 text-[10px] font-black text-white">{{ stock_notification_active_count }}</span>{% endif %}</a></header>
+      {% if show_accessory_stock_notification_cards and stock_notification_items %}
+      <aside class="fixed right-4 top-24 z-[70] flex max-h-[calc(100vh-7rem)] w-[min(32rem,calc(100vw-2rem))] flex-col gap-3 overflow-y-auto" aria-label="Accessory stock notifications">
+        <section data-stock-notification-card class="rounded-xl border-2 border-rose-500 bg-rose-50 p-5 text-slate-800 shadow-xl" role="status" aria-live="polite">
+          <div class="flex items-start gap-4"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-rose-700 text-white" aria-hidden="true"><i class="fa-solid fa-triangle-exclamation"></i></span><div class="min-w-0 flex-1"><div class="flex items-start justify-between gap-3"><h3 class="font-black text-slate-900">Critical accessory stock</h3><button type="button" data-dismiss-stock-notification class="shrink-0 rounded p-1 text-xl leading-none text-rose-700 hover:bg-rose-100" aria-label="Dismiss stock notification">&times;</button></div><p class="mt-1 text-sm text-slate-600">{{ stock_notification_active_count }} item(s) are extremely low or out of stock.</p><ul class="mt-2 space-y-1 text-xs text-slate-700">{% for item in stock_notification_items %}<li><strong>{{ item.title }}:</strong> {{ item.message }}</li>{% endfor %}{% if stock_notification_active_count > stock_notification_items|length %}<li>and {{ stock_notification_active_count - stock_notification_items|length }} more</li>{% endif %}</ul><a href="#consolidated-stock-search" class="mt-3 inline-flex rounded-md bg-rose-700 px-3 py-2 text-sm font-bold text-white hover:bg-rose-800">View stock</a></div></div>
+        </section>
+      </aside>
+      {% endif %}
+      <div class="border-b border-slate-200 px-4 py-3">
+        <label for="consolidated-stock-search" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Search consolidated stock</label>
+        <input id="consolidated-stock-search" type="search" autocomplete="off" placeholder="Item, size, quality, unit, or stock status" class="w-full max-w-xl rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-100">
+        <p id="consolidated-stock-search-status" class="sr-only" role="status" aria-live="polite"></p>
+      </div>
       <div id="stock-category-filters" class="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-3">
         <span class="mr-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Category</span>
         <button type="button" data-stock-category="*" aria-pressed="true" class="rounded-full bg-emerald-800 px-3 py-1.5 text-xs font-bold text-white">All</button>
@@ -396,9 +412,9 @@
         <thead class="bg-slate-50 text-center text-[10px] uppercase tracking-[0.2em] text-slate-500"><tr><th class="px-3 py-3">S. No</th><th class="px-3 py-3">Item</th><th class="px-3 py-3">Size</th><th class="px-3 py-3">Quality</th><th class="px-3 py-3">Net Received</th><th class="px-3 py-3">Net Used</th><th class="px-3 py-3">Available</th><th class="px-3 py-3">Stock Level</th><th class="px-3 py-3">In Store</th></tr></thead>
         <tbody>
           {% for stock in stock_positions %}
-          <tr data-consolidated-stock-row data-stock-category="{{ stock.category or '__uncategorized__' }}" class="border-y border-slate-200"><td class="px-3 py-3">{{ loop.index }}</td><td class="px-3 py-3 font-bold text-slate-800">{{ stock.item }}{% if stock.roll_length_m %}<span class="block text-xs font-normal text-slate-500">{{ '{:g}'.format(stock.roll_length_m) }} m per roll</span>{% endif %}</td><td class="px-3 py-3">{{ stock.size or '-' }}</td><td class="px-3 py-3">{{ stock.quality or '-' }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.received) }} {{ stock.unit }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.issued) }} {{ stock.unit }}</td><td class="px-3 py-3 font-bold text-emerald-700">{{ '{:,.1f}'.format(stock.available) }} {{ stock.unit }}</td><td class="px-3 py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase {% if stock.stock_level == 'EXTREMELY LOW' %}bg-rose-100 text-rose-800{% elif stock.stock_level == 'LOW' %}bg-amber-100 text-amber-800{% else %}bg-emerald-100 text-emerald-800{% endif %}">{{ 'Extremely Low Stock' if stock.stock_level == 'EXTREMELY LOW' else 'Low Stock' if stock.stock_level == 'LOW' else 'Normal' }}</span><span class="mt-1 block text-[10px] text-slate-500">{{ '{:.1f}'.format(stock.available_percentage) }}% remaining</span></td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.located) }} {{ stock.unit }}</td></tr>
+          <tr data-consolidated-stock-row data-stock-category="{{ stock.category or '__uncategorized__' }}" data-stock-search="{{ (stock.item ~ ' ' ~ stock.size ~ ' ' ~ stock.quality ~ ' ' ~ stock.category ~ ' ' ~ stock.unit ~ ' ' ~ ('out of stock' if stock.available <= 0.000001 else 'extremely low stock' if stock.stock_level == 'EXTREMELY LOW' else 'low stock' if stock.stock_level == 'LOW' else 'normal'))|lower }}" class="border-y border-slate-200"><td data-stock-serial class="px-3 py-3">{{ loop.index }}</td><td class="px-3 py-3 font-bold text-slate-800">{{ stock.item }}{% if stock.roll_length_m %}<span class="block text-xs font-normal text-slate-500">{{ '{:g}'.format(stock.roll_length_m) }} m per roll</span>{% endif %}</td><td class="px-3 py-3">{{ stock.size or '-' }}</td><td class="px-3 py-3">{{ stock.quality or '-' }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.received) }} {{ stock.unit }}</td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.issued) }} {{ stock.unit }}</td><td class="px-3 py-3 font-bold {% if stock.available <= 0.000001 %}text-rose-700{% else %}text-emerald-700{% endif %}">{{ '{:,.1f}'.format(stock.available) }} {{ stock.unit }}</td><td class="px-3 py-3"><span class="inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase {% if stock.available <= 0.000001 or stock.stock_level == 'EXTREMELY LOW' %}bg-rose-100 text-rose-800{% elif stock.stock_level == 'LOW' %}bg-amber-100 text-amber-800{% else %}bg-emerald-100 text-emerald-800{% endif %}">{{ 'Out of Stock' if stock.available <= 0.000001 else 'Extremely Low Stock' if stock.stock_level == 'EXTREMELY LOW' else 'Low Stock' if stock.stock_level == 'LOW' else 'Normal' }}</span><span class="mt-1 block text-[10px] text-slate-500">{{ '{:.1f}'.format(stock.available_percentage) }}% remaining</span></td><td class="px-3 py-3">{{ '{:,.1f}'.format(stock.located) }} {{ stock.unit }}</td></tr>
           {% else %}<tr><td colspan="9" class="px-3 py-6 text-slate-500">No received accessories yet.</td></tr>{% endfor %}
-          {% if stock_positions %}<tr id="stock-category-no-results" hidden><td colspan="9" class="px-3 py-6 text-slate-500">No stock in this category.</td></tr>{% endif %}
+          {% if stock_positions %}<tr id="stock-category-no-results" hidden><td colspan="9" class="px-3 py-6 text-slate-500">No stock matches your search and category.</td></tr>{% endif %}
         </tbody>
       </table>
     </section>
@@ -408,13 +424,32 @@
         const categoryButtons = Array.from(stockCategoryFilters.querySelectorAll('[data-stock-category]'));
         const stockRows = Array.from(document.querySelectorAll('[data-consolidated-stock-row]'));
         const noCategoryResults = document.getElementById('stock-category-no-results');
+        const stockSearchInput = document.getElementById('consolidated-stock-search');
+        const stockSearchStatus = document.getElementById('consolidated-stock-search-status');
+        let selectedCategory = '*';
+
+        function filterConsolidatedStock() {
+          const query = (stockSearchInput?.value || '').trim().toLocaleLowerCase();
+          let visibleRows = 0;
+          stockRows.forEach(function (row) {
+            const matchesCategory = selectedCategory === '*' || row.dataset.stockCategory === selectedCategory;
+            const matchesSearch = !query || (row.dataset.stockSearch || '').toLocaleLowerCase().includes(query);
+            const matches = matchesCategory && matchesSearch;
+            row.hidden = !matches;
+            if (matches) {
+              visibleRows += 1;
+              row.querySelector('[data-stock-serial]').textContent = String(visibleRows);
+            }
+          });
+          if (noCategoryResults) noCategoryResults.hidden = visibleRows > 0;
+          if (stockSearchStatus) stockSearchStatus.textContent = `${visibleRows} stock item(s) shown.`;
+        }
 
         stockCategoryFilters.addEventListener('click', function (event) {
           const selectedButton = event.target.closest('[data-stock-category]');
           if (!selectedButton) return;
 
-          const selectedCategory = selectedButton.dataset.stockCategory;
-          let visibleRows = 0;
+          selectedCategory = selectedButton.dataset.stockCategory;
           categoryButtons.forEach(function (button) {
             const isSelected = button === selectedButton;
             button.setAttribute('aria-pressed', String(isSelected));
@@ -426,17 +461,58 @@
             button.classList.toggle('text-emerald-800', !isSelected);
           });
 
-          stockRows.forEach(function (row) {
-            const matches = selectedCategory === '*' || row.dataset.stockCategory === selectedCategory;
-            row.hidden = !matches;
-            if (matches) {
-              visibleRows += 1;
-              row.cells[0].textContent = String(visibleRows);
-            }
-          });
-          if (noCategoryResults) noCategoryResults.hidden = visibleRows > 0;
+          filterConsolidatedStock();
         });
+        stockSearchInput?.addEventListener('input', filterConsolidatedStock);
+        filterConsolidatedStock();
       }
+
+      document.querySelectorAll('[data-stock-notification-card]').forEach(card => {
+        const stockNotificationBell = document.getElementById('accessory-stock-notification-bell');
+        const dismissButton = card.querySelector('[data-dismiss-stock-notification]');
+        const dismiss = () => {
+          card.classList.add('translate-x-4', 'scale-95', 'opacity-0');
+          window.setTimeout(() => card.remove(), 300);
+        };
+        const flyToBell = () => {
+          if (!stockNotificationBell) {
+            dismiss();
+            return;
+          }
+          const cardBounds = card.getBoundingClientRect();
+          const bellBounds = stockNotificationBell.getBoundingClientRect();
+          const startX = cardBounds.left + cardBounds.width / 2;
+          const startY = cardBounds.top + cardBounds.height / 2;
+          const targetX = bellBounds.left + bellBounds.width / 2;
+          const targetY = bellBounds.top + bellBounds.height / 2;
+          const plane = document.createElement('span');
+          plane.setAttribute('aria-hidden', 'true');
+          plane.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+          plane.style.cssText = `position:fixed;left:0;top:0;z-index:2147483647;display:grid;width:48px;height:48px;place-items:center;border:2px solid #be123c;border-radius:9999px;background:#fff1f2;color:#be123c;font-size:20px;box-shadow:0 8px 24px rgb(15 23 42 / 0.3);pointer-events:none;transform:translate3d(${startX}px,${startY}px,0) translate(-50%,-50%) scale(0.9);will-change:transform,opacity`;
+          document.body.appendChild(plane);
+          const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          const flight = plane.animate([
+            { transform: `translate3d(${startX}px,${startY}px,0) translate(-50%,-50%) scale(0.9) rotate(-8deg)`, opacity: 1 },
+            { transform: `translate3d(${(startX + targetX) / 2}px,${(startY + targetY) / 2 - 45}px,0) translate(-50%,-50%) scale(0.7) rotate(10deg)`, opacity: 1, offset: 0.65 },
+            { transform: `translate3d(${targetX}px,${targetY}px,0) translate(-50%,-50%) scale(0.2) rotate(25deg)`, opacity: 0 },
+          ], { duration: reducedMotion ? 500 : 1400, easing: 'cubic-bezier(0.2,0.75,0.25,1)' });
+          card.animate([
+            { transform: 'scale(1)', opacity: 1 },
+            { transform: 'scale(0.75)', opacity: 0 },
+          ], { duration: 260, easing: 'ease-in', fill: 'forwards' });
+          flight.onfinish = () => {
+            plane.remove();
+            card.remove();
+            stockNotificationBell.classList.add('animate-pulse');
+            window.setTimeout(() => stockNotificationBell.classList.remove('animate-pulse'), 700);
+          };
+        };
+        const autoDismiss = window.setTimeout(flyToBell, 15000);
+        dismissButton?.addEventListener('click', function () {
+          window.clearTimeout(autoDismiss);
+          flyToBell();
+        });
+      });
     </script>
     {% endif %}
 

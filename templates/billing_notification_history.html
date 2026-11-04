@@ -4,19 +4,21 @@
   <div class="mx-auto max-w-5xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
     <header class="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <p class="text-xs font-bold uppercase text-blue-700">Accounts · Billing</p>
-        <h1 class="mt-1 text-3xl font-black text-slate-950">Notification history</h1>
-        <p class="mt-2 text-sm text-slate-500">{{ selected_shipper }} billing notifications, including resolved items.</p>
+        <p class="text-xs font-bold uppercase text-blue-700">{% if notification_area == 'accessory_stock' %}Stock Portal · Accessories{% else %}Accounts · Billing{% endif %}</p>
+        <h1 class="mt-1 text-3xl font-black text-slate-950">{% if notification_area == 'accessory_stock' %}Stock notification history{% else %}Notification history{% endif %}</h1>
+        <p class="mt-2 text-sm text-slate-500">{{ notification_scope_label }} notifications, including resolved items.</p>
       </div>
-      <a href="{{ url_for('billing_portal', shipper=selected_shipper) }}" class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800">
-        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back to Billing
+      <a href="{{ history_back_url }}" class="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800">
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> {{ history_back_label }}
       </a>
     </header>
 
+    {% if notification_area == 'customer' %}
     <nav class="flex w-full max-w-md rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Billing notification history portals">
       <a href="{{ url_for('billing_notification_history', shipper='Canon') }}" {% if selected_shipper == 'Canon' %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2.5 text-center text-sm font-black {% if selected_shipper == 'Canon' %}bg-white text-emerald-800 shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Canon</a>
       <a href="{{ url_for('billing_notification_history', shipper='Haram') }}" {% if selected_shipper == 'Haram' %}aria-current="page"{% endif %} class="flex-1 rounded-md px-4 py-2.5 text-center text-sm font-black {% if selected_shipper == 'Haram' %}bg-slate-900 text-white shadow-sm{% else %}text-slate-500 hover:text-slate-900{% endif %}">Haram</a>
     </nav>
+    {% endif %}
 
     {% if notifications %}
     <ol class="space-y-3">
@@ -43,7 +45,7 @@
     <div class="rounded-xl border border-dashed border-slate-300 px-6 py-14 text-center">
       <i class="fa-regular fa-bell-slash text-3xl text-slate-300" aria-hidden="true"></i>
       <p class="mt-3 font-bold text-slate-700">No billing notifications yet</p>
-      <p class="mt-1 text-sm text-slate-500">New unbilled challans and pending payments will be saved here.</p>
+      <p class="mt-1 text-sm text-slate-500">{% if notification_area == 'customer' %}New unbilled challans and pending customer payments will be saved here.{% elif notification_area == 'company_bills' %}New unpaid company bills and rent payments will be saved here.{% elif notification_area == 'accessory_stock' %}Extremely low and out-of-stock accessory items will be saved here.{% else %}Unvouchered purchase orders and accessory vouchers awaiting payment will be saved here.{% endif %}</p>
     </div>
     {% endif %}
   </div>

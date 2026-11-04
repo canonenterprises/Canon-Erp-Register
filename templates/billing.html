@@ -2,7 +2,7 @@
 {% block content %}
 <div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
 <div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-8">
-  <header class="overflow-hidden rounded-xl bg-slate-950 text-white shadow-lg">
+  <header class="portal-orbit-header overflow-hidden rounded-xl bg-slate-950 text-white shadow-lg">
     <div class="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1fr_auto] lg:items-end">
       <div>
         <p class="text-xs font-bold uppercase text-emerald-300">Finance · Customer accounts</p>
@@ -23,6 +23,10 @@
       <div class="border-r border-white/10 px-5 py-4"><p class="text-[10px] font-bold uppercase text-slate-400">Collected</p><p class="mt-1 text-xl font-black text-emerald-300">PKR {{ '{:,.2f}'.format(totals.collected) }}</p></div>
       <div class="px-5 py-4"><p class="text-[10px] font-bold uppercase text-slate-400">Outstanding</p><p class="mt-1 text-xl font-black text-rose-300">PKR {{ '{:,.2f}'.format(totals.outstanding) }}</p></div>
     </div>
+    <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+    <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+    <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+    <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
   </header>
 
   <nav class="flex w-full max-w-md rounded-lg border border-slate-200 bg-slate-100 p-1" aria-label="Billing portals">

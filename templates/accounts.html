@@ -3,13 +3,17 @@
 {% set can_access_accounts = session.get('role') in ('owner', 'manager') %}
 <div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
   <div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-8">
-    <header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
+    <header class="portal-orbit-header flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
       <div>
-        <p class="text-xs font-bold uppercase text-emerald-700">Canon Registry · Finance</p>
-        <h1 class="mt-1 text-3xl font-black text-slate-950">Accounts</h1>
-        <p class="mt-2 text-sm text-slate-500">Party and company ledgers, billing, operating costs, and annual close.</p>
+        <p class="text-xs font-bold uppercase text-amber-300">Canon Registry · Finance</p>
+        <h1 class="mt-1 text-3xl font-black">Accounts</h1>
+        <p class="mt-2 text-sm text-slate-300">Party and company ledgers, billing, operating costs, and annual close.</p>
       </div>
-      <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Welcome</a>
+      <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Welcome</a>
+      <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+      <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+      <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+      <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
     </header>
 
     <section class="grid gap-4 sm:grid-cols-3">
@@ -49,6 +53,14 @@
       <a href="{{ url_for('accounts_all_vouchers') }}" class="group border-l-4 border-teal-600 bg-teal-50 p-5 transition hover:bg-teal-100">
         <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-teal-800">Finance · Register</p><h2 class="mt-2 text-xl font-black text-slate-950">All Vouchers</h2><p class="mt-2 text-sm text-slate-600">Review accessory and utility vouchers with their payment status.</p></div><i class="fa-solid fa-receipt mt-1 text-2xl text-teal-700" aria-hidden="true"></i></div>
         <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-teal-900">Open voucher register <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
+      </a>
+      {% endif %}
+
+
+      {% if 'factory_maintenance' in page_access_keys %}
+      <a href="{{ url_for('accounts_factory_maintenance') }}" class="group border-l-4 border-orange-600 bg-orange-50 p-5 transition hover:bg-orange-100">
+        <div class="flex items-start justify-between gap-4"><div><p class="text-xs font-bold uppercase text-orange-800">Factory projects</p><h2 class="mt-2 text-xl font-black text-slate-950">Factory Maintenance &amp; Upgrades</h2><p class="mt-2 text-sm text-slate-600">Allocate a dedicated cash budget and track factory maintenance, repairs, and upgrades.</p></div><i class="fa-solid fa-screwdriver-wrench mt-1 text-2xl text-orange-700" aria-hidden="true"></i></div>
+        <span class="mt-5 inline-flex items-center gap-2 text-sm font-bold text-orange-900">Open maintenance ledger <i class="fa-solid fa-arrow-right transition group-hover:translate-x-1" aria-hidden="true"></i></span>
       </a>
       {% endif %}
 

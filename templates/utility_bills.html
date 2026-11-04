@@ -4,8 +4,60 @@
   <div class="mx-auto max-w-7xl space-y-6 bg-white rounded-2xl border border-slate-500 shadow-sm p-8">
     <header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
       <div><p class="text-xs font-bold uppercase text-sky-700">Accounts · Operating costs</p><h1 class="mt-1 text-3xl font-black text-slate-950">Company Bills &amp; Rent</h1><p class="mt-2 text-sm text-slate-500">Record company bills and rental payments, and track partial or full payments.</p></div>
-      <div class="flex flex-wrap gap-2"><a href="{{ url_for('accounts_utility_bill_summary') }}" class="inline-flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-bold text-white hover:bg-sky-800"><i class="fa-solid fa-file-lines" aria-hidden="true"></i> Bill Summary</a><a href="{{ url_for('accounts_portal') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Accounts</a></div>
+      <div class="flex flex-wrap gap-2"><a id="billing-notification-bell" href="{{ url_for('accounts_billing_notification_history', area='company_bills') }}" class="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50" aria-label="View company bill notification history"><i class="fa-solid fa-bell" aria-hidden="true"></i>{% if billing_notification_active_count %}<span class="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-700 px-1 text-[10px] font-black text-white">{{ billing_notification_active_count }}</span>{% endif %}</a><a href="{{ url_for('accounts_utility_bill_summary') }}" class="inline-flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-bold text-white hover:bg-sky-800"><i class="fa-solid fa-file-lines" aria-hidden="true"></i>Electric Bill Summary</a><a href="{{ url_for('accounts_portal') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Accounts</a></div>
     </header>
+
+    {% if show_billing_notification_cards and billing_notification_items %}
+    <aside class="fixed right-4 top-24 z-[70] flex max-h-[calc(100vh-7rem)] w-[min(32rem,calc(100vw-2rem))] flex-col gap-3 overflow-y-auto" aria-label="Company bill notifications">
+      <section data-notification-card class="rounded-xl border-2 border-sky-500 bg-sky-50 p-5 text-slate-800 shadow-xl" role="status" aria-live="polite">
+        <div class="flex items-start gap-4"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-700 text-white" aria-hidden="true"><i class="fa-solid fa-circle-info"></i></span><div class="min-w-0 flex-1"><div class="flex items-start justify-between gap-3"><h2 class="font-black text-slate-900">Unpaid company bills and rent</h2><button type="button" data-dismiss-notification class="shrink-0 rounded p-1 text-xl leading-none text-sky-700 hover:bg-sky-100" aria-label="Dismiss unpaid bills notification">&times;</button></div><p class="mt-1 text-sm text-slate-600">{{ billing_notification_active_count }} bill(s) have an outstanding balance.</p><ul class="mt-2 space-y-1 text-xs text-slate-600">{% for item in billing_notification_items %}<li>{{ item.title }} · {{ item.message }}</li>{% endfor %}{% if billing_notification_active_count > billing_notification_items|length %}<li>and {{ billing_notification_active_count - billing_notification_items|length }} more</li>{% endif %}</ul><a href="#utility-bill-register" class="mt-3 inline-flex rounded-md bg-sky-700 px-3 py-2 text-sm font-bold text-white hover:bg-sky-800">View bills</a></div></div>
+      </section>
+    </aside>
+    <script>
+      function flyBillingNotificationToBell(card) {
+        const bell = document.getElementById('billing-notification-bell');
+        if (!bell) {
+          card.remove();
+          return;
+        }
+        const cardBounds = card.getBoundingClientRect();
+        const bellBounds = bell.getBoundingClientRect();
+        const startX = cardBounds.left + cardBounds.width / 2;
+        const startY = cardBounds.top + cardBounds.height / 2;
+        const targetX = bellBounds.left + bellBounds.width / 2;
+        const targetY = bellBounds.top + bellBounds.height / 2;
+        const plane = document.createElement('span');
+        plane.setAttribute('aria-hidden', 'true');
+        plane.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+        plane.style.cssText = `position:fixed;left:0;top:0;z-index:2147483647;display:grid;width:48px;height:48px;place-items:center;border:2px solid #0369a1;border-radius:9999px;background:#f0f9ff;color:#0369a1;font-size:20px;box-shadow:0 8px 24px rgb(15 23 42 / 0.3);pointer-events:none;transform:translate3d(${startX}px,${startY}px,0) translate(-50%,-50%) scale(0.9);will-change:transform,opacity`;
+        document.body.appendChild(plane);
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        const flight = plane.animate([
+          { transform: `translate3d(${startX}px,${startY}px,0) translate(-50%,-50%) scale(0.9) rotate(-8deg)`, opacity: 1 },
+          { transform: `translate3d(${(startX + targetX) / 2}px,${(startY + targetY) / 2 - 45}px,0) translate(-50%,-50%) scale(0.7) rotate(10deg)`, opacity: 1, offset: 0.65 },
+          { transform: `translate3d(${targetX}px,${targetY}px,0) translate(-50%,-50%) scale(0.2) rotate(25deg)`, opacity: 0 },
+        ], { duration: reducedMotion ? 500 : 1400, easing: 'cubic-bezier(0.2,0.75,0.25,1)' });
+        card.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(0.75)', opacity: 0 }], {
+          duration: 260,
+          easing: 'ease-in',
+          fill: 'forwards',
+        });
+        flight.onfinish = () => {
+          plane.remove();
+          card.remove();
+          bell.classList.add('animate-pulse');
+          window.setTimeout(() => bell.classList.remove('animate-pulse'), 700);
+        };
+      }
+      document.querySelectorAll('[data-notification-card]').forEach(card => {
+        const autoDismiss = window.setTimeout(() => flyBillingNotificationToBell(card), 15000);
+        card.querySelector('[data-dismiss-notification]')?.addEventListener('click', () => {
+          window.clearTimeout(autoDismiss);
+          flyBillingNotificationToBell(card);
+        });
+      });
+    </script>
+    {% endif %}
 
     <section class="grid grid-cols-1 border-y border-slate-200 sm:grid-cols-3">
       <div class="border-b border-slate-200 px-4 py-4 sm:border-b-0 sm:border-r"><p class="text-xs font-bold uppercase text-slate-500">Bills listed</p><p id="utility-bills-count" class="mt-1 text-2xl font-black">{{ rows|length }}</p></div>
@@ -30,7 +82,7 @@
       </form>
     </details>
 
-    <section class="space-y-4">
+    <section id="utility-bill-register" class="space-y-4">
       <div class="flex flex-wrap items-end justify-between gap-3"><div><h2 class="text-xl font-black text-slate-950">Bill register</h2><p class="mt-1 text-sm text-slate-500">Payment history is retained for each bill.</p></div><form id="utility-bill-search-form" method="get" class="flex w-full sm:max-w-md"><label for="utility-bill-search" class="sr-only">Search utility bills</label><input id="utility-bill-search" type="search" name="q" value="{{ search }}" autocomplete="off" placeholder="Provider, type or account" class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm"></form></div>
       {% if can_delete_bills %}<form id="utility-bill-delete-form" method="post" class="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200 py-3"><input type="hidden" name="action" value="delete_bills"><label class="inline-flex items-center gap-2 text-sm font-bold text-slate-700"><input type="checkbox" data-select-visible-bills class="h-4 w-4 rounded border-slate-300"> Select visible</label><div class="flex items-center gap-3"><span data-selected-bill-count class="text-sm text-slate-500">0 selected</span><button type="submit" data-delete-selected-bills disabled class="rounded bg-rose-700 px-3 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Delete selected</button></div></form>{% endif %}
       <div class="w-full min-w-0 border-y border-slate-200"><table class="bill-register-table w-full min-w-0 table-fixed text-left text-xs"><colgroup><col style="width:8%"><col style="width:9%"><col style="width:6%"><col style="width:10%"><col style="width:12%"><col style="width:9%"><col style="width:9%"><col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:13%"></colgroup><thead class="bg-slate-100 text-[10px] font-bold uppercase text-slate-500"><tr><th class="px-2 py-3">S.No</th><th class="px-2 py-3">Utility / Provider</th><th class="px-2 py-3">Period</th><th class="px-2 py-3">Account</th><th class="px-2 py-3">Meter / Location</th><th class="px-2 py-3">Bill / Due</th><th class="px-2 py-3 text-right">Amount</th><th class="px-2 py-3 text-right">Paid</th><th class="px-2 py-3 text-right">Balance</th><th class="px-2 py-3">Status</th><th class="px-2 py-3">Payment</th></tr></thead>

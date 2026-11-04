@@ -2,10 +2,14 @@
 {% block content %}
 <div class="min-h-screen -m-2 bg-slate-50 p-4 pb-32 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
   <div class="mx-auto max-w-6xl space-y-6">
-    <header class="rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+    <header class="portal-orbit-header rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
       <a href="{{ url_for('warehouse_portal') }}" class="text-xs font-bold uppercase tracking-wider text-amber-300">Back to Warehouse</a>
       <h1 class="mt-3 text-3xl font-black">Combined Shipment</h1>
       <p class="mt-2 text-sm font-semibold text-slate-300">Enter quantities for each shipment entry. Entries may belong to the same order and will be recorded on one delivery challan.</p>
+      <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+      <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+      <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+      <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
     </header>
 
     <form method="post" action="{{ url_for('create_combined_shipment') }}" class="space-y-5">
