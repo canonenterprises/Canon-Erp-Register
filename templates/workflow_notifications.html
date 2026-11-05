@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
+  <div class="mx-auto max-w-5xl space-y-6 rounded-2xl border border-slate-300 bg-white p-6 shadow-sm sm:p-8">
+    <header class="portal-orbit-header relative overflow-hidden rounded-[2rem] bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
+      <div class="relative z-10 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">Workflow</p>
+          <h1 class="mt-2 text-3xl font-black sm:text-4xl">Notifications</h1>
+          <p class="mt-2 text-sm text-slate-300">{{ total_count }} pending task(s)</p>
+        </div>
+        <a href="{{ home_url }}" class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold text-slate-200 transition hover:bg-white/20">
+          <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back
+        </a>
+      </div>
+      <div class="orbit-ring orbit-ring-one"></div>
+      <div class="orbit-ring orbit-ring-two"></div>
+      <div class="orbit-ring orbit-ring-three"></div>
+      <div class="orbit-ring orbit-ring-four"></div>
+    </header>
+
+    <section aria-label="Pending workflow notifications">
+      {% if notifications %}
+      <ol class="divide-y divide-slate-200 border-y border-slate-200">
+        {% for notification in notifications %}
+        <li>
+          <a href="{{ notification.url }}" class="workflow-notification-item group flex items-start gap-4 border border-transparent px-3 py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500">
+            <span class="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-orange-100 text-orange-800 group-hover:bg-orange-200" aria-hidden="true">
+              <i class="fa-solid fa-bell"></i>
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="workflow-notification-title block text-sm font-black text-slate-900">{{ notification.title }}</span>
+              <span class="workflow-notification-message mt-1 block text-sm text-slate-600">{{ notification.message }}</span>
+            </span>
+            <i class="fa-solid fa-arrow-right mt-1 text-xs text-slate-400 transition group-hover:translate-x-1 group-hover:text-orange-700" aria-hidden="true"></i>
+          </a>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}
+      <div class="border-y border-slate-200 px-4 py-16 text-center">
+        <i class="fa-solid fa-circle-check text-3xl text-emerald-600" aria-hidden="true"></i>
+        <p class="mt-3 text-lg font-black text-slate-900">You're all caught up</p>
+        <p class="mt-1 text-sm text-slate-500">No pending workflow tasks.</p>
+      </div>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

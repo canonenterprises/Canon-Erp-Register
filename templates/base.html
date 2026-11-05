@@ -91,6 +91,39 @@
             0% { transform: scale(0.94); opacity: 0.85; }
             75%, 100% { transform: scale(1.5); opacity: 0; }
         }
+        .workflow-notification-item,
+        .workflow-notification-all {
+            transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+        }
+        .workflow-notification-item:hover,
+        .workflow-notification-item:focus-visible {
+            border-color: #f97316 !important;
+            background-color: #ffedd5 !important;
+        }
+        .workflow-notification-all:hover,
+        .workflow-notification-all:focus-visible {
+            background-color: #ffedd5 !important;
+            color: #7c2d12 !important;
+        }
+        .workflow-notification-item:hover .workflow-notification-title,
+        .workflow-notification-item:focus-visible .workflow-notification-title { color: #7c2d12 !important; }
+        .workflow-notification-item:hover .workflow-notification-message,
+        .workflow-notification-item:focus-visible .workflow-notification-message { color: #9a3412 !important; }
+        html[data-theme="dark"] .workflow-notification-item:hover,
+        html[data-theme="dark"] .workflow-notification-item:focus-visible {
+            border-color: #fb923c !important;
+            background-color: #7c2d12 !important;
+        }
+        html[data-theme="dark"] .workflow-notification-all:hover,
+        html[data-theme="dark"] .workflow-notification-all:focus-visible {
+            border-color: #fb923c !important;
+            background-color: #7c2d12 !important;
+            color: #fff7ed !important;
+        }
+        html[data-theme="dark"] .workflow-notification-item:hover .workflow-notification-title,
+        html[data-theme="dark"] .workflow-notification-item:focus-visible .workflow-notification-title { color: #fff7ed !important; }
+        html[data-theme="dark"] .workflow-notification-item:hover .workflow-notification-message,
+        html[data-theme="dark"] .workflow-notification-item:focus-visible .workflow-notification-message { color: #fed7aa !important; }
 
         .portal-orbit-header {
             position: relative;
@@ -840,6 +873,9 @@
                 <div id="workflow-notification-list" class="max-h-80 space-y-2 overflow-y-auto p-3">
                     <p class="px-2 py-4 text-center text-sm text-slate-500">Loading notifications...</p>
                 </div>
+                <a href="{{ url_for('workflow_notifications_page') }}" class="workflow-notification-all block border-t border-slate-200 px-4 py-3 text-center text-xs font-bold text-orange-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-500">
+                    View all notifications
+                </a>
             </section>
             {% if (current_role in ('owner', 'manager') and is_costing_page) or (current_role in ('owner', 'manager', 'assistant_manager', 'stock', 'accounts', 'challan') and not is_costing_page) %}
             <div id="fab-menu" class="hidden absolute bottom-[4.5rem] right-0 w-64 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-2xl shadow-slate-900/15 backdrop-blur-xl">
@@ -1122,12 +1158,12 @@
                 items.forEach(function (item) {
                     const link = document.createElement('a');
                     link.href = item.url;
-                    link.className = 'block rounded-lg border border-slate-100 px-3 py-2.5 transition hover:border-orange-500 hover:bg-orange-100 focus-visible:border-orange-500 focus-visible:bg-orange-100';
+                    link.className = 'workflow-notification-item block rounded-lg border border-slate-100 px-3 py-2.5';
                     const title = document.createElement('span');
-                    title.className = 'block text-sm font-bold text-slate-900';
+                    title.className = 'workflow-notification-title block text-sm font-bold text-slate-900';
                     title.textContent = item.title;
                     const message = document.createElement('span');
-                    message.className = 'mt-1 block text-xs text-slate-600';
+                    message.className = 'workflow-notification-message mt-1 block text-xs text-slate-600';
                     message.textContent = item.message;
                     link.append(title, message);
                     workflowNotificationList.appendChild(link);

@@ -10958,7 +10958,7 @@ def inject_page_access_keys():
 
 
 @app.route('/api/workflow-notifications')
-def workflow_notifications_api():
+def workflow_notifications_api(include_all=False):
     if not session.get('user'):
         return jsonify({'notifications': [], 'count': 0}), 401
 
@@ -11374,7 +11374,35 @@ def workflow_notifications_api():
         key=lambda item: notification_priority.get(item['id'].split(':', 1)[0], 10)
     )
     total = len(notifications)
-    return jsonify({'notifications': notifications[:30], 'count': total})
+    visible_notifications = notifications if include_all else notifications[:30]
+    return jsonify({'notifications': visible_notifications, 'count': total})
+
+
+@app.route('/notifications')
+def workflow_notifications_page():
+    if not session.get('user'):
+        return redirect(url_for('index'))
+
+    payload = workflow_notifications_api(include_all=True).get_json()
+    profile_role = session.get('profile_role', session.get('role'))
+    home_endpoints = {
+        'owner': 'owner_dashboard',
+        'manager': 'manager_dashboard',
+        'operations': 'manager_dashboard',
+        'operations_manager': 'manager_dashboard',
+        'assistant_manager': 'manager_dashboard',
+        'worker': 'worker_dashboard',
+        'stock': 'stock_portal',
+        'accounts': 'accounts_portal',
+        'challan': 'challan_portal',
+    }
+    home_endpoint = home_endpoints.get(profile_role, 'index')
+    return render_template(
+        'workflow_notifications.html',
+        notifications=payload.get('notifications', []),
+        total_count=payload.get('count', 0),
+        home_url=url_for(home_endpoint),
+    )
 
 
 @app.route('/portal-controls', methods=['GET', 'POST'])
