@@ -11,8 +11,8 @@
     
 
     <!-- SCREEN HEADER -->
-    <section class="no-print rounded-2xl bg-slate-950 p-5 sm:p-7 text-white shadow-xl">
-        <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+    <section class="no-print portal-orbit-header rounded-[2rem] bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
+        <div class="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
                 <p class="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-300">Canon Registry</p>
                 <h1 class="mt-2 text-2xl sm:text-3xl font-black tracking-tight">Payroll & Salary Payment</h1>
@@ -29,6 +29,10 @@
             </div>
             {% endif %}
         </div>
+        <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+        <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+        <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+        <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
     </section>
 
     {% if not payout_portal %}

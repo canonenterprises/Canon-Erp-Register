@@ -2,195 +2,214 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>{{ status_code }} · {{ error_title }} | Canon Registry</title>
-
-<style>
-* {
-    box-sizing: border-box;
-}
-
-html, body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background: #050d18;
-    font-family: Arial, sans-serif;
-}
-
-body {
-    min-height: 100vh;
-    min-height: 100dvh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #050d18;
-}
-
-/* FULL WIDTH DESIGN */
-
-.design-container {
-    position: relative;
-
-    width: 100vw;
-    height: auto;
-
-    aspect-ratio: 1672 / 941;
-
-    flex-shrink: 0;
-
-    background-image: url("{{ url_for('static', filename='canon-error-design.png') }}");
-    background-position: center;
-    background-size: 100% 100%;
-    background-repeat: no-repeat;
-
-    overflow: hidden;
-}
-
-/* THANK YOU MESSAGE */
-
-.thank-you {
-    position: absolute;
-    left: 9%;
-    top: 54.5%;
-
-    color: #f4b52f;
-
-    font-size: clamp(7px, 0.85vw, 14px);
-    font-weight: 800;
-    letter-spacing: 1.2px;
-
-    text-transform: uppercase;
-    white-space: nowrap;
-
-    text-shadow: 0 2px 8px #071321;
-}
-
-/* DASHBOARD BUTTON */
-
-.home-button {
-    position: absolute;
-
-    left: 8.8%;
-    top: 59.2%;
-
-    width: 19.3%;
-    height: 7.5%;
-
-    border-radius: 12px;
-    cursor: pointer;
-}
-
-/* BACK BUTTON */
-
-.back-button {
-    position: absolute;
-
-    left: 29.7%;
-    top: 59.2%;
-
-    width: 12.1%;
-    height: 7.5%;
-
-    border-radius: 12px;
-    cursor: pointer;
-}
-
-/* ACCESSIBILITY */
-
-.home-button:focus-visible,
-.back-button:focus-visible {
-    outline: 3px solid white;
-    outline-offset: 3px;
-}
-
-/* TABLET */
-
-@media (max-width: 900px) {
-
-    .thank-you {
-        font-size: clamp(6px, 1vw, 10px);
-        letter-spacing: .7px;
-    }
-
-    .home-button,
-    .back-button {
-        border-radius: 7px;
-    }
-}
-
-/* MOBILE */
-
-@media (max-width: 600px) {
-
-    body {
-        width: 100%;
-        height: 100dvh;
-        padding: 0;
-        overflow: hidden;
-    }
-
-    .design-container {
-        width: 100vw;
-        height: auto;
-        aspect-ratio: 1672 / 941;
-    }
-
-    .thank-you {
-        font-size: clamp(4px, 1.5vw, 8px);
-        letter-spacing: .4px;
-    }
-
-    .home-button {
-        border-radius: 5px;
-    }
-
-    .back-button {
-        border-radius: 5px;
-    }
-}
-
-/* REDUCED MOTION */
-
-@media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-        scroll-behavior: auto !important;
-        animation: none !important;
-        transition: none !important;
-    }
-}
-
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ status_code }} · {{ error_title }} | Canon Registry</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+        body {
+            display: grid;
+            place-items: center;
+            padding: 0;
+            background: #050d18 url("{{ url_for('static', filename='bg7dark.webp') }}") center / cover no-repeat;
+            color: #f7f8f6;
+            font-family: 'Poppins', sans-serif;
+        }
+        .error-shell {
+            --accent: {{ error_accent }};
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid #536176;
+            background: rgba(5, 15, 28, 0.9);
+            box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
+            animation: reveal 420ms ease-out both;
+        }
+        .topbar, .bottombar {
+            display: flex;
+            min-height: 58px;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 0 4.5%;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .topbar { color: #fff; }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand-mark {
+            display: grid;
+            width: 38px;
+            height: 38px;
+            place-items: center;
+            border-radius: 9px;
+            background: #f4b52f;
+            color: #101923;
+            font-size: 16px;
+        }
+        .top-label, .eyebrow, .footer-code { color: var(--accent); }
+        .divider { height: 1px; flex: 0 0 1px; background: var(--accent); opacity: 0.88; }
+        .main-layout {
+            display: grid;
+            min-height: 0;
+            flex: 1;
+            grid-template-columns: minmax(0, 1.12fr) minmax(260px, 0.88fr);
+            align-items: center;
+            padding: 3.2% 5.2%;
+        }
+        .copy { min-width: 0; padding-right: 5%; }
+        .eyebrow {
+            margin: 0 0 18px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .eyebrow::after { display: block; width: 46px; height: 3px; margin-top: 9px; content: ''; background: var(--accent); }
+        h1 { max-width: 720px; margin: 0; font-size: 38px; line-height: 1.16; }
+        .message { max-width: 620px; margin: 16px 0 0; color: #c5ced5; font-size: 15px; line-height: 1.7; }
+        .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 26px; }
+        .action {
+            display: inline-flex;
+            min-height: 46px;
+            align-items: center;
+            justify-content: center;
+            gap: 9px;
+            padding: 0 16px;
+            border: 1px solid #7d8996;
+            border-radius: 8px;
+            background: transparent;
+            color: #fff;
+            font: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            text-decoration: none;
+            cursor: pointer;
+            transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+        }
+        .action:hover { transform: translateY(-2px); }
+        .action-primary { border-color: var(--accent); background: var(--accent); color: #101923; }
+        .action-primary:hover { filter: brightness(1.08); }
+        .action-secondary:hover { border-color: var(--accent); background: rgba(255, 255, 255, 0.06); }
+        .action:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+        .error-art {
+            position: relative;
+            display: grid;
+            min-width: 0;
+            min-height: 265px;
+            align-content: center;
+            justify-items: center;
+            overflow: hidden;
+            border-left: 1px solid rgba(195, 205, 215, 0.75);
+            background-image: repeating-linear-gradient(0deg, rgba(106, 153, 183, 0.055) 0 1px, transparent 1px 22px), repeating-linear-gradient(90deg, rgba(106, 153, 183, 0.055) 0 1px, transparent 1px 22px);
+        }
+        .garment-outline {
+            position: absolute;
+            top: 7%;
+            left: 50%;
+            color: rgba(161, 190, 210, 0.27);
+            font-size: 134px;
+            transform: translateX(-50%);
+        }
+        .thread-path {
+            position: absolute;
+            top: 38%;
+            right: 8%;
+            left: 9%;
+            height: 30px;
+            border-top: 2px dashed var(--accent);
+            border-radius: 50%;
+            opacity: 0.9;
+            animation: thread-pull 3.4s ease-in-out infinite;
+        }
+        .needle {
+            position: absolute;
+            top: 24%;
+            right: 13%;
+            color: #e4edf4;
+            font-size: 24px;
+            transform: rotate(38deg);
+            animation: needle-pulse 2.2s ease-in-out infinite;
+        }
+        .status-code { z-index: 1; color: #fff; font-size: 96px; font-weight: 800; line-height: 1; text-shadow: 0 8px 26px #020711; }
+        .status-icon { z-index: 1; margin-top: 12px; color: var(--accent); font-size: 28px; }
+        .art-label { z-index: 1; margin-top: 12px; color: #c1cbd4; font-size: 10px; font-weight: 700; text-align: center; text-transform: uppercase; }
+        .bottombar { min-height: 42px; color: #9aa8b4; font-size: 9px; }
+        @keyframes reveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes thread-pull { 0%, 100% { transform: translateX(-4px) rotate(1deg); } 50% { transform: translateX(5px) rotate(-1deg); } }
+        @keyframes needle-pulse { 0%, 100% { transform: translate(0, 0) rotate(38deg); } 50% { transform: translate(-4px, 5px) rotate(43deg); } }
+        @media (max-width: 700px) {
+            .topbar { min-height: 52px; padding: 0 18px; font-size: 9px; }
+            .brand-mark { width: 30px; height: 30px; }
+            .main-layout { grid-template-columns: minmax(0, 1fr) 104px; padding: 22px 18px; }
+            .copy { padding-right: 12px; }
+            .eyebrow { margin-bottom: 12px; font-size: 9px; }
+            h1 { font-size: 24px; }
+            .message { margin-top: 11px; font-size: 12px; line-height: 1.5; }
+            .actions { gap: 8px; margin-top: 17px; }
+            .action { min-height: 38px; padding: 0 10px; font-size: 10px; }
+            .error-art { min-height: 0; border-left: 1px solid rgba(195, 205, 215, 0.55); }
+            .garment-outline { top: 18%; font-size: 66px; }
+            .thread-path { top: 34%; }
+            .needle { top: 25%; right: 8%; font-size: 18px; }
+            .status-code { font-size: 46px; }
+            .status-icon { margin-top: 8px; font-size: 18px; }
+            .art-label { padding: 0 5px; font-size: 7px; }
+            .bottombar { min-height: 36px; padding: 0 18px; font-size: 8px; }
+        }
+        @media (max-width: 380px) {
+            .main-layout { grid-template-columns: minmax(0, 1fr) 82px; padding-right: 12px; padding-left: 12px; }
+            .brand { gap: 7px; }
+            .top-label { font-size: 8px; }
+            h1 { font-size: 21px; }
+            .action { padding: 0 8px; font-size: 9px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        }
+    </style>
 </head>
-
 <body>
-
-<main class="design-container" aria-label="Canon Registry server error">
-
-    <!-- FACTORY DASHBOARD -->
-
-    <a
-        class="home-button"
-        href="{{ url_for('index') }}"
-        aria-label="Factory Dashboard">
-    </a>
-
-    <!-- GO BACK -->
-
-    <a
-        class="back-button"
-        href="{{ url_for('index') if false else '#' }}"
-        onclick="if(history.length > 1){history.back();return false;} window.location.href='{{ url_for('index') }}'; return false;"
-        aria-label="Go Back">
-    </a>
-
-</main>
-
+    <main class="error-shell" style="--accent: {{ error_accent }}" aria-labelledby="error-title">
+        <header class="topbar">
+            <span class="brand"><span class="brand-mark"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></span> Canon Registry</span>
+            <span class="top-label">Factory system response</span>
+        </header>
+        <div class="divider"></div>
+        <section class="main-layout">
+            <div class="copy">
+                <p class="eyebrow">{{ error_category }} · HTTP {{ status_code }}</p>
+                <h1 id="error-title">{{ error_title }}</h1>
+                <p class="message">{{ error_message }}</p>
+                <div class="actions">
+                    <a class="action action-primary" href="{{ url_for('index') }}"><i class="fa-solid fa-house" aria-hidden="true"></i> Factory Dashboard</a>
+                      <button class="action action-secondary" id="go-back-button" type="button" data-home-url="{{ url_for('index') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Go Back</button>
+                </div>
+            </div>
+            <div class="error-art" aria-hidden="true">
+                <i class="garment-outline fa-solid fa-shirt"></i>
+                <span class="thread-path"></span>
+                <i class="needle fa-solid fa-needle"></i>
+                <span class="status-code">{{ status_code }}</span>
+                <i class="status-icon fa-solid {{ error_icon }}"></i>
+                <span class="art-label">Canon Registry · {{ error_category }}</span>
+            </div>
+        </section>
+        <div class="divider"></div>
+        <footer class="bottombar"><span class="footer-code">HTTP {{ status_code }}</span><span>Canon Registry · CMT Factory Operations</span></footer>
+    </main>
+    <script>
+        document.getElementById('go-back-button').addEventListener('click', function () {
+            if (history.length > 1) history.back();
+            else window.location.href = this.dataset.homeUrl;
+        });
+    </script>
 </body>
 </html>

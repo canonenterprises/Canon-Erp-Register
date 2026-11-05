@@ -3,17 +3,23 @@
 
 <div class="min-h-screen -m-2 p-4 pb-32 sm:-m-6 sm:p-6 sm:pb-32 md:-m-8 md:p-8 md:pb-32">
 <main data-auto-open-cut-id="{{ auto_open_cut_id or '' }}" class="mx-auto max-w-7xl space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-    <header class="flex flex-col gap-4 border-b border-slate-200 pb-5 sm:flex-row sm:items-end sm:justify-between">
+    <header class="portal-orbit-header relative overflow-hidden rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+        <div class="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <p class="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-700">Order Accessories</p>
-            <h1 class="mt-1 text-2xl font-black text-slate-900">{{ order.job_no }} <span class="font-semibold text-slate-500">· {{ order.article_name or order.article or 'Article' }}</span></h1>
-            <p class="mt-1 text-sm text-slate-600">Order quantity: {{ '{:,.2f}'.format(order_qty) }} pcs</p>
-            <p class="mt-1 text-sm font-semibold text-slate-600">B/Q Margin PCS: {{ '{:,.0f}'.format(bq_margin_pcs) }} pcs</p>
+            <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">Order Accessories</p>
+            <h1 class="mt-2 text-2xl font-black text-white sm:text-3xl">{{ order.job_no }} <span class="font-semibold text-slate-300">· {{ order.article_name or order.article or 'Article' }}</span></h1>
+            <p class="mt-2 text-sm text-slate-300">Order quantity: {{ '{:,.2f}'.format(order_qty) }} pcs</p>
+            <p class="mt-1 text-sm font-semibold text-slate-300">B/Q Margin PCS: {{ '{:,.0f}'.format(bq_margin_pcs) }} pcs</p>
         </div>
         <div class="flex flex-wrap gap-2">
             <a href="{{ url_for('accessories_portal', order_id=order.job_no) }}" class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"><i class="fa-solid fa-box-open"></i> Issue from stock</a>
             <a href="{{ url_for('order_details', job_no=order.job_no) }}" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">Back to Order</a>
         </div>
+        </div>
+        <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+        <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+        <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+        <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
     </header>
 
     {% set profile_role = session.get('profile_role', session.get('role')) %}

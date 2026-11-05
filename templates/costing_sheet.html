@@ -4,17 +4,18 @@
 <div id="print-area" class="max-w-7xl mx-auto space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 
     <!-- HEADER -->
-    <div class="flex flex-wrap items-end justify-between gap-4 mb-6 no-print">
+    <header class="no-print portal-orbit-header relative mb-6 overflow-hidden rounded-[2rem] bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
+        <div class="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-            <p class="text-xs font-bold uppercase tracking-[0.2em] text-orange-600">
-                Production Finance
+            <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">
+                Canon Registry · Production Finance
             </p>
 
-            <h1 class="text-3xl font-black uppercase text-slate-900">
+            <h1 class="mt-2 text-3xl font-black uppercase tracking-tight text-white">
                 Article Manufacturing Cost Analysis
             </h1>
 
-            <p class="mt-1 text-sm text-slate-500">
+            <p class="mt-2 text-sm text-slate-300">
                 Excel-compatible production costing, revision, overhead and profit calculation.
             </p>
         </div>
@@ -22,11 +23,16 @@
         <button
             type="button"
             onclick="window.print()"
-            class="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-slate-800">
+            class="costing-print-button inline-flex items-center gap-2 rounded-lg bg-amber-400 px-4 py-2.5 text-sm font-bold text-slate-950 shadow-sm hover:bg-amber-300">
             <i class="fa-solid fa-print"></i>
             Print
         </button>
-    </div>
+        </div>
+        <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+        <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+        <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+        <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
+    </header>
 
 
     <!-- ORDER SELECTOR -->
@@ -1656,6 +1662,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 <style>
+
+.costing-print-button,
+.costing-print-button i {
+    color: #000 !important;
+}
+html[data-theme="dark"] #print-area .costing-print-button,
+html[data-theme="dark"] #print-area .costing-print-button i {
+    color: #000 !important;
+}
 
 @media print {
 

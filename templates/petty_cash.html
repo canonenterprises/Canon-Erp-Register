@@ -2,13 +2,19 @@
 {% block content %}
 <div class="min-h-screen -m-2 p-4 pb-12 sm:-m-6 sm:p-6 sm:pb-14 md:-m-8 md:p-8 md:pb-16">
   <div class="mx-auto max-w-7xl space-y-6 rounded-2xl border border-slate-500 bg-white p-8 shadow-sm">
-    <header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
-      <div>
-        <p class="text-xs font-bold uppercase text-rose-700">Canon Registry · Accounts</p>
-        <h1 class="mt-1 text-3xl font-black text-slate-950">Petty Cash</h1>
-        <p class="mt-2 text-sm text-slate-500">{{ current_month_label }} · Factory cash and daily expenses</p>
+    <header class="portal-orbit-header relative overflow-hidden rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+      <div class="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">Canon Registry · Accounts</p>
+          <h1 class="mt-2 text-3xl font-black tracking-tight text-white">Petty Cash</h1>
+          <p class="mt-2 text-sm text-slate-300">{{ current_month_label }} · Factory cash and daily expenses</p>
+        </div>
+        <a href="{{ url_for('accounts_portal') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Accounts</a>
       </div>
-      <a href="{{ url_for('accounts_portal') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Accounts</a>
+      <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+      <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+      <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+      <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
     </header>
 
     <section class="grid gap-0 border-y border-slate-200 sm:grid-cols-3">

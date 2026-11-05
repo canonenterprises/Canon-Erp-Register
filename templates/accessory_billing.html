@@ -2,13 +2,17 @@
 {% block content %}
 <div class="min-h-screen -m-2 p-4 sm:-m-6 sm:p-6 md:-m-8 md:p-8">
   <div class="mx-auto max-w-6xl space-y-6 rounded-2xl border border-slate-300 bg-white p-6 shadow-sm sm:p-8">
-    <header class="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 pb-5">
+    <header class="portal-orbit-header relative flex flex-wrap items-end justify-between gap-4 overflow-hidden rounded-[2rem] bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
       <div>
-        <p class="text-xs font-bold uppercase text-amber-700">Accounts · Purchases</p>
-        <h1 class="mt-1 text-3xl font-black text-slate-950">Accessories Billing</h1>
-        <p class="mt-2 text-sm text-slate-500">Vendors and their accessory purchase orders.</p>
+        <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">Accounts · Purchases</p>
+        <h1 class="mt-2 text-3xl font-black text-white sm:text-4xl">Accessories Billing</h1>
+        <p class="mt-2 text-sm text-slate-300">Vendors and their accessory purchase orders.</p>
       </div>
-      <div class="flex items-center gap-3"><a id="billing-notification-bell" href="{{ url_for('accounts_billing_notification_history', area='accessory_billing') }}" class="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50" aria-label="View accessory billing notification history"><i class="fa-solid fa-bell" aria-hidden="true"></i>{% if billing_notification_active_count %}<span class="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-700 px-1 text-[10px] font-black text-white">{{ billing_notification_active_count }}</span>{% endif %}</a><a href="{{ url_for('accounts_portal') }}" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Accounts</a></div>
+      <div class="flex items-center gap-3"><a id="billing-notification-bell" href="{{ url_for('accounts_billing_notification_history', area='accessory_billing') }}" class="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/15 bg-white/10 text-slate-200 hover:bg-white/20" aria-label="View accessory billing notification history"><i class="fa-solid fa-bell" aria-hidden="true"></i>{% if billing_notification_active_count %}<span class="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-400 px-1 text-[10px] font-black text-slate-950">{{ billing_notification_active_count }}</span>{% endif %}</a><a href="{{ url_for('accounts_portal') }}" class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-4 py-2 text-sm font-bold text-slate-200 hover:bg-white/20"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Accounts</a></div>
+      <div class="orbit-ring orbit-ring-one"></div>
+      <div class="orbit-ring orbit-ring-two"></div>
+      <div class="orbit-ring orbit-ring-three"></div>
+      <div class="orbit-ring orbit-ring-four"></div>
     </header>
 
     {% if show_billing_notification_cards and billing_notification_items %}
@@ -78,7 +82,7 @@
     {% endif %}
 
     <section class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div><p class="text-xs font-bold uppercase text-slate-500">Visible accessory bills</p><p id="accessory-billing-total" class="mt-1 text-2xl font-black text-amber-800">PKR {{ '{:,.2f}'.format(total_billed) }}</p></div>
+      <div><p class="text-xs font-bold uppercase text-slate-500 pl-5 text-center">Visible accessory bills</p><p id="accessory-billing-total" class="mt-1 text-2xl font-black text-amber-800 pl-5 text-center">PKR {{ '{:,.2f}'.format(total_billed) }}</p></div>
       <form id="accessory-billing-search-form" class="w-full sm:max-w-md"><label for="accessory-billing-search" class="sr-only">Search vendors and suppliers</label><input id="accessory-billing-search" type="search" value="{{ search }}" placeholder="Search vendors and suppliers" autocomplete="off" class="w-full min-w-0 rounded-lg border border-slate-300 px-3 py-2 text-sm"></form>
     </section>
 

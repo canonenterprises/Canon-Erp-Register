@@ -43,60 +43,72 @@
             flex-direction: column !important;
         }
 
-        .print-content > div:first-child {
-            display: none !important;
-        }
-
-        .print-content > div:nth-of-type(2) {
-            margin-bottom: 5mm !important;
-            border: 1px solid #000 !important;
+        .print-content {
+            margin: 0 !important;
+            padding: 5mm !important;
+            border: 0 !important;
             border-radius: 0 !important;
+            background: #fff !important;
             box-shadow: none !important;
             overflow: visible !important;
         }
-
-        .print-content > div:nth-of-type(2) > div:first-child {
+        .production-page-header,
+        .production-page-header .orbit-ring { display: none !important; }
+        .production-print-summary {
+            display: block !important;
+            margin-bottom: 5mm !important;
+            border: 1px solid #000 !important;
+            border-radius: 0 !important;
+            background: #fff !important;
+            box-shadow: none !important;
+            color: #000 !important;
+            overflow: visible !important;
+        }
+        .production-print-heading {
             display: flex !important;
             flex-direction: row !important;
             align-items: center !important;
             justify-content: space-between !important;
             min-height: 24mm !important;
             padding: 5mm 6mm !important;
+            border-bottom: 1px solid #000 !important;
             background: #fff !important;
             color: #000 !important;
-            border-bottom: 1px solid #000 !important;
         }
-
-        .print-content > div:nth-of-type(2) > div:first-child p,
-        .print-content > div:nth-of-type(2) > div:first-child h2 {
-            color: #000 !important;
+        .production-print-heading p,
+        .production-print-heading h2 { color: #000 !important; }
+        .production-print-heading h2 { font-size: 19pt !important; }
+        .production-print-heading > div:first-child {
+            min-width: 0 !important;
+            flex: 1 1 auto !important;
         }
-
-        .print-content > div:nth-of-type(2) > div:first-child h2 {
-            font-size: 19pt !important;
+        .production-print-heading > div:last-child {
+            display: flex !important;
+            flex: 0 0 auto !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            gap: 5mm !important;
+            white-space: nowrap !important;
         }
-
-        .print-content > div:nth-of-type(2) > div:first-child p:last-child,
-        .print-content > div:nth-of-type(2) > div:first-child .text-3xl {
-            color: #000 !important;
-        }
-
-        .print-content > div:nth-of-type(2) > div:last-child {
+        .production-print-stats {
             display: grid !important;
             grid-template-columns: repeat(7, minmax(0, 1fr)) !important;
             gap: 4mm !important;
             padding: 4mm 6mm !important;
+            background: #fff !important;
+            text-align: center !important;
         }
-
-        .print-content > div:nth-of-type(2) > div:last-child p:first-child {
+        .production-print-stats p:first-child {
             color: #000 !important;
             font-size: 8pt !important;
+            font-weight: 700 !important;
         }
-
-        .print-content > div:nth-of-type(2) > div:last-child p:last-child {
+        .production-print-stats p:last-child {
             margin-top: 1mm !important;
             color: #000 !important;
             font-size: 11pt !important;
+            font-weight: 700 !important;
         }
 
         #production-log-table-card {
@@ -208,6 +220,7 @@
     #print-footer {
         display: none;
     }
+    .production-print-summary { display: none; }
 
     @media screen {
         #production-log-table-card tr.operation-start:not(:first-child) td {
@@ -218,58 +231,87 @@
 
 <div class="max-w-7xl mx-auto p-6 pt-20 md:pt-20" id="print-area">
     <!-- Header Section -->
-    <div class="print-content bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-    <div class="flex flex-col md:flex-row justify-between items-center mb-6 mt-6 gap-4">
-        <div>
-            <h2 class="text-3xl font-extrabold text-slate-800 tracking-tight">Production Logs</h2>
-
-            <p class="text-slate-500 text-sm">Detailed overview of all production entries</p>
-        </div>
-        <div class="flex flex-wrap items-center justify-end gap-3 no-print">
-            <form method="get" action="{{ url_for('production_log') }}" class="flex flex-wrap items-end gap-2">
-                {% if current_job %}<input type="hidden" name="job_no" value="{{ current_job }}">{% endif %}
-                <div class="w-36">
-                    <label for="cut-filter" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-500">Cut Number</label>
-                    <select id="cut-filter" name="cut_no" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700" onchange="this.form.submit()" {% if not current_job %}disabled{% endif %}>
-                        <option value="">All Cuts</option>
-                        {% for cut in cut_options %}<option value="{{ cut }}" {% if selected_cut == cut %}selected{% endif %}>{{ cut }}</option>{% endfor %}
-                    </select>
-                </div>
-            </form>
-            <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 rounded-lg bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-slate-800"><i class="fa-solid fa-print"></i> Print</button>
-        </div>
-    </div>
-
-    {% if selected_order %}
-    <div class="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <div class="flex flex-col gap-5 border-b border-slate-200 bg-slate-950 px-5 py-5 text-white sm:flex-row sm:items-end sm:justify-between sm:px-7">
+    <div class="print-content">
+    <header class="production-page-header portal-orbit-header {% if not selected_order %}print-hide-header{% endif %} relative overflow-hidden rounded-2xl bg-slate-950 p-5 text-white shadow-xl">
+        <div class="production-page-heading relative z-10 flex flex-col items-center justify-between gap-4 md:flex-row">
             <div>
-                <p class="text-[10px] font-bold uppercase tracking-[0.24em] text-cyan-300">Production Control Sheet</p>
-                <h2 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{{ selected_order.name or 'Production Order' }}</h2>
-                <p class="mt-1 text-sm font-medium text-slate-300">{{ selected_order.article_name or '-' }} <span class="mx-1 text-slate-500">|</span> {{ selected_order.color or '-' }} <span class="mx-1 text-slate-500">|</span>{{ selected_order.style or '-' }} <span class="mx-1 text-slate-500">|</span>{{ selected_order.article or '-' }}</p>
+                <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">Production Control Sheet</p>
+                <h2 class="mt-2 text-3xl font-extrabold tracking-tight text-white">Production Logs</h2>
+                <p class="text-sm text-slate-300">Detailed overview of all production entries</p>
+            </div>
+            <div class="no-print flex flex-wrap items-end justify-end gap-3">
+                <form method="get" action="{{ url_for('production_log') }}" class="flex flex-wrap items-end gap-2">
+                    {% if current_job %}<input type="hidden" name="job_no" value="{{ current_job }}">{% endif %}
+                    <div class="w-36">
+                        <label for="cut-filter" class="mb-1 block text-[10px] font-bold uppercase tracking-wider text-slate-300">Cut Number</label>
+                        <select id="cut-filter" name="cut_no" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700" onchange="this.form.submit()" {% if not current_job %}disabled{% endif %}>
+                            <option value="">All Cuts</option>
+                            {% for cut in cut_options %}<option value="{{ cut }}" {% if selected_cut == cut %}selected{% endif %}>{{ cut }}</option>{% endfor %}
+                        </select>
+                    </div>
+                </form>
+                <button type="button" onclick="window.print()" class="inline-flex items-center gap-2 rounded-lg bg-amber-400 px-4 py-2 text-sm font-bold text-slate-950 shadow-sm hover:bg-amber-300"><i class="fa-solid fa-print"></i> Print</button>
+            </div>
+        </div>
+        {% if selected_order %}
+        <div class="production-order-panel relative z-10 mt-5 border-t border-white/15 pt-5">
+            <div class="production-order-heading flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                    <h2 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{{ selected_order.name or 'Production Order' }}</h2>
+                    <p class="mt-1 text-sm font-medium text-slate-300">{{ selected_order.article_name or '-' }} <span class="mx-1 text-slate-500">|</span> {{ selected_order.color or '-' }} <span class="mx-1 text-slate-500">|</span>{{ selected_order.style or '-' }} <span class="mx-1 text-slate-500">|</span>{{ selected_order.article or '-' }}</p>
+                </div>
+                <div class="flex items-end gap-5">
+                    <div>
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">File Number</p>
+                        <p class="mt-1 text-xl font-black text-white">{{ selected_order.file_no or '-' }}</p>
+                    </div>
+                    <div class="border-l border-slate-700 pl-5">
+                        <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cut No.</p>
+                        <p class="mt-1 text-3xl font-black leading-none text-cyan-300">{{ selected_cut.zfill(2) if selected_cut and selected_cut.isdigit() else (selected_cut or 'All') }}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="production-order-stats mt-5 grid grid-cols-2 gap-x-5 gap-y-5 border-t border-white/10 pt-5 text-center sm:grid-cols-3 lg:grid-cols-7">
+                <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER M/O</p><p class="mt-1 text-base font-bold text-white">{{ selected_order_month or '-' }}</p></div>
+                <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER No.</p><p class="mt-1 text-base font-bold text-white">{{ selected_order.job_no or '-' }}</p></div>
+                <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER PCS</p><p class="mt-1 text-xl font-black text-white">{{ selected_order_pcs or '-' }}</p></div>
+                <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">CURRENT M/O</p><p class="mt-1 text-base font-bold text-white">{{ current_month_label }}</p></div>
+                <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">CUTTING PCS</p><p class="mt-1 text-xl font-black text-white">{{ '{:,.0f}'.format(production_cutting_pcs) if production_cutting_pcs > 0 else '-' }}</p></div>
+                <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">B/Q %</p><p class="mt-1 text-xl font-black text-white">{{ '%.2f'|format(production_bq_percent) if production_bq_percent is not none else '-' }}{% if production_bq_percent is not none %}%{% endif %}</p></div>
+                <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">INV#</p><p class="mt-1 text-base font-black text-white">{{ selected_inventory_serial or '-' }}</p></div>
+            </div>
+        </div>
+        {% endif %}
+        <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+        <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+        <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+        <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
+    </header>
+    {% if selected_order %}
+    <div class="production-print-summary">
+        <div class="production-print-heading">
+            <div>
+                <p class="text-[10px] font-bold uppercase tracking-[0.24em]">Production Control Sheet</p>
+                <h2 class="mt-1 text-2xl font-black">{{ selected_order.name or 'Production Order' }}</h2>
+                <p class="mt-1 text-sm">{{ selected_order.article_name or '-' }} | {{ selected_order.color or '-' }} | {{ selected_order.style or '-' }} | {{ selected_order.article or '-' }}</p>
             </div>
             <div class="flex items-end gap-5">
-                <div>
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">File Number</p>
-                    <p class="mt-1 text-xl font-black text-white">{{ selected_order.file_no or '-' }}</p>
-                </div>
-                <div class="border-l border-slate-700 pl-5">
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Cut No.</p>
-                    <p class="mt-1 text-3xl font-black leading-none text-cyan-300">{{ selected_cut.zfill(2) if selected_cut and selected_cut.isdigit() else (selected_cut or 'All') }}</p>
-                </div>
+                <div><p class="text-[10px] font-bold uppercase tracking-wider">File Number</p><p class="mt-1 text-xl font-black">{{ selected_order.file_no or '-' }}</p></div>
+                <div><p class="text-[10px] font-bold uppercase tracking-wider">Cut No.</p><p class="mt-1 text-3xl font-black">{{ selected_cut.zfill(2) if selected_cut and selected_cut.isdigit() else (selected_cut or 'All') }}</p></div>
             </div>
         </div>
-        <div class="grid grid-cols-2 gap-x-5 gap-y-5 p-5 text-center sm:grid-cols-3 lg:grid-cols-7 lg:p-6">
-            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER M/O</p><p class="mt-1 text-base font-bold text-slate-800">{{ selected_order_month or '-' }}</p></div>
-            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER No.</p><p class="mt-1 text-base font-bold text-slate-800">{{ selected_order.job_no or '-' }}</p></div>
-            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">ORDER PCS</p><p class="mt-1 text-xl font-black text-slate-900">{{ selected_order_pcs or '-' }}</p></div>
-            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">CURRENT M/O</p><p class="mt-1 text-base font-bold text-slate-800">{{ current_month_label }}</p></div>
-            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">CUTTING PCS</p><p class="mt-1 text-xl font-black text-slate-900">{{ '{:,.0f}'.format(production_cutting_pcs) if production_cutting_pcs > 0 else '-' }}</p></div>
-            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">B/Q %</p><p class="mt-1 text-xl font-black text-slate-900">{{ '%.2f'|format(production_bq_percent) if production_bq_percent is not none else '-' }}{% if production_bq_percent is not none %}%{% endif %}</p></div>
-            <div><p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">INV#</p><p class="mt-1 text-base font-black text-slate-900">{{ selected_inventory_serial or '-' }}</p></div>
+        <div class="production-print-stats">
+            <div><p>ORDER M/O</p><p>{{ selected_order_month or '-' }}</p></div>
+            <div><p>ORDER No.</p><p>{{ selected_order.job_no or '-' }}</p></div>
+            <div><p>ORDER PCS</p><p>{{ selected_order_pcs or '-' }}</p></div>
+            <div><p>CURRENT M/O</p><p>{{ current_month_label }}</p></div>
+            <div><p>CUTTING PCS</p><p>{{ '{:,.0f}'.format(production_cutting_pcs) if production_cutting_pcs > 0 else '-' }}</p></div>
+            <div><p>B/Q %</p><p>{{ '%.2f'|format(production_bq_percent) if production_bq_percent is not none else '-' }}{% if production_bq_percent is not none %}%{% endif %}</p></div>
+            <div><p>INV#</p><p>{{ selected_inventory_serial or '-' }}</p></div>
         </div>
     </div>
     {% endif %}
+    </div>
 
     <div class="mb-3 flex justify-end gap-2 no-print">
         {% if session.get('role') in ('owner', 'manager') and not read_only_profile %}
@@ -282,21 +324,21 @@
     <div id="production-log-table-card" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <form id="delete-production-logs" method="post" action="{{ url_for('production_log', job_no=current_job, cut_no=selected_cut) }}" onsubmit="return confirmDeleteSelectedLogs();">
         <div class="overflow-x-auto">
-            <table class="w-full text-center border-collapse">
+            <table class="production-log-table w-full text-center border-collapse{% if selected_cut %} selected-cut-only{% endif %}">
                 <thead>
-                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-400">
+                    <tr class="border-b border-cyan-800 bg-cyan-700/50 text-white">
                         <th class="log-selection-cell hidden px-3 py-3"><input id="select-all-logs" type="checkbox" class="h-4 w-4"></th>
                         <th class="production-operation-column px-4 py-3 text-[12px] font-bold uppercase tracking-wider">Operation</th>
-                        <th class="px-4 py-3 text-[12px] font-bold uppercase tracking-wider">Date</th>
+                        <th class="production-date-column px-4 py-3 text-[12px] font-bold uppercase tracking-wider">Date</th>
                         {% if not selected_cut %}
                         <th class="production-cut-no-column px-2 py-3 text-[12px] font-bold uppercase tracking-wider text-center">Cut No</th>
                         {% endif %}
                         <th class="px-4 py-3 text-[12px] font-bold uppercase tracking-wider text-center no-print">Cutting Pcs</th>
-                        <th class="px-4 py-3 text-[12px] font-bold uppercase tracking-wider text-center">B/Q</th>
-                        <th class="px-4 py-3 text-[12px] font-bold uppercase tracking-wider text-center">IN-LINE PCS</th>
-                        <th class="px-4 py-3 text-[12px] font-bold uppercase tracking-wider">Worker</th>
-                        <th class="px-4 py-3 text-[12px] font-bold uppercase tracking-wider text-right">Qty</th>
-                        <th class="print-sign-column px-4 py-3 text-[12px] font-bold uppercase tracking-wider text-center">SIGN</th>
+                        <th class="production-bq-column px-4 py-3 text-[12px] font-bold uppercase tracking-wider text-center">B/Q</th>
+                        <th class="production-inline-column px-4 py-3 text-[12px] font-bold uppercase tracking-wider text-center">IN-LINE PCS</th>
+                        <th class="production-worker-column px-4 py-3 text-[12px] font-bold uppercase tracking-wider">Worker</th>
+                        <th class="production-qty-column px-4 py-3 text-[12px] font-bold uppercase tracking-wider text-center">Qty</th>
+                        <th class="production-sign-column print-sign-column px-4 py-3 text-[12px] font-bold uppercase tracking-wider text-center">SIGN</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 text-sm">
@@ -307,21 +349,21 @@
                             {% for log_id in log.log_ids %}<input type="hidden" name="log_ids" value="{{ log_id }}" data-log-group="log-group-{{ loop.index0 }}" disabled>{% endfor %}
                         </td>
                         {% if loop.first or (logs[loop.index0 - 1].operation or '')|upper != (log.operation or '')|upper %}
-                        <td rowspan="{{ operation_rowspans.get(loop.index0, 1) }}" class="production-operation-column px-4 py-3 align-middle"><span class="bg-slate-100 text-slate-600 px-2 py-1 rounded text-[15px] font-bold uppercase">{{ log.operation or '-' }}</span></td>
+                        <td rowspan="{{ operation_rowspans.get(loop.index0, 1) }}" class="production-operation-column bg-cyan-700/50 px-4 py-3 text-slate-950 align-middle"><span class="rounded bg-white/75 px-2 py-1 text-[15px] font-bold uppercase text-slate-900">{{ log.operation or '-' }}</span></td>
                         {% endif %}
-                        <td class="px-4 py-3 text-center text-slate-600 whitespace-nowrap">{{ log.date|format_ddmmyyyy if log.date else '' }}</td>
+                        <td class="production-date-column px-4 py-3 text-center text-slate-600 whitespace-nowrap">{{ log.date|format_ddmmyyyy if log.date else '' }}</td>
                         {% if not selected_cut %}
                         <td class="production-cut-no-column px-2 py-3 text-center font-bold text-slate-700">{{ log.cut_no or '-' }}</td>
                         {% endif %}
                         <td class="px-4 py-3 text-center font-bold text-slate-700 no-print">{{ log.cut_pcs or '-' }}</td>
-                        <td class="px-4 py-3 text-center font-bold text-slate-700">{{ log.bq or 0 }} <span class="block text-[10px] font-semibold text-slate-400">{{ log.bq_label }}</span></td>
-                        <td class="px-4 py-3 text-center font-bold text-emerald-700">{{ log.inline_pcs or '-' }}</td>
+                        <td class="production-bq-column px-4 py-3 text-center font-bold text-slate-700">{{ log.bq or 0 }} <span class="block text-[10px] font-semibold text-slate-400">{{ log.bq_label }}</span></td>
+                        <td class="production-inline-column px-4 py-3 text-center font-bold text-emerald-700">{{ log.inline_pcs or '-' }}</td>
 
-                        <td class="px-4 py-3 text-slate-700">{{ log.worker or '-' }}</td>
-                        <td class="px-4 py-3 text-center">
+                        <td class="production-worker-column px-4 py-3 text-slate-700">{{ log.worker or '-' }}</td>
+                        <td class="production-qty-column px-4 py-3 text-center">
                             <span class="inline-block {% if cut_complete_by_id.get(log.id) %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %} font-bold px-3 py-1 rounded-full text-sm">{{ log.qty or 0 }}</span>
                         </td>
-                        <td class="print-sign-cell px-4 py-3"></td>
+                        <td class="production-sign-column print-sign-cell px-4 py-3"></td>
                     </tr>
                     {% endfor %}
                 </tbody>

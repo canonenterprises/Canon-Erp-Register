@@ -2,15 +2,21 @@
 {% block content %}
 <div class="min-h-screen -m-2 p-4 mb-16 sm:-m-6 sm:mb-16 sm:p-6 md:-m-8 md:mb-16 md:p-8">
     <div class="mx-auto max-w-6xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div class="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <header class="portal-orbit-header mb-6 rounded-2xl bg-slate-950 p-6 text-white shadow-xl sm:p-8">
+        <div class="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-                <p class="text-xs font-bold uppercase tracking-widest text-sky-600">Vendor Setup</p>
-                <h1 class="mt-1 text-3xl font-black text-slate-900">Item List</h1>
-                <p class="mt-1 text-sm text-slate-500">Shared item master for vendor materials, standard descriptions, sizes, and units.</p>
-                <p class="mt-1 text-xs text-slate-500">Returnable items must come back but are not restocked. Refundable items are unused and return to stock.</p>
+                <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">Vendor Setup</p>
+                <h1 class="mt-2 text-3xl font-black tracking-tight text-white">Item List</h1>
+                <p class="mt-2 text-sm text-slate-300">Shared item master for vendor materials, standard descriptions, sizes, and units.</p>
+                <p class="mt-1 text-xs text-slate-400">Returnable items must come back but are not restocked. Refundable items are unused and return to stock.</p>
             </div>
             {% if 'vendor_rates' in page_access_keys %}<a href="{{ url_for('vendors') }}" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Back to Vendors</a>{% endif %}
         </div>
+        <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+        <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+        <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+        <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
+        </header>
 
         {% set item_categories = [
             'PRODUCTION ACCESSORIES',

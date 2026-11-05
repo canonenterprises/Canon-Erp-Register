@@ -6,6 +6,7 @@ from decimal import Decimal, ROUND_DOWN
 from flask import Flask, abort, g, render_template, request, redirect, url_for, session, flash, jsonify, has_app_context
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import HTTPException
 from sqlalchemy import inspect, text, func, Integer, String, or_, and_
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -57,47 +58,53 @@ db = SQLAlchemy(app)
 print("SQLAlchemy initialized")
 
 
-def render_error_page(status_code, title, message, icon):
+ERROR_SCREEN_CONTENT = {
+    400: ('The pattern needs a correction', 'Some submitted details do not fit this operation. Review them and try again.', 'fa-ruler-combined', '#f4b52f', 'PATTERN CHECK'),
+    401: ('Sign in to continue', 'This area needs an authenticated profile before it can be opened.', 'fa-user-lock', '#e7a245', 'AUTHENTICATION REQUIRED'),
+    403: ('This area is locked', 'Your current profile does not have permission to open this page.', 'fa-lock', '#ef806b', 'ACCESS RESTRICTED'),
+    404: ('We lost this thread', 'This page may have moved, or the address may be incorrect.', 'fa-magnifying-glass', '#67c8b1', 'PAGE NOT FOUND'),
+    405: ('That action is not available here', 'This page does not accept that kind of request.', 'fa-hand', '#b5a2ff', 'METHOD NOT ALLOWED'),
+    408: ('The request took too long', 'The system did not receive the full request in time. Please try again.', 'fa-hourglass-half', '#5bc3d0', 'REQUEST TIMED OUT'),
+    413: ('That file is too large', 'Choose a smaller file and try uploading it again.', 'fa-file-arrow-up', '#e7a245', 'UPLOAD TOO LARGE'),
+    415: ('This file type is not supported', 'Choose a supported format and try the upload again.', 'fa-file-circle-question', '#67c8b1', 'UNSUPPORTED FORMAT'),
+    429: ('Slow down the production line', 'There have been too many requests in a short time. Pause briefly, then try again.', 'fa-gauge-high', '#ef806b', 'TOO MANY REQUESTS'),
+    500: ('Production hit a snag', 'The request could not be completed. Please try again in a moment.', 'fa-triangle-exclamation', '#f4b52f', 'SERVER ERROR'),
+    502: ('A connection thread snapped', 'A connected service returned an unexpected response. Please try again shortly.', 'fa-link-slash', '#67aee0', 'UPSTREAM ERROR'),
+    503: ('The factory is taking a short pause', 'The service is temporarily unavailable. Please try again shortly.', 'fa-pause', '#67c8b1', 'SERVICE PAUSED'),
+    504: ('This request timed out', 'A connected service took too long to respond. Please try again.', 'fa-clock', '#e7a245', 'GATEWAY TIMEOUT'),
+}
+
+
+def render_error_page(status_code):
+    title, message, icon, accent, category = ERROR_SCREEN_CONTENT.get(
+        status_code,
+        (
+            'The request was interrupted',
+            f'The system returned response {status_code}. Return to the portal and try again.',
+            'fa-circle-exclamation',
+            '#f4b52f',
+            'SYSTEM RESPONSE',
+        ),
+    )
     return render_template(
         'error.html',
         status_code=status_code,
         error_title=title,
         error_message=message,
         error_icon=icon,
+        error_accent=accent,
+        error_category=category,
     ), status_code
 
 
-@app.errorhandler(403)
-def forbidden_error(_error):
-    return render_error_page(
-        403,
-        'Access restricted',
-        'Your current profile does not have permission to open this page.',
-        'fa-lock',
-    )
-
-
-@app.errorhandler(404)
-def not_found_error(_error):
-    return render_error_page(
-        404,
-        'Page not found',
-        'This page may have moved, or the address may be incorrect.',
-        'fa-file-circle-question',
-    )
+@app.errorhandler(HTTPException)
+def http_error(error):
+    return render_error_page(error.code or 500)
 
 
 @app.errorhandler(500)
 def internal_server_error(_error):
-    return render_error_page(
-        500,
-        'Something went wrong',
-        'The request could not be completed. Please try again in a moment.',
-        'fa-triangle-exclamation',
-    )
-
-
-
+    return render_error_page(500)
 
 
 def parse_numeric(value):
@@ -10948,6 +10955,426 @@ def inject_page_access_keys():
         'vendor_full_access': has_page_write_access('allow_full_access_vendors'),
         'item_list_full_access': has_page_write_access('allow_full_access_item_list'),
     }
+
+
+@app.route('/api/workflow-notifications')
+def workflow_notifications_api():
+    if not session.get('user'):
+        return jsonify({'notifications': [], 'count': 0}), 401
+
+    page_keys = set(getattr(g, 'page_access_keys', set()))
+    notifications = []
+    workflow_page_keys = {
+        'receiving_challan', 'inventory', 'cutting',
+        'order_accessories', 'production_entry',
+    }
+    order_workflow_page_keys = workflow_page_keys | {'warehouse_in_transit'}
+    if not page_keys.intersection(
+        order_workflow_page_keys | {
+            'payout', 'customer_billing', 'operation_rates', 'worker_attendance',
+            'accessories', 'accessories_receive_po',
+        }
+    ):
+        return jsonify({'notifications': [], 'count': 0})
+
+    def add_notification(page_key, title, message, endpoint, **endpoint_args):
+        if page_key not in page_keys:
+            return
+        notifications.append({
+            'id': f'{page_key}:{len(notifications)}',
+            'title': title,
+            'message': message,
+            'url': url_for(endpoint, **endpoint_args),
+        })
+
+    orders = (
+        Order.query.order_by(Order.id.desc()).limit(200).all()
+        if page_keys.intersection(order_workflow_page_keys) else []
+    )
+    job_numbers = [order.job_no for order in orders if order.job_no]
+
+    receiving_rows = ReceivingChallan.query.filter(
+        ReceivingChallan.order_id.in_(job_numbers)
+    ).all() if job_numbers else []
+    receiving_by_order = {}
+    for row in receiving_rows:
+        receiving_by_order.setdefault(row.order_id, []).append(row)
+
+    inventory_rows = Inventory.query.filter(
+        Inventory.order_id.in_(job_numbers)
+    ).all() if job_numbers else []
+    inventory_by_order = {}
+    for row in inventory_rows:
+        inventory_by_order.setdefault(row.order_id, []).append(row)
+
+    cutting_sheets = CuttingSheet.query.filter(
+        CuttingSheet.order_id.in_(job_numbers)
+    ).order_by(CuttingSheet.id.desc()).limit(300).all() if job_numbers else []
+    sheets_by_order = {}
+    for sheet in cutting_sheets:
+        sheets_by_order.setdefault(sheet.order_id, []).append(sheet)
+
+    production_pairs = set(
+        ProductionLog.query.with_entities(
+            ProductionLog.job_no, ProductionLog.cut_no
+        ).filter(ProductionLog.job_no.in_(job_numbers)).all()
+    ) if job_numbers and 'production_entry' in page_keys else set()
+
+    for order in orders:
+        job_no = (order.job_no or '').strip()
+        if not job_no:
+            continue
+        order_label = order.name or job_no
+        order_receivings = receiving_by_order.get(job_no, [])
+        if not order_receivings:
+            if 'receiving_challan' in page_keys:
+                add_notification(
+                    'receiving_challan',
+                    'Receiving challan needed',
+                    f'Order {order_label} is waiting for its first receiving challan.',
+                    'receiving_challan',
+                    job_no=job_no,
+                )
+            continue
+
+        order_inventories = inventory_by_order.get(job_no, [])
+        inventory_serials = {row.serial_no for row in order_inventories if row.serial_no}
+        pending_receivings = [
+            row for row in order_receivings
+            if row.serial_no and row.serial_no not in inventory_serials
+        ]
+        if pending_receivings:
+            if 'inventory' in page_keys:
+                for receiving in pending_receivings:
+                    add_notification(
+                        'inventory',
+                        'Inventory needs setup',
+                        f'Order {order_label} · challan {receiving.serial_no} is not in inventory yet.',
+                        'inventory',
+                        job_no=job_no,
+                        serial_no=receiving.serial_no,
+                    )
+            continue
+
+        order_sheets = sheets_by_order.get(job_no, [])
+        if not order_sheets:
+            if 'cutting' in page_keys:
+                add_notification(
+                    'cutting',
+                    'Cutting sheet needed',
+                    f'Order {order_label} has inventory but no cutting sheet yet.',
+                    'cutting_sheet',
+                    job_no=job_no,
+                )
+            continue
+
+        for sheet in order_sheets:
+            cut_no = str(sheet.cut_no or '').strip()
+            cut_label = cut_no or str(sheet.id)
+            if 'order_accessories' in page_keys:
+                accessory_rows = build_cut_accessory_rows(order, sheet)
+                pending_accessories = [
+                    row for row in accessory_rows
+                    if parse_numeric(row.get('required')) > 0.000001
+                    and parse_numeric(row.get('remaining')) > 0.000001
+                ]
+                if pending_accessories:
+                    add_notification(
+                        'order_accessories',
+                        'Cut accessories not fully issued',
+                        f'Order {order_label} · Cut {cut_label} still has required accessories to issue.',
+                        'order_accessories',
+                        job_no=job_no,
+                    )
+            if 'production_entry' in page_keys and (job_no, cut_no) not in production_pairs:
+                add_notification(
+                    'production_entry',
+                    'Production entry not started',
+                    f'Order {order_label} · Cut {cut_label} has no production entries yet.',
+                    'production_entry',
+                    job_no=job_no,
+                    cut_no=cut_no,
+                )
+
+    if 'accessories_receive_po' in page_keys:
+        pending_po_items = SavedRequirement.query.filter(
+            func.upper(func.trim(SavedRequirement.accessory_status)) == 'PO_SENT'
+        ).order_by(SavedRequirement.id.desc()).limit(500).all()
+        pending_pos = {}
+        for item in pending_po_items:
+            po_number = (item.po_no or '').strip() or f'PO item {item.id}'
+            po_key = (
+                po_number,
+                (item.supplier or '').strip().casefold(),
+                (item.company or '').strip().casefold(),
+            )
+            pending_pos.setdefault(po_key, []).append(item)
+        for (po_number, _, _), po_items in pending_pos.items():
+            supplier = next((item.supplier for item in po_items if item.supplier), '')
+            item_names = list(dict.fromkeys(item.item or 'Accessory' for item in po_items))
+            item_summary = ', '.join(item_names[:3])
+            if len(item_names) > 3:
+                item_summary += f' and {len(item_names) - 3} more'
+            add_notification(
+                'accessories_receive_po',
+                'Accessory PO awaiting receipt',
+                f'{po_number} · {supplier + " · " if supplier else ""}{item_summary} is awaiting receipt.',
+                'accessories_portal',
+                portal_page='purchase-orders',
+            )
+
+    if 'accessories' in page_keys:
+        for stock in get_accessory_stock_positions():
+            available = parse_numeric(stock.get('available'))
+            received = parse_numeric(stock.get('received'))
+            available_percentage = available / received * 100 if received > 0 else 0.0
+            is_out_of_stock = available <= 0.000001
+            if not is_out_of_stock and available_percentage >= 15:
+                continue
+            variants = ' · '.join(
+                value for value in (stock.get('size'), stock.get('quality')) if value
+            )
+            add_notification(
+                'accessories',
+                'Accessory out of stock' if is_out_of_stock else 'Accessory stock extremely low',
+                f"{stock.get('item') or 'Accessory'} · "
+                f"{variants + ' · ' if variants else ''}"
+                f"{available:,.2f} / {received:,.2f} {stock.get('unit') or 'PCS'} available"
+                f"{' · 0% remaining' if is_out_of_stock else f' · {available_percentage:.1f}% remaining'}",
+                'accessories_portal',
+            )
+
+    if 'warehouse_in_transit' in page_keys:
+        for order in orders:
+            if not order.job_no:
+                continue
+            shipping = warehouse_finished_goods_snapshot(
+                order,
+                get_order_shipping_snapshot(order),
+            )
+            article_label = order.article_name or order.article or order.job_no
+            for quality, produced_key in (('AQ', 'aq_pcs'), ('BQ', 'bq_pcs')):
+                cut_transit = warehouse_cut_transit_quantities(
+                    order.job_no,
+                    quality,
+                    shipping['cut_quality_split'],
+                )
+                produced_by_cut = {}
+                for cut in shipping['cut_quality_split']:
+                    cut_no = str(cut['cut_no']).strip()
+                    produced_by_cut[cut_no] = (
+                        produced_by_cut.get(cut_no, 0.0)
+                        + max(0.0, parse_numeric(cut[produced_key]))
+                    )
+                for cut_no, transit_pcs in cut_transit.items():
+                    transit_pcs = max(0.0, parse_numeric(transit_pcs))
+                    if transit_pcs <= 0.000001:
+                        continue
+                    produced_pcs = produced_by_cut.get(cut_no, transit_pcs)
+                    add_notification(
+                        'warehouse_in_transit',
+                        'Produced PCS not shifted to warehouse',
+                        f'{article_label} · Order {order.job_no} · Cut {cut_no} · {quality}: '
+                        f'{transit_pcs:,.0f} of {produced_pcs:,.0f} produced PCS still need placement.',
+                        'warehouse_in_transit',
+                    )
+
+    if 'operation_rates' in page_keys:
+        configured_article_ids = {
+            article_id for (article_id,) in ArticleOperationRate.query.with_entities(
+                ArticleOperationRate.article_id
+            ).filter(
+                ArticleOperationRate.is_enabled.is_(True)
+                | ArticleOperationRate.is_special_operation.is_(True)
+            ).distinct().all()
+        }
+        articles = Article.query.order_by(
+            Article.created_at.desc(), Article.id.desc()
+        ).limit(200).all()
+        for article in articles:
+            if article.id in configured_article_ids:
+                continue
+            add_notification(
+                'operation_rates',
+                'Article operation rates need setup',
+                f'Article {article.article_no} has no article-specific operation rates assigned.',
+                'article_operation_rates',
+                article_id=article.id,
+            )
+
+    if 'worker_attendance' in page_keys:
+        attendance_timezone = timezone(timedelta(hours=5), name='PKT')
+        current_date = datetime.now(attendance_timezone).date()
+        current_month_start = current_date.replace(day=1)
+        previous_month_end = current_month_start - timedelta(days=1)
+        previous_month = (previous_month_end.year, previous_month_end.month)
+        current_month = (current_date.year, current_date.month)
+        attendance_workers = Worker.query.filter(
+            func.upper(func.trim(Worker.employment_type)).in_(('SALARIED', 'PER DAY')),
+            func.upper(func.trim(Worker.status)) == 'ACTIVE',
+        ).order_by(Worker.name.asc()).all()
+        attendance_worker_ids = [worker.id for worker in attendance_workers]
+        if attendance_worker_ids:
+            attendance_summaries = Attendance.query.filter(
+                Attendance.worker_id.in_(attendance_worker_ids),
+                or_(
+                    and_(Attendance.year == previous_month[0], Attendance.month == previous_month[1]),
+                    and_(Attendance.year == current_month[0], Attendance.month == current_month[1]),
+                ),
+            ).all()
+            attendance_by_worker_month = {
+                (record.worker_id, record.year, record.month): record
+                for record in attendance_summaries
+            }
+            previous_month_label = datetime(*previous_month, 1).strftime('%B %Y')
+            current_month_label = datetime(*current_month, 1).strftime('%B %Y')
+            for worker in attendance_workers:
+                if (worker.id, *previous_month) not in attendance_by_worker_month:
+                    add_notification(
+                        'worker_attendance',
+                        'Previous month attendance missing',
+                        f'{worker.name} has no attendance record for {previous_month_label}.',
+                        'worker_attendance',
+                        worker_id=worker.id,
+                        year=previous_month[0],
+                        month=previous_month[1],
+                    )
+
+            expected_date = current_date - timedelta(days=1)
+            while (
+                expected_date.weekday() == calendar.SUNDAY
+                or expected_date.isoformat() in pakistan_public_holidays(expected_date.year)
+            ):
+                expected_date -= timedelta(days=1)
+            if expected_date >= current_month_start:
+                for worker in attendance_workers:
+                    attendance_record = attendance_by_worker_month.get(
+                        (worker.id, *current_month)
+                    )
+                    if not attendance_record:
+                        add_notification(
+                            'worker_attendance',
+                            'Current month attendance not started',
+                            f'{worker.name} has no attendance record for {current_month_label}.',
+                            'worker_attendance',
+                            worker_id=worker.id,
+                            year=current_month[0],
+                            month=current_month[1],
+                        )
+                        continue
+                    last_updated = attendance_record.updated_at or attendance_record.created_at
+                    if last_updated:
+                        if last_updated.tzinfo is None:
+                            last_updated = last_updated.replace(tzinfo=timezone.utc)
+                        last_updated_date = last_updated.astimezone(attendance_timezone).date()
+                    else:
+                        last_updated_date = None
+                    if last_updated_date and last_updated_date < expected_date - timedelta(days=1):
+                        add_notification(
+                            'worker_attendance',
+                            'Attendance may be behind',
+                            f'{worker.name} attendance was last updated on {last_updated_date:%d %b}; review entries through {expected_date:%d %b}.',
+                            'worker_attendance',
+                            worker_id=worker.id,
+                            year=current_month[0],
+                            month=current_month[1],
+                        )
+
+    if 'payout' in page_keys:
+        current_month = datetime.utcnow().strftime('%Y-%m')
+        month_start = f'{current_month}-01'
+        wage_workers = Worker.query.filter(
+            func.upper(func.trim(Worker.employment_type)) == 'WAGES'
+        ).all()
+        workers_by_name = {
+            (worker.name or '').strip().casefold(): worker
+            for worker in wage_workers
+            if (worker.name or '').strip()
+        }
+        paid_ranges_by_worker = {}
+        for payment in SalaryPayment.query.filter_by(payout_portal='wages').all():
+            if payment.period_start and payment.period_end:
+                paid_ranges_by_worker.setdefault(payment.worker_id, []).append(
+                    (payment.period_start, payment.period_end)
+                )
+        unpaid_worker_months = {}
+        past_logs = ProductionLog.query.filter(
+            ProductionLog.date < month_start
+        ).order_by(ProductionLog.date.desc()).limit(5000).all()
+        for log in past_logs:
+            log_date = str(log.date or '')[:10]
+            worker = workers_by_name.get((log.worker or '').strip().casefold())
+            if not worker or len(log_date) != 10 or log_date[:7] >= current_month:
+                continue
+            try:
+                datetime.strptime(log_date, '%Y-%m-%d')
+            except ValueError:
+                continue
+            if any(
+                start <= log_date <= end
+                for start, end in paid_ranges_by_worker.get(worker.id, [])
+            ):
+                continue
+            unpaid_worker_months.setdefault((worker.id, log_date[:7]), worker)
+
+        for (worker_id, month), worker in unpaid_worker_months.items():
+            month_label = datetime.strptime(month, '%Y-%m').strftime('%B %Y')
+            add_notification(
+                'payout',
+                'Production wages awaiting payout',
+                f'{worker.name} has unpaid production entries from {month_label}.',
+                'payout',
+                filter_type='MONTHLY',
+                payout_month=month,
+                portal='wages',
+            )
+
+    if 'customer_billing' in page_keys:
+        challans = ChallanRecord.query.filter_by(
+            source_type='order'
+        ).order_by(ChallanRecord.id.desc()).limit(200).all()
+        billed_challan_ids = {
+            challan_id for (challan_id,) in BillingInvoiceChallan.query.with_entities(
+                BillingInvoiceChallan.challan_id
+            ).all()
+        }
+        billed_challan_ids.update(
+            challan_id for (challan_id,) in CustomerBillChallan.query.with_entities(
+                CustomerBillChallan.challan_id
+            ).all()
+        )
+        billed_challan_ids.update(
+            challan_id for (challan_id,) in BillingInvoice.query.with_entities(
+                BillingInvoice.challan_id
+            ).all()
+        )
+        billed_challan_ids.update(
+            challan_id for (challan_id,) in CustomerBill.query.with_entities(
+                CustomerBill.challan_id
+            ).all()
+        )
+        for challan in challans:
+            if challan.id in billed_challan_ids or parse_numeric(challan.shipped_pcs) <= 0:
+                continue
+            add_notification(
+                'customer_billing',
+                'Shipment needs customer billing',
+                f'Delivery challan {challan.challan_no} for {challan.party_name or "a customer"} has not been billed.',
+                'billing_portal',
+                shipper=challan.shipped_by_party or 'Canon',
+            )
+
+    notification_priority = {
+        'worker_attendance': 0,
+        'accessories_receive_po': 1,
+        'accessories': 2,
+        'warehouse_in_transit': 3,
+    }
+    notifications.sort(
+        key=lambda item: notification_priority.get(item['id'].split(':', 1)[0], 10)
+    )
+    total = len(notifications)
+    return jsonify({'notifications': notifications[:30], 'count': total})
 
 
 @app.route('/portal-controls', methods=['GET', 'POST'])

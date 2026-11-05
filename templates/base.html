@@ -70,6 +70,28 @@
             #profile-controls::after { animation: none; }
         }
 
+        #workflow-notification-button {
+            isolation: isolate;
+        }
+        #workflow-notification-button.has-notifications::before {
+            content: "";
+            position: absolute;
+            z-index: 0;
+            inset: -4px;
+            border: 2px solid rgba(217, 119, 6, 0.75);
+            border-radius: inherit;
+            pointer-events: none;
+            animation: workflow-notification-pulse 1.8s ease-out infinite;
+        }
+        #workflow-notification-button > i {
+            position: relative;
+            z-index: 1;
+        }
+        @keyframes workflow-notification-pulse {
+            0% { transform: scale(0.94); opacity: 0.85; }
+            75%, 100% { transform: scale(1.5); opacity: 0; }
+        }
+
         .portal-orbit-header {
             position: relative;
             overflow: hidden;
@@ -458,6 +480,19 @@
             html[data-theme="dark"] #fab-menu a:hover {
                 background-color: rgba(148, 163, 184, 0.12) !important;
             }
+            html[data-theme="dark"] #workflow-notification-list a:hover,
+            html[data-theme="dark"] #workflow-notification-list a:focus-visible {
+                border-color: #fb923c !important;
+                background-color: #7c2d12 !important;
+            }
+            html[data-theme="dark"] #workflow-notification-list a:hover > span:first-child,
+            html[data-theme="dark"] #workflow-notification-list a:focus-visible > span:first-child {
+                color: #fff7ed !important;
+            }
+            html[data-theme="dark"] #workflow-notification-list a:hover > span:last-child,
+            html[data-theme="dark"] #workflow-notification-list a:focus-visible > span:last-child {
+                color: #fed7aa !important;
+            }
             html[data-theme="dark"] .flash-message {
                 box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18) !important;
             }
@@ -791,8 +826,22 @@
         <!-- Floating action menu -->
         {% set current_role = session.get('role') %}
         {% set is_costing_page = request.endpoint == 'costing_sheet' %}
-        {% if (current_role in ('owner', 'manager') and is_costing_page) or (current_role in ('owner', 'manager', 'assistant_manager', 'stock', 'accounts', 'challan') and not is_costing_page) %}
+        {% if session.get('user') %}
         <div class="fixed bottom-5 right-5 z-50 no-print sm:bottom-7 sm:right-7">
+            <button id="workflow-notification-button" type="button" aria-label="Workflow notifications" aria-expanded="false" aria-controls="workflow-notification-panel" class="absolute bottom-[calc(100%+0.75rem)] right-0 flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-800 shadow-xl transition hover:-translate-y-0.5 hover:bg-amber-50 focus:outline-none focus:ring-4 focus:ring-amber-200">
+                <i class="fa-solid fa-bell" aria-hidden="true"></i>
+                <span id="workflow-notification-count" class="absolute -right-1.5 -top-1.5 hidden min-w-5 rounded-full bg-rose-600 px-1.5 py-0.5 text-center text-[10px] font-black leading-4 text-white"></span>
+            </button>
+            <section id="workflow-notification-panel" class="hidden absolute bottom-[calc(100%+4.75rem)] right-0 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl" aria-labelledby="workflow-notification-title" aria-live="polite">
+                <header class="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+                    <h2 id="workflow-notification-title" class="text-sm font-black text-slate-900">Workflow notifications</h2>
+                    <button id="workflow-notification-close" type="button" aria-label="Close notifications" class="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+                </header>
+                <div id="workflow-notification-list" class="max-h-80 space-y-2 overflow-y-auto p-3">
+                    <p class="px-2 py-4 text-center text-sm text-slate-500">Loading notifications...</p>
+                </div>
+            </section>
+            {% if (current_role in ('owner', 'manager') and is_costing_page) or (current_role in ('owner', 'manager', 'assistant_manager', 'stock', 'accounts', 'challan') and not is_costing_page) %}
             <div id="fab-menu" class="hidden absolute bottom-[4.5rem] right-0 w-64 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 p-2 shadow-2xl shadow-slate-900/15 backdrop-blur-xl">
                 <div class="px-3 pb-2 pt-1">
                     <p class="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Quick Access</p>
@@ -992,6 +1041,7 @@
             <button id="fab" type="button" aria-label="Open quick access" aria-expanded="false" class="flex h-14 w-14 items-center justify-center rounded-2xl bg-yellow-400 text-slate-950 shadow-xl shadow-yellow-900/25 transition duration-200 hover:-translate-y-0.5 hover:bg-yellow-500 focus:outline-none focus:ring-4 focus:ring-yellow-200 active:scale-95">
                 <i class="fa-solid fa-bars-staggered text-lg transition-transform duration-200" aria-hidden="true"></i>
             </button>
+            {% endif %}
         </div>
         {% endif %}
 
@@ -1046,6 +1096,95 @@
             const fab = document.getElementById('fab');
             const fabMenu = document.getElementById('fab-menu');
             const fabMenuLinks = document.getElementById('fab-menu-links');
+            const workflowNotificationButton = document.getElementById('workflow-notification-button');
+            const workflowNotificationPanel = document.getElementById('workflow-notification-panel');
+            const workflowNotificationList = document.getElementById('workflow-notification-list');
+            const workflowNotificationCount = document.getElementById('workflow-notification-count');
+            const workflowNotificationClose = document.getElementById('workflow-notification-close');
+
+            function renderWorkflowNotifications(items, total) {
+                if (!workflowNotificationList || !workflowNotificationCount) return;
+                workflowNotificationCount.textContent = total > 99 ? '99+' : String(total);
+                workflowNotificationCount.classList.toggle('hidden', total === 0);
+                workflowNotificationButton.classList.toggle('has-notifications', total > 0);
+                workflowNotificationButton.setAttribute(
+                    'aria-label',
+                    total ? `Workflow notifications, ${total} pending` : 'Workflow notifications, none pending'
+                );
+                workflowNotificationList.replaceChildren();
+                if (!items.length) {
+                    const emptyState = document.createElement('p');
+                    emptyState.className = 'px-2 py-4 text-center text-sm text-slate-500';
+                    emptyState.textContent = 'No pending workflow tasks.';
+                    workflowNotificationList.appendChild(emptyState);
+                    return;
+                }
+                items.forEach(function (item) {
+                    const link = document.createElement('a');
+                    link.href = item.url;
+                    link.className = 'block rounded-lg border border-slate-100 px-3 py-2.5 transition hover:border-orange-500 hover:bg-orange-100 focus-visible:border-orange-500 focus-visible:bg-orange-100';
+                    const title = document.createElement('span');
+                    title.className = 'block text-sm font-bold text-slate-900';
+                    title.textContent = item.title;
+                    const message = document.createElement('span');
+                    message.className = 'mt-1 block text-xs text-slate-600';
+                    message.textContent = item.message;
+                    link.append(title, message);
+                    workflowNotificationList.appendChild(link);
+                });
+                if (total > items.length) {
+                    const more = document.createElement('p');
+                    more.className = 'px-2 pt-1 text-center text-xs text-slate-500';
+                    more.textContent = `Showing ${items.length} of ${total} pending tasks`;
+                    workflowNotificationList.appendChild(more);
+                }
+            }
+
+            async function refreshWorkflowNotifications() {
+                if (!workflowNotificationButton) return;
+                try {
+                    const response = await fetch('{{ url_for("workflow_notifications_api") }}', {
+                        headers: { Accept: 'application/json' },
+                    });
+                    if (!response.ok) throw new Error('Could not load workflow notifications.');
+                    const data = await response.json();
+                    renderWorkflowNotifications(data.notifications || [], Number(data.count || 0));
+                } catch (error) {
+                    if (workflowNotificationList) {
+                        workflowNotificationList.textContent = 'Workflow notifications are unavailable.';
+                    }
+                }
+            }
+
+            if (workflowNotificationButton && workflowNotificationPanel) {
+                refreshWorkflowNotifications();
+                workflowNotificationButton.addEventListener('click', function () {
+                    const isOpen = !workflowNotificationPanel.classList.contains('hidden');
+                    workflowNotificationPanel.classList.toggle('hidden', isOpen);
+                    workflowNotificationButton.setAttribute('aria-expanded', String(!isOpen));
+                    if (!isOpen) {
+                        if (fabMenu) fabMenu.classList.add('hidden');
+                        refreshWorkflowNotifications();
+                    }
+                });
+                workflowNotificationClose?.addEventListener('click', function () {
+                    workflowNotificationPanel.classList.add('hidden');
+                    workflowNotificationButton.setAttribute('aria-expanded', 'false');
+                });
+                document.addEventListener('click', function (event) {
+                    if (!workflowNotificationPanel.contains(event.target) && !workflowNotificationButton.contains(event.target)) {
+                        workflowNotificationPanel.classList.add('hidden');
+                        workflowNotificationButton.setAttribute('aria-expanded', 'false');
+                    }
+                });
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape') {
+                        workflowNotificationPanel.classList.add('hidden');
+                        workflowNotificationButton.setAttribute('aria-expanded', 'false');
+                    }
+                });
+            }
+
             if (fabMenu && fabMenuLinks && fabMenuLinks.querySelectorAll('a').length > 6) {
                 fabMenu.classList.add('fab-menu-wide');
                 fabMenuLinks.classList.remove('space-y-1');
@@ -1053,6 +1192,10 @@
             }
             if (fab) {
                 fab.addEventListener('click', function () {
+                    if (workflowNotificationPanel) {
+                        workflowNotificationPanel.classList.add('hidden');
+                        workflowNotificationButton?.setAttribute('aria-expanded', 'false');
+                    }
                     if (fabMenu.classList.contains('hidden')) {
                         fabMenu.classList.remove('hidden');
                         fab.setAttribute('aria-expanded', 'true');

@@ -3,13 +3,20 @@
 <div class="max-w-5xl mx-auto space-y-8 p-4">
     
     <!-- Header -->
-    <div class="flex flex-col gap-6 bg-slate-950 p-8 text-white rounded-3xl shadow-xl sm:flex-row sm:items-center sm:justify-between">
-        <div class="min-w-0">
-            <h1 class="text-6xl font-black uppercase tracking-tighter">{{ order.name }}</h1>
-            <p class="mt-1 text-2xl font-bold text-indigo-400">{{ order.job_no }}      |       {{ order.file_no }}      |       ART-{{ order.article }}      |       {{ order.article_name }}</p>
+    <header class="portal-orbit-header rounded-[2rem] bg-slate-950 px-6 py-7 text-white shadow-xl sm:px-8">
+        <div class="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div class="min-w-0">
+                <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">Production order</p>
+                <h1 class="mt-2 break-words text-3xl font-black uppercase tracking-tight sm:text-4xl">{{ order.name }}</h1>
+                <p class="mt-2 text-sm font-semibold text-slate-300 sm:text-base">{{ order.job_no }} <span class="mx-1 text-slate-500">|</span> {{ order.file_no }} <span class="mx-1 text-slate-500">|</span> ART-{{ order.article }} <span class="mx-1 text-slate-500">|</span> {{ order.article_name }}</p>
+            </div>
+            <a href="{{ url_for('article_orders', article=order.article) }}" class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 hover:text-slate-900 sm:self-center"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back to Orders List</a>
         </div>
-        <a href="{{ url_for('article_orders', article=order.article) }}" class="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 hover:text-slate-900 sm:self-center">← Back to Orders List</a>
-    </div>
+        <div class="orbit-ring orbit-ring-one absolute -right-16 -top-20 h-56 w-56 rounded-full border-[24px] border-amber-400/15"></div>
+        <div class="orbit-ring orbit-ring-two absolute bottom-[-5rem] right-24 h-40 w-40 rounded-full border-[18px] border-cyan-400/10"></div>
+        <div class="orbit-ring orbit-ring-three absolute right-[14rem] top-8 h-32 w-32 rounded-full border-[14px] border-violet-400/10"></div>
+        <div class="orbit-ring orbit-ring-four absolute bottom-[-2.5rem] right-[18rem] h-24 w-24 rounded-full border-[12px] border-teal-400/10"></div>
+    </header>
 
     <!-- Navigation Bar -->
     {% set workflow_pages = ['receiving_challan', 'inventory', 'requirements', 'cutting', 'production_entry', 'production_log'] %}
