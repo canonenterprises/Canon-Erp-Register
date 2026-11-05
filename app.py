@@ -11405,6 +11405,13 @@ def workflow_notifications_page():
     )
 
 
+@app.route('/letterhead')
+def letterhead_designer():
+    if not session.get('user'):
+        return redirect(url_for('index'))
+    return render_template('letterhead2.html')
+
+
 @app.route('/portal-controls', methods=['GET', 'POST'])
 def portal_controls():
     if not owner_only():

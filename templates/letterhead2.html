@@ -1,280 +1,1526 @@
+
 {% extends 'base.html' %}
+
 {% block head %}
 <style>
+:root {
+    --lh-navy: #15364d;
+    --lh-deep: #0e293d;
+    --lh-gold: #c6a267;
+    --lh-light-gold: #e5c994;
+    --lh-text: #334155;
+}
+
+/* =====================================
+   EDITOR SCREEN
+===================================== */
+
+.letterhead-page {
+    width: 100%;
+    max-width: 1450px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.letterhead-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 22px;
+    padding: 15px 18px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 4px 16px rgba(15, 23, 42, .05);
+}
+
+.letterhead-workspace {
+    width: 100%;
+    padding: 35px 20px;
+    overflow: auto;
+    border: 1px solid #dce3ea;
+    border-radius: 18px;
+    background: linear-gradient(145deg, #e8edf2, #f5f7f9);
+}
+
+.letterhead-paper {
+    position: relative;
+    box-sizing: border-box;
+    width: 210mm;
+    max-width: 100%;
+    min-height: 297mm;
+    margin: 0 auto;
+    overflow: hidden;
+    background: #fff;
+    color: var(--lh-text);
+    box-shadow: 0 12px 45px rgba(15, 23, 42, .16);
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+/* =====================================
+   HEADER DESIGN
+===================================== */
+
+.letterhead-top-art {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 46mm;
+    overflow: hidden;
+    background: var(--lh-navy);
+    z-index: 0;
+    pointer-events: none;
+}
+
+.letterhead-top-art::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 26%;
+    height: 1px;
+    background: rgba(255,255,255,.3);
+}
+
+.letterhead-top-art::after {
+    content: "";
+    position: absolute;
+    right: 39%;
+    top: 0;
+    width: 15%;
+    height: 44mm;
+    background: linear-gradient(135deg, #d6b477, #a77c40);
+    clip-path: polygon(0 0, 28% 0, 100% 100%, 72% 100%);
+}
+
+.letterhead-top-art .art-cut-dark {
+    position: absolute;
+    top: 0;
+    right: 33%;
+    width: 11%;
+    height: 44mm;
+    background: var(--lh-deep);
+    clip-path: polygon(0 0, 28% 0, 100% 100%, 72% 100%);
+}
+
+.letterhead-top-art .art-gold-line,
+.letterhead-bottom-art .art-gold-line {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1.7mm;
+    background: linear-gradient(90deg, #9e7841, var(--lh-light-gold), #b58a4c);
+}
+
+/* HEADER CONTENT */
+
+.letterhead-masthead {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    box-sizing: border-box;
+    height: 46mm;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8mm;
+    padding: 6mm 22mm 4mm;
+}
+
+.letterhead-masthead-contact {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    max-width: 76mm;
+    gap: 2.2mm;
+    color: #fff;
+    font-size: 8pt;
+}
+
+.letterhead-contact-line {
+    display: flex;
+    align-items: center;
+    gap: 2.5mm;
+    min-width: 0;
+    margin: 0;
+}
+
+.letterhead-contact-line i {
+    display: flex;
+    width: 4mm;
+    flex-shrink: 0;
+    justify-content: center;
+    color: var(--lh-light-gold);
+}
+
+.letterhead-contact-value {
+    flex: 1;
+    min-width: 0;
+    color: #fff;
+}
+
+/* LOGO PANEL */
+
+.letterhead-brand-panel {
+    box-sizing: border-box;
+    display: flex;
+    width: 75mm;
+    height: 29mm;
+    flex: 0 0 75mm;
+    align-items: center;
+    justify-content: center;
+    padding: 3mm 5mm;
+    border-left: 1.5mm solid var(--lh-gold);
+    border-radius: 2mm 0 0 2mm;
+    background: linear-gradient(110deg, #fff, #f8f9fb);
+    box-shadow: 0 4px 14px rgba(0,0,0,.08);
+}
+
+.letterhead-logo {
+    display: block;
+    width: 100%;
+    height: 23mm;
+    object-fit: contain;
+    object-position: center;
+}
+
+/* =====================================
+   DOCUMENT CONTENT
+===================================== */
+
+.letterhead-content {
+    position: relative;
+    z-index: 1;
+    box-sizing: border-box;
+    padding: 9mm 22mm 45mm;
+}
+
+.letterhead-recipient-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12mm;
+    color: #475569;
+    font-size: 10pt;
+    line-height: 1.6;
+}
+
+.letterhead-recipient {
+    flex: 1;
+    min-width: 0;
+}
+
+.letterhead-recipient-title {
+    margin-bottom: 3mm;
+    color: var(--lh-gold);
+    font-size: 8pt;
+    font-weight: 800;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+}
+
+.letterhead-date-area {
+    flex: 0 0 auto;
+    padding-bottom: 2mm;
+    border-bottom: 1px solid #d7c6a5;
+    color: #a17b43;
+    font-size: 8pt;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+.letterhead-date-input {
+    width: 34mm;
+    border: 0;
+    background: transparent;
+    color: #475569;
+    font-size: 10pt;
+    font-weight: 400;
+    letter-spacing: normal;
+    outline: none;
+}
+
+.letterhead-date-print {
+    display: none;
+    color: #475569;
+    font-size: 10pt;
+    font-weight: 400;
+    letter-spacing: normal;
+    text-transform: none;
+}
+
+/* FIELD LABELS */
+
+.letterhead-field-label {
+    display: block;
+    margin: 0 0 1mm;
+    color: #a17b43;
+    font-size: 6.5pt;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+}
+
+/* EDITABLE FIELDS */
+
+.letterhead-editable,
+.letterhead-copy {
+    position: relative;
+    box-sizing: border-box;
+    min-width: 0;
+    border: 1px dashed #cbd5e1;
+    border-radius: 5px;
+    background: #fbfcfe;
+    padding: 5px 8px;
+    cursor: text;
+    overflow-wrap: anywhere;
+    transition: border-color .2s, background .2s, box-shadow .2s;
+}
+
+[contenteditable="true"] {
+    outline: none;
+}
+
+.letterhead-editable:empty::before,
+.letterhead-copy:empty::before,
+.letterhead-editable.placeholder-visible::before,
+.letterhead-copy.placeholder-visible::before {
+    content: attr(data-placeholder);
+    display: block;
+    color: #94a3b8;
+    font-weight: 400;
+    pointer-events: none;
+    white-space: pre-wrap;
+}
+
+.letterhead-editable.placeholder-visible,
+.letterhead-copy.placeholder-visible {
+    color: #94a3b8;
+}
+
+.letterhead-editable:hover,
+.letterhead-copy:hover {
+    border-color: var(--lh-gold);
+    background: #fffdf9;
+}
+
+.letterhead-editable:focus,
+.letterhead-copy:focus {
+    border-color: var(--lh-gold);
+    background: #fff;
+    box-shadow: 0 0 0 3px rgba(183,149,92,.12);
+}
+
+/* HEADER INPUTS */
+
+.letterhead-contact-value {
+    border-color: rgba(255,255,255,.3);
+    background: rgba(255,255,255,.08);
+    color: #fff;
+}
+
+.letterhead-contact-value:empty::before {
+    color: #d7c6a5;
+}
+
+.letterhead-contact-value:hover,
+.letterhead-contact-value:focus {
+    border-color: var(--lh-light-gold);
+    background: rgba(255,255,255,.14);
+}
+
+/* SUBJECT */
+
+.letterhead-subject {
+    margin-top: 9mm;
+}
+
+.letterhead-subject-field {
+    min-height: 8mm;
+    border-bottom: 1px solid #e5e7eb;
+    color: var(--lh-navy);
+    font-size: 10pt;
+    font-weight: 700;
+}
+
+/* SALUTATION */
+
+.letterhead-salutation {
+    margin-top: 7mm;
+    color: #334155;
+    font-size: 10pt;
+    font-weight: 700;
+}
+
+/* LETTER BODY */
+
+.letterhead-copy {
+    box-sizing: border-box;
+    height: 60mm;
+    min-height: 60mm;
+    max-height: 60mm;
+    margin-top: 3mm;
+    padding: 10px;
+    overflow-y: auto;
+    color: #475569;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 9.5pt;
+    line-height: 1.45;
+}
+
+.letterhead-body-limit {
+    min-height: 4mm;
+    color: #9f1239;
+    font-size: 7pt;
+    font-weight: 700;
+}
+
+.letterhead-body-count {
+    color: #64748b;
+    font-size: 7pt;
+    font-weight: 700;
+    text-align: right;
+}
+
+.letterhead-copy p {
+    margin: 0 0 3mm;
+}
+
+.letterhead-copy ul {
+    padding-left: 6mm;
+    list-style: disc;
+}
+
+.letterhead-copy ol {
+    padding-left: 6mm;
+    list-style: decimal;
+}
+
+/* SIGNATURE */
+
+.letterhead-signature {
+    width: 65%;
+    margin-top: 8mm;
+    color: #475569;
+    font-size: 10pt;
+    line-height: 1.6;
+}
+
+.letterhead-signature-line {
+    width: 43mm;
+    margin-top: 8mm;
+    border-top: 1px solid #b8a17a;
+}
+
+.letterhead-signature-caption {
+    margin-top: 1mm;
+    color: #94a3b8;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+}
+
+/* =====================================
+   FOOTER DESIGN
+===================================== */
+
+.letterhead-bottom-art {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 32mm;
+    overflow: hidden;
+    background: var(--lh-navy);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.letterhead-bottom-art::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 25%;
+    height: 1px;
+    background: rgba(255,255,255,.3);
+}
+
+.letterhead-bottom-art::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 39%;
+    width: 15%;
+    height: 30mm;
+    background: linear-gradient(135deg, #d6b477, #a77c40);
+    clip-path: polygon(0 0, 28% 0, 100% 100%, 72% 100%);
+}
+
+.letterhead-bottom-art .art-cut-dark {
+    position: absolute;
+    top: 0;
+    right: 33%;
+    width: 11%;
+    height: 30mm;
+    background: var(--lh-deep);
+    clip-path: polygon(0 0, 28% 0, 100% 100%, 72% 100%);
+}
+
+.letterhead-footer {
+    position: absolute;
+    z-index: 2;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    box-sizing: border-box;
+    display: flex;
+    height: 32mm;
+    align-items: center;
+    padding: 7mm 22mm 6mm;
+    color: #fff;
+}
+
+.letterhead-footer-item {
+    display: flex;
+    width: 100%;
+    max-width: 150mm;
+    align-items: center;
+    gap: 3mm;
+    color: #fff;
+    font-size: 8pt;
+}
+
+.letterhead-footer-icon {
+    display: flex;
+    width: 8mm;
+    height: 9mm;
+    flex: 0 0 8mm;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(229,201,148,.5);
+    background: rgba(198,162,103,.15);
+    color: var(--lh-light-gold);
+}
+
+.letterhead-footer-value {
+    flex: 1;
+    min-width: 0;
+    border-color: rgba(255,255,255,.3);
+    background: rgba(255,255,255,.08);
+    color: #fff;
+}
+
+.letterhead-footer-value:empty::before {
+    color: #d7c6a5;
+}
+
+.letterhead-footer-value:hover,
+.letterhead-footer-value:focus {
+    border-color: var(--lh-light-gold);
+    background: rgba(255,255,255,.14);
+}
+
+/* =====================================
+   TOOLBAR
+===================================== */
+
+.company-choice,
+.format-command {
+    transition: all .2s ease;
+}
+
+.company-choice:focus-visible,
+.format-command:focus-visible {
+    outline: 2px solid var(--lh-gold);
+    outline-offset: 3px;
+}
+
+/* =====================================
+   RESPONSIVE SCREEN
+===================================== */
+
+@media (max-width: 900px) {
+    .letterhead-page {
+        padding: 12px;
+    }
+
     .letterhead-workspace {
-        padding: 1.5rem;
-        border: 1px solid #e2e8f0;
-        border-radius: 1.25rem;
-        background: #e9edf2;
+        padding: 18px 10px;
     }
+}
+
+@media (max-width: 600px) {
+    .letterhead-page {
+        padding: 8px;
+    }
+
+    .letterhead-toolbar {
+        padding: 12px;
+    }
+
+    .letterhead-workspace {
+        padding: 12px 6px;
+    }
+
     .letterhead-paper {
-        position: relative;
-        box-sizing: border-box;
-        display: flex;
-        flex-direction: column;
-        width: min(100%, 210mm);
-        min-height: 297mm;
-        margin: 0 auto;
-        padding: 28mm 22mm 21mm;
-        overflow: hidden;
-        border: 1px solid #e5e7eb;
-        background: #fff;
-        color: #1e293b;
-        box-shadow: 0 10px 32px rgb(15 23 42 / 12%);
-        font-family: Arial, Helvetica, sans-serif;
+        width: 100%;
+        min-height: 270mm;
     }
-    .letterhead-top-art,
-    .letterhead-bottom-art {
-        position: absolute;
-        right: 0;
-        left: 0;
-        height: 15mm;
-        pointer-events: none;
+
+    .letterhead-top-art {
+        height: 51mm;
     }
-    .letterhead-top-art { top: 0; }
-    .letterhead-bottom-art { bottom: 0; transform: rotate(180deg); }
-    .letterhead-art-rule {
-        position: absolute;
-        top: 5mm;
-        right: 0;
-        left: 0;
-        height: 2mm;
-        background: #15364d;
+
+    .letterhead-masthead {
+        height: 51mm;
+        gap: 3mm;
+        padding: 5mm 7mm;
     }
-    .letterhead-art-orange {
-        position: absolute;
-        top: 9mm;
-        right: 0;
-        left: 0;
-        height: 1mm;
-        background: #e87516;
+
+    .letterhead-masthead-contact {
+        max-width: 48%;
+        gap: 2mm;
+        font-size: 6.5pt;
     }
-    .letterhead-art-cut {
-        position: absolute;
-        top: 0;
-        right: 21%;
-        width: 24%;
-        height: 15mm;
-        background: #e87516;
-        clip-path: polygon(0 0, 25% 0, 100% 100%, 75% 100%);
+
+    .letterhead-contact-line {
+        gap: 1.5mm;
     }
-    .letterhead-art-cut::after {
-        position: absolute;
-        top: 0;
-        right: -34%;
-        width: 70%;
-        height: 100%;
-        background: #15364d;
-        clip-path: polygon(0 0, 30% 0, 100% 100%, 70% 100%);
-        content: "";
+
+    .letterhead-contact-line i {
+        width: 3mm;
     }
-    .letterhead-logo { width: 62mm; height: 23mm; object-fit: contain; object-position: left center; }
-    .letterhead-brand-note { border-left: 1px solid #e2e8f0; padding-left: 4mm; }
+
+    .letterhead-brand-panel {
+        width: 43%;
+        height: 23mm;
+        min-width: 0;
+        flex: 0 0 43%;
+        padding: 2mm;
+    }
+
+    .letterhead-logo {
+        height: 18mm;
+    }
+
+    .letterhead-content {
+        padding: 8mm 7mm 42mm;
+    }
+
+    .letterhead-recipient-row {
+        gap: 5mm;
+        font-size: 9pt;
+    }
+
+    .letterhead-date-input {
+        width: 29mm;
+        font-size: 8pt;
+    }
+
     .letterhead-copy {
-        min-height: 105mm;
-        color: #475569;
-        font-family: Arial, Helvetica, sans-serif;
-        font-size: 10pt;
-        line-height: 1.8;
+        height: 60mm;
+        min-height: 60mm;
+        max-height: 60mm;
+        font-size: 9pt;
     }
+
+    .letterhead-signature {
+        width: 75%;
+    }
+
+    .letterhead-bottom-art {
+        height: 30mm;
+    }
+
+    .letterhead-footer {
+        height: 30mm;
+        padding: 6mm 7mm;
+    }
+
+    .letterhead-footer-item {
+        font-size: 7pt;
+    }
+}
+
+/* =====================================
+   PRINT LAYOUT
+===================================== */
+
+@media print {
+
+    @page {
+        size: A4 portrait;
+        margin: 0;
+    }
+
+    html,
+    body {
+        width: 210mm !important;
+        min-width: 210mm !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    body {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Remove the application layout so it cannot create a blank print page. */
+    body > * {
+        display: none !important;
+    }
+
+    /* Hide the application interface within the moved print workspace. */
+    body * {
+        visibility: hidden !important;
+    }
+
+    /* The print workspace is moved directly under body by JS */
+    body > .letterhead-workspace,
+    body > .letterhead-workspace * {
+        visibility: visible !important;
+    }
+
+    body > .letterhead-workspace {
+        position: static !important;
+        display: block !important;
+        width: 210mm !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        box-shadow: none !important;
+    }
+
+    #letterhead-paper {
+        position: relative !important;
+        display: block !important;
+        box-sizing: border-box !important;
+        width: 210mm !important;
+        max-width: none !important;
+        min-height: 297mm !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: visible !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        page-break-after: auto !important;
+        break-after: auto !important;
+    }
+
+    /* Keep header at the top */
+    .letterhead-top-art {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        height: 46mm !important;
+        background: var(--lh-navy) !important;
+    }
+
+    .letterhead-masthead {
+        position: relative !important;
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        width: 100% !important;
+        height: 46mm !important;
+        padding: 6mm 22mm 4mm !important;
+        gap: 8mm !important;
+    }
+
+    .letterhead-masthead-contact {
+        display: flex !important;
+        flex-direction: column !important;
+        width: auto !important;
+        max-width: 76mm !important;
+        flex: 1 1 auto !important;
+        gap: 2.2mm !important;
+        font-size: 8pt !important;
+    }
+
+    .letterhead-brand-panel {
+        display: flex !important;
+        width: 75mm !important;
+        height: 29mm !important;
+        min-width: 75mm !important;
+        flex: 0 0 75mm !important;
+        padding: 3mm 5mm !important;
+        background: #fff !important;
+        box-shadow: none !important;
+    }
+
+    .letterhead-logo {
+        display: block !important;
+        width: 100% !important;
+        height: 23mm !important;
+        object-fit: contain !important;
+    }
+
+    /* Content flows naturally */
+    .letterhead-content {
+        position: relative !important;
+        display: block !important;
+        padding: 9mm 22mm 45mm !important;
+        overflow: visible !important;
+    }
+
+    .letterhead-recipient-row {
+        display: flex !important;
+        align-items: flex-start !important;
+        justify-content: space-between !important;
+        gap: 12mm !important;
+    }
+
+    .letterhead-editable,
+    .letterhead-copy {
+        min-height: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        outline: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        padding: 0 !important;
+        color: inherit !important;
+        cursor: auto !important;
+    }
+
+    .letterhead-copy {
+        height: 60mm !important;
+        min-height: 60mm !important;
+        max-height: 60mm !important;
+        margin-top: 3mm !important;
+        overflow: hidden !important;
+        color: #475569 !important;
+        font-size: 9.5pt !important;
+        line-height: 1.45 !important;
+    }
+
+    .letterhead-signature {
+        margin-top: 4mm !important;
+    }
+
+    .letterhead-signature-line {
+        margin-top: 4mm !important;
+    }
+
+    .letterhead-copy p {
+        margin-bottom: 3mm !important;
+    }
+
+    #letterhead-paper .letterhead-content,
+    #letterhead-paper .letterhead-content * {
+        color: #000 !important;
+    }
+
+    .letterhead-contact-value {
+        color: #fff !important;
+        background: transparent !important;
+    }
+
+    .letterhead-footer-value {
+        color: #fff !important;
+        background: transparent !important;
+    }
+
+    /* Remove all editor labels and placeholders */
+    .letterhead-field-label,
+    .no-print {
+        display: none !important;
+    }
+
+    .letterhead-editable:empty::before,
     .letterhead-copy:empty::before {
-        color: #94a3b8;
-        content: attr(data-placeholder);
-        pointer-events: none;
+        display: none !important;
+        content: none !important;
     }
-    [contenteditable="true"] { outline: none; }
-    .letterhead-editable { cursor: text; border-radius: 2px; }
-    .letterhead-editable:empty::before {
-        color: #94a3b8;
-        content: attr(data-placeholder);
+
+    /* Print date instead of date input */
+    .letterhead-date-input {
+        display: none !important;
     }
-    .letterhead-editable:hover,
-    .letterhead-copy:hover { background-color: #f8fafc; }
-    .letterhead-editable:focus,
-    .letterhead-copy:focus { box-shadow: 0 1px 0 #e87516; }
-    .letterhead-signature-line { width: 43mm; border-top: 1px solid #94a3b8; }
-    @media (max-width: 767px) {
-        .letterhead-workspace { padding: 0.5rem; border-radius: 0.75rem; }
-        .letterhead-paper {
-            min-height: 250mm;
-            padding: 23mm 9mm 19mm;
-        }
-        .letterhead-logo { width: 48mm; height: 19mm; }
-        .letterhead-copy { min-height: 90mm; font-size: 9.5pt; }
-        .letterhead-art-cut { right: 15%; width: 31%; }
+
+    .letterhead-date-print {
+        display: inline !important;
     }
-    @media print {
-        @page { size: A4 portrait; margin: 0; }
-        html, body { width: 210mm; min-height: 297mm; background: #fff !important; }
-        body * { visibility: hidden !important; }
-        .letterhead-paper, .letterhead-paper * { visibility: visible !important; }
-        .letterhead-paper {
-            position: absolute;
-            inset: 0 auto auto 0;
-            width: 210mm;
-            min-height: 297mm;
-            margin: 0;
-            padding: 28mm 22mm 21mm;
-            border: 0;
-            box-shadow: none;
-            print-color-adjust: exact;
-            -webkit-print-color-adjust: exact;
-        }
-        .letterhead-workspace { padding: 0; border: 0; background: #fff; }
-        .letterhead-editable:hover,
-        .letterhead-copy:hover { background: transparent; }
-        .letterhead-editable:focus,
-        .letterhead-copy:focus { box-shadow: none; }
-        .letterhead-date-input { display: none !important; }
-        .letterhead-date-print { display: inline !important; }
-        .letterhead-copy:empty::before,
-        .letterhead-editable:empty::before { content: none; }
+
+    /* Footer stays at bottom of first A4 page */
+    .letterhead-bottom-art {
+        position: absolute !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        height: 32mm !important;
+        background: var(--lh-navy) !important;
     }
+
+    .letterhead-footer {
+        position: absolute !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        display: flex !important;
+        height: 32mm !important;
+        padding: 7mm 22mm 6mm !important;
+    }
+
+    .letterhead-footer-item {
+        display: flex !important;
+        width: 100% !important;
+        max-width: 150mm !important;
+    }
+
+    .letterhead-footer-icon {
+        display: flex !important;
+    }
+
+    /* Hide editor controls */
+    button,
+    .letterhead-toolbar,
+    .letterhead-page > header {
+        display: none !important;
+    }
+
+    /* Prevent unwanted breaks inside small sections */
+    .letterhead-masthead,
+    .letterhead-recipient-row,
+    .letterhead-signature {
+        break-inside: avoid !important;
+        page-break-inside: avoid !important;
+    }
+
+    /* Preserve colors */
+    .letterhead-top-art,
+    .letterhead-bottom-art,
+    .letterhead-brand-panel,
+    .letterhead-footer-icon,
+    .letterhead-art-gold-line {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+}
 </style>
 {% endblock %}
+
+
 {% block content %}
-<section class="mx-auto max-w-6xl space-y-5">
-    <header class="no-print flex flex-wrap items-end justify-between gap-4">
+
+<div class="letterhead-page">
+
+    <!-- PAGE TITLE -->
+    <header class="no-print mb-5 flex flex-wrap items-end justify-between gap-4">
+
         <div>
-            <p class="text-xs font-black uppercase tracking-[0.2em] text-violet-700">Document tools</p>
-            <h1 class="mt-1 text-2xl font-black text-slate-900">Letterhead Designer</h1>
-            <p class="mt-1 text-sm text-slate-600">Set your details, write your letter, and print on A4 paper.</p>
+            <p class="text-xs font-black uppercase tracking-[0.2em] text-[#a17b43]">
+                Document tools
+            </p>
+
+            <h1 class="mt-1 text-2xl font-black text-[#15364d]">
+                Letterhead Designer
+            </h1>
+
+            <p class="mt-1 text-sm text-slate-500">
+                Create and print professional company letters.
+            </p>
         </div>
-        <button id="print-letterhead" type="button" class="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800">
-            <i class="fa-solid fa-print" aria-hidden="true"></i> Print Letter
+
+        <button id="print-letterhead"
+            type="button"
+            class="inline-flex items-center gap-2 rounded-xl bg-[#15364d] px-5 py-3 text-sm font-bold text-white shadow-md transition hover:bg-[#0e293d]">
+
+            <i class="fa-solid fa-print"></i>
+            Print Letter
         </button>
+
     </header>
 
-    <div class="no-print flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
-        <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Choose letterhead company">
-            <span class="px-2 text-[10px] font-black uppercase tracking-wider text-slate-400">Company</span>
-            <button type="button" data-company="Canon" aria-pressed="true" class="company-choice rounded-lg bg-[#15364d] px-4 py-2 text-sm font-bold text-white">Canon</button>
-            <button type="button" data-company="Haram" aria-pressed="false" class="company-choice rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700">Haram</button>
+
+    <!-- TOOLBAR -->
+    <div class="letterhead-toolbar no-print">
+
+        <div class="flex flex-wrap items-center gap-2">
+
+            <span class="px-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Company
+            </span>
+
+            <button type="button"
+                data-company="Canon"
+                aria-pressed="true"
+                class="company-choice rounded-lg bg-[#15364d] px-4 py-2 text-sm font-bold text-white">
+                Canon
+            </button>
+
+            <button type="button"
+                data-company="Haram"
+                aria-pressed="false"
+                class="company-choice rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700">
+                Haram
+            </button>
+
         </div>
-        <div class="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1" role="toolbar" aria-label="Letter formatting">
-            <button type="button" data-command="bold" title="Bold" aria-label="Bold" class="format-command rounded-md px-3 py-2 font-black text-slate-700 hover:bg-white"><i class="fa-solid fa-bold" aria-hidden="true"></i></button>
-            <button type="button" data-command="italic" title="Italic" aria-label="Italic" class="format-command rounded-md px-3 py-2 text-slate-700 hover:bg-white"><i class="fa-solid fa-italic" aria-hidden="true"></i></button>
-            <button type="button" data-command="underline" title="Underline" aria-label="Underline" class="format-command rounded-md px-3 py-2 text-slate-700 hover:bg-white"><i class="fa-solid fa-underline" aria-hidden="true"></i></button>
-            <span class="mx-1 h-6 border-l border-slate-200" aria-hidden="true"></span>
-            <button type="button" data-command="insertUnorderedList" title="Bullet list" aria-label="Bullet list" class="format-command rounded-md px-3 py-2 text-slate-700 hover:bg-white"><i class="fa-solid fa-list-ul" aria-hidden="true"></i></button>
-            <button type="button" data-command="justifyLeft" title="Align left" aria-label="Align left" class="format-command rounded-md px-3 py-2 text-slate-700 hover:bg-white"><i class="fa-solid fa-align-left" aria-hidden="true"></i></button>
-            <button type="button" data-command="justifyCenter" title="Align center" aria-label="Align center" class="format-command rounded-md px-3 py-2 text-slate-700 hover:bg-white"><i class="fa-solid fa-align-center" aria-hidden="true"></i></button>
-            <button type="button" data-command="justifyRight" title="Align right" aria-label="Align right" class="format-command rounded-md px-3 py-2 text-slate-700 hover:bg-white"><i class="fa-solid fa-align-right" aria-hidden="true"></i></button>
+
+
+        <div class="flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1"
+            role="toolbar"
+            aria-label="Letter formatting">
+
+            <button type="button" data-command="bold"
+                title="Bold"
+                class="format-command rounded-md px-3 py-2 font-black text-slate-700 hover:bg-white">
+                <i class="fa-solid fa-bold"></i>
+            </button>
+
+            <button type="button" data-command="italic"
+                title="Italic"
+                class="format-command rounded-md px-3 py-2 text-slate-700 hover:bg-white">
+                <i class="fa-solid fa-italic"></i>
+            </button>
+
+            <button type="button" data-command="underline"
+                title="Underline"
+                class="format-command rounded-md px-3 py-2 text-slate-700 hover:bg-white">
+                <i class="fa-solid fa-underline"></i>
+            </button>
+
+            <span class="mx-1 h-6 border-l border-slate-200"></span>
+
+            <button type="button" data-command="insertUnorderedList"
+                title="Bullet list"
+                class="format-command rounded-md px-3 py-2 text-slate-700 hover:bg-white">
+                <i class="fa-solid fa-list-ul"></i>
+            </button>
+
+            <button type="button" data-command="justifyLeft"
+                title="Align left"
+                class="format-command rounded-md px-3 py-2 text-slate-700 hover:bg-white">
+                <i class="fa-solid fa-align-left"></i>
+            </button>
+
+            <button type="button" data-command="justifyCenter"
+                title="Align center"
+                class="format-command rounded-md px-3 py-2 text-slate-700 hover:bg-white">
+                <i class="fa-solid fa-align-center"></i>
+            </button>
+
+            <button type="button" data-command="justifyRight"
+                title="Align right"
+                class="format-command rounded-md px-3 py-2 text-slate-700 hover:bg-white">
+                <i class="fa-solid fa-align-right"></i>
+            </button>
+
         </div>
+
     </div>
 
-    <div class="letterhead-workspace">
+
+    <!-- PAPER WORKSPACE -->
+    <div class="letterhead-workspace" id="letterhead-workspace">
+
         <article id="letterhead-paper" class="letterhead-paper">
+
+            <!-- HEADER BACKGROUND -->
             <div class="letterhead-top-art" aria-hidden="true">
-                <span class="letterhead-art-rule"></span>
-                <span class="letterhead-art-orange"></span>
-                <span class="letterhead-art-cut"></span>
+                <span class="art-cut-dark"></span>
+                <span class="art-gold-line"></span>
             </div>
 
-            <header class="flex min-h-[27mm] items-center justify-between gap-4 border-b border-slate-200 pb-4">
-                <img id="letterhead-logo" src="{{ url_for('static', filename='canon logo black.webp') }}" alt="Canon Enterprises logo" class="letterhead-logo">
-                <div class="letterhead-brand-note text-right">
-                    <p class="text-[9px] font-black uppercase tracking-[0.2em] text-[#15364d]">Canon <span class="text-[#e87516]">&amp;</span> Haram</p>
-                    <p class="mt-1 text-[8px] uppercase tracking-[0.16em] text-slate-400">Enterprises</p>
+
+            <!-- HEADER -->
+            <header class="letterhead-masthead">
+
+                <div class="letterhead-masthead-contact">
+
+                    <p class="letterhead-contact-line">
+                        <i class="fa-solid fa-phone"></i>
+
+                        <span contenteditable="true"
+                            role="textbox"
+                            aria-label="Company phone number"
+                            data-placeholder="Enter phone number..."
+                            class="letterhead-editable letterhead-contact-value">
+                        </span>
+                    </p>
+
+                    <p class="letterhead-contact-line">
+                        <i class="fa-solid fa-envelope"></i>
+
+                        <span contenteditable="true"
+                            role="textbox"
+                            aria-label="Company email"
+                            data-placeholder="Enter email address..."
+                            class="letterhead-editable letterhead-contact-value">
+                        </span>
+                    </p>
+
+                    <p class="letterhead-contact-line">
+                        <i class="fa-solid fa-globe"></i>
+
+                        <span contenteditable="true"
+                            role="textbox"
+                            aria-label="Company website"
+                            data-placeholder="Enter website..."
+                            class="letterhead-editable letterhead-contact-value">
+                        </span>
+                    </p>
+
                 </div>
+
+
+                <div class="letterhead-brand-panel">
+
+                    <img id="letterhead-logo"
+                        src="{{ url_for('static', filename='canon logo black.webp') }}"
+                        alt="Canon Enterprises logo"
+                        class="letterhead-logo">
+
+                </div>
+
             </header>
 
-            <section class="mt-8 flex items-start justify-between gap-6 text-[10px] leading-relaxed text-slate-600">
-                <div class="min-w-0">
-                    <p class="mb-2 text-[8px] font-bold uppercase tracking-[0.2em] text-slate-400">To</p>
-                    <p contenteditable="true" role="textbox" aria-label="Recipient name" data-placeholder="Recipient name" class="letterhead-editable min-h-4 font-bold text-[#15364d]"></p>
-                    <p contenteditable="true" role="textbox" aria-label="Recipient title" data-placeholder="Title / company" class="letterhead-editable min-h-4 text-slate-500"></p>
-                    <p contenteditable="true" role="textbox" aria-label="Recipient address and contact" data-placeholder="Address and contact details" class="letterhead-editable min-h-4 whitespace-pre-line text-slate-500"></p>
+
+            <!-- DOCUMENT CONTENT -->
+            <main class="letterhead-content">
+
+                <!-- RECIPIENT AND DATE -->
+                <section class="letterhead-recipient-row">
+
+                    <div class="letterhead-recipient">
+
+                        <p class="letterhead-recipient-title">
+                            To
+                        </p>
+
+                        <p contenteditable="true"
+                            role="textbox"
+                            aria-label="Recipient name"
+                            data-placeholder="Recipient name"
+                            class="letterhead-editable font-bold text-[#15364d]">
+                        </p>
+
+                        <p contenteditable="true"
+                            role="textbox"
+                            aria-label="Recipient title"
+                            data-placeholder="Title / company"
+                            class="letterhead-editable text-slate-500">
+                        </p>
+
+                        <p contenteditable="true"
+                            role="textbox"
+                            aria-label="Recipient address and contact"
+                            data-placeholder="Recipient address and contact"
+                            class="letterhead-editable whitespace-pre-line text-slate-500">
+                        </p>
+
+                    </div>
+
+
+                    <div class="letterhead-date-area">
+
+                        Date
+
+                        <input id="letter-date"
+                            type="date"
+                            class="letterhead-date-input">
+
+                        <span id="letter-date-print"
+                            class="letterhead-date-print">
+                        </span>
+
+                    </div>
+
+                </section>
+
+
+                <!-- SUBJECT -->
+                <section class="letterhead-subject">
+
+                    <p contenteditable="true"
+                        role="textbox"
+                        aria-label="Subject"
+                        data-placeholder="Subject"
+                        class="letterhead-editable letterhead-subject-field">
+                    </p>
+
+                </section>
+
+
+                <!-- SALUTATION -->
+                <section class="letterhead-salutation">
+
+                    <p contenteditable="true"
+                        role="textbox"
+                        aria-label="Salutation"
+                        data-placeholder="Salutation"
+                        class="letterhead-editable">
+                    </p>
+
+                </section>
+
+
+                <!-- LETTER BODY -->
+                <section class="mt-5">
+
+                    <div id="letter-body"
+                        class="letterhead-copy"
+                        contenteditable="true"
+                        role="textbox"
+                        aria-label="Letter content"
+                        aria-multiline="true"
+                        data-placeholder="Letter body">
+                    </div>
+                    <div class="letterhead-body-meta no-print flex items-center justify-between gap-3">
+                        <p id="letter-body-limit" class="letterhead-body-limit" role="status" aria-live="polite"></p>
+                        <p id="letter-body-count" class="letterhead-body-count">Word count: 0 / 150</p>
+                    </div>
+
+                </section>
+
+
+                <!-- SIGNATURE -->
+                <section class="letterhead-signature">
+
+                    <p contenteditable="true"
+                        role="textbox"
+                        aria-label="Sign-off"
+                        data-placeholder="Sign-off"
+                        class="letterhead-editable italic">
+                    </p>
+
+                    <p contenteditable="true"
+                        role="textbox"
+                        aria-label="Sender name"
+                        data-placeholder="Sender name"
+                        class="letterhead-editable font-bold uppercase text-[#a17b43]">
+                    </p>
+
+                    <div class="letterhead-signature-line"></div>
+
+                    <p contenteditable="true"
+                        role="textbox"
+                        aria-label="Sender title"
+                        data-placeholder="Sender title"
+                        class="letterhead-editable text-[9px] italic text-slate-500">
+                    </p>
+
+                </section>
+
+            </main>
+
+
+            <!-- FOOTER BACKGROUND -->
+            <div class="letterhead-bottom-art" aria-hidden="true">
+                <span class="art-cut-dark"></span>
+                <span class="art-gold-line"></span>
+            </div>
+
+
+            <!-- FOOTER: ADDRESS ONLY -->
+            <footer class="letterhead-footer">
+
+                <div class="letterhead-footer-item">
+
+                    <span class="letterhead-footer-icon">
+                        <i class="fa-solid fa-location-dot"></i>
+                    </span>
+
+                    <p contenteditable="true"
+                        role="textbox"
+                        aria-label="Company address"
+                        data-placeholder="Enter complete company address..."
+                        class="letterhead-editable letterhead-footer-value">
+                    </p>
+
                 </div>
-                <label class="flex shrink-0 items-center gap-2 border-b border-slate-200 pb-1 text-[8px] font-bold uppercase tracking-[0.16em] text-[#e87516]">
-                    Date
-                    <input id="letter-date" type="date" class="letterhead-date-input border-0 bg-transparent p-1 text-[10px] font-medium normal-case tracking-normal text-slate-600 focus:ring-1 focus:ring-orange-300">
-                    <span id="letter-date-print" class="letterhead-date-print hidden text-[10px] font-medium normal-case tracking-normal text-slate-700"></span>
-                </label>
-            </section>
 
-            <section class="mt-8">
-                <p contenteditable="true" role="textbox" aria-label="Subject" data-placeholder="Subject (optional)" class="letterhead-editable min-h-5 border-b border-slate-100 pb-2 text-[10px] font-bold text-[#15364d]"></p>
-                <p contenteditable="true" role="textbox" aria-label="Salutation" data-placeholder="Dear Sir/Madam," class="letterhead-editable mt-6 min-h-5 text-[10px] font-bold text-slate-700"></p>
-                <div class="letterhead-copy mt-4" contenteditable="true" role="textbox" aria-label="Letter content" aria-multiline="true" data-placeholder="Write your letter here..."></div>
-            </section>
-
-            <section class="mt-8 max-w-[65%] text-[10px] leading-relaxed text-slate-600">
-                <p contenteditable="true" role="textbox" aria-label="Sign-off" data-placeholder="Sincerely," class="letterhead-editable min-h-4 italic"></p>
-                <p contenteditable="true" role="textbox" aria-label="Sender name" data-placeholder="Your name" class="letterhead-editable mt-1 min-h-4 font-bold uppercase text-[#e87516]"></p>
-                <p contenteditable="true" role="textbox" aria-label="Sender title" data-placeholder="Your title" class="letterhead-editable min-h-4 text-[9px] italic text-slate-500"></p>
-                <div class="letterhead-signature-line mt-6"></div>
-                <p class="mt-1 text-[8px] uppercase tracking-[0.16em] text-slate-400">Signature</p>
-            </section>
-
-            <footer class="mt-auto border-t border-slate-200 pt-4 text-right text-[9px] leading-relaxed text-slate-500">
-                <p contenteditable="true" role="textbox" aria-label="Company contact details" data-placeholder="Add company phone, email, address or website" class="letterhead-editable min-h-4 whitespace-pre-line"></p>
             </footer>
 
-            <div class="letterhead-bottom-art" aria-hidden="true">
-                <span class="letterhead-art-rule"></span>
-                <span class="letterhead-art-orange"></span>
-                <span class="letterhead-art-cut"></span>
-            </div>
         </article>
+
     </div>
-</section>
+
+</div>
+
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const logo = document.getElementById('letterhead-logo');
-        const companyButtons = document.querySelectorAll('.company-choice');
-        const letterBody = document.querySelector('.letterhead-copy');
-        const dateInput = document.getElementById('letter-date');
-        const datePrint = document.getElementById('letter-date-print');
-        const logoUrls = {
-            Canon: "{{ url_for('static', filename='canon logo black.webp') }}",
-            Haram: "{{ url_for('static', filename='haram-black.png') }}"
-        };
-        const companyNames = {
-            Canon: 'Canon Enterprises',
-            Haram: 'Haram Enterprises'
-        };
-        const today = new Date();
-        dateInput.value = new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+document.addEventListener('DOMContentLoaded', function () {
 
-        companyButtons.forEach(function (button) {
-            button.addEventListener('click', function () {
-                const company = button.dataset.company;
-                logo.src = logoUrls[company];
-                logo.alt = companyNames[company] + ' logo';
-                companyButtons.forEach(function (choice) {
-                    const selected = choice === button;
-                    choice.setAttribute('aria-pressed', String(selected));
-                    choice.classList.toggle('bg-[#15364d]', selected);
-                    choice.classList.toggle('text-white', selected);
-                    choice.classList.toggle('border-slate-200', !selected);
-                    choice.classList.toggle('bg-white', !selected);
-                    choice.classList.toggle('text-slate-700', !selected);
-                });
-            });
+    const workspace = document.getElementById('letterhead-workspace');
+    const paper = document.getElementById('letterhead-paper');
+    const logo = document.getElementById('letterhead-logo');
+
+    const printButton = document.getElementById('print-letterhead');
+    const dateInput = document.getElementById('letter-date');
+    const datePrint = document.getElementById('letter-date-print');
+
+    const companyButtons = document.querySelectorAll('.company-choice');
+    const formatButtons = document.querySelectorAll('.format-command');
+
+    const letterBody = document.getElementById('letter-body');
+    const letterBodyLimit = document.getElementById('letter-body-limit');
+    const letterBodyCount = document.getElementById('letter-body-count');
+    const letterBodyMaxWords = 150;
+    let lastValidLetterContent = letterBody.innerHTML;
+
+    function countLetterBodyWords() {
+        const text = letterBody.innerText.trim();
+        return text ? text.split(/\s+/).length : 0;
+    }
+
+    function updateLetterBodyWordCount(wordCount) {
+        letterBodyCount.textContent = `Word count: ${wordCount} / ${letterBodyMaxWords}`;
+    }
+
+    function syncPlaceholderState(element) {
+        const isEmpty = !element.textContent || !element.textContent.replace(/\u00A0/g, '').trim();
+
+        if (isEmpty) {
+            element.classList.add('placeholder-visible');
+            if (element.innerHTML.trim() === '' || element.textContent.trim() === '') {
+                element.innerHTML = '';
+            }
+        } else {
+            element.classList.remove('placeholder-visible');
+        }
+    }
+
+    document.querySelectorAll('.letterhead-editable, .letterhead-copy').forEach(function (element) {
+        element.addEventListener('focus', function () {
+            element.classList.remove('placeholder-visible');
         });
 
-        document.querySelectorAll('.format-command').forEach(function (button) {
-            button.addEventListener('mousedown', function (event) {
-                event.preventDefault();
-            });
-            button.addEventListener('click', function () {
-                letterBody.focus();
-                document.execCommand(button.dataset.command, false, null);
-            });
+        element.addEventListener('blur', function () {
+            syncPlaceholderState(element);
         });
 
-        dateInput.addEventListener('change', function () {
-            datePrint.textContent = dateInput.value
-                ? new Date(dateInput.value + 'T00:00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
-                : '';
+        element.addEventListener('input', function () {
+            syncPlaceholderState(element);
         });
-        dateInput.dispatchEvent(new Event('change'));
 
-        document.getElementById('print-letterhead').addEventListener('click', function () {
-            window.print();
-        });
+        syncPlaceholderState(element);
     });
+
+    /* ---------------------------------
+       COMPANY LOGOS
+    --------------------------------- */
+
+    const logoUrls = {
+        Canon: "{{ url_for('static', filename='canon logo black.webp') }}",
+        Haram: "{{ url_for('static', filename='haram-black.png') }}"
+    };
+
+    const companyNames = {
+        Canon: 'Canon Enterprises',
+        Haram: 'Haram Enterprises'
+    };
+
+    companyButtons.forEach(function (button) {
+
+        button.addEventListener('click', function () {
+
+            const company = button.dataset.company;
+
+            logo.src = logoUrls[company];
+            logo.alt = companyNames[company] + ' logo';
+
+            companyButtons.forEach(function (choice) {
+
+                const selected = choice === button;
+
+                choice.setAttribute('aria-pressed', String(selected));
+
+                choice.classList.toggle('bg-[#15364d]', selected);
+                choice.classList.toggle('text-white', selected);
+
+                choice.classList.toggle('border-slate-200', !selected);
+                choice.classList.toggle('bg-white', !selected);
+                choice.classList.toggle('text-slate-700', !selected);
+
+            });
+
+        });
+
+    });
+
+
+    /* ---------------------------------
+       DATE
+    --------------------------------- */
+
+    function getLocalDateValue() {
+
+        const now = new Date();
+
+        return new Date(
+            now.getTime() - now.getTimezoneOffset() * 60000
+        ).toISOString().slice(0, 10);
+
+    }
+
+    dateInput.value = getLocalDateValue();
+
+    function updatePrintDate() {
+
+        if (!dateInput.value) {
+            datePrint.textContent = '';
+            return;
+        }
+
+        const date = new Date(dateInput.value + 'T00:00:00');
+
+        datePrint.textContent = date.toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+        });
+
+    }
+
+    dateInput.addEventListener('change', updatePrintDate);
+
+    updatePrintDate();
+
+
+    /* ---------------------------------
+       TEXT FORMATTING
+    --------------------------------- */
+
+    formatButtons.forEach(function (button) {
+
+        button.addEventListener('mousedown', function (event) {
+            event.preventDefault();
+        });
+
+        button.addEventListener('click', function () {
+
+            letterBody.focus();
+
+            document.execCommand(
+                button.dataset.command,
+                false,
+                null
+            );
+
+        });
+
+    });
+
+    letterBody.addEventListener('input', function () {
+        const wordCount = countLetterBodyWords();
+        if (wordCount > letterBodyMaxWords) {
+            letterBody.innerHTML = lastValidLetterContent;
+            const validWordCount = countLetterBodyWords();
+            updateLetterBodyWordCount(validWordCount);
+            letterBodyLimit.textContent = `Word limit reached (${letterBodyMaxWords}).`;
+            const range = document.createRange();
+            range.selectNodeContents(letterBody);
+            range.collapse(false);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            return;
+        }
+
+        lastValidLetterContent = letterBody.innerHTML;
+        updateLetterBodyWordCount(wordCount);
+        letterBodyLimit.textContent = '';
+    });
+
+
+    /* ---------------------------------
+       PRINT PORTAL
+
+       Move the paper workspace directly
+       under BODY before printing. This
+       prevents the Flask base layout,
+       sidebar, navbar and page containers
+       from interfering with print layout.
+    --------------------------------- */
+
+    let originalParent = null;
+    let originalNextSibling = null;
+
+    window.addEventListener('beforeprint', function () {
+
+        updatePrintDate();
+
+        if (workspace.parentElement !== document.body) {
+
+            originalParent = workspace.parentElement;
+            originalNextSibling = workspace.nextSibling;
+
+            document.body.appendChild(workspace);
+
+        }
+
+    });
+
+
+    window.addEventListener('afterprint', function () {
+
+        if (originalParent) {
+
+            if (
+                originalNextSibling &&
+                originalNextSibling.parentNode === originalParent
+            ) {
+                originalParent.insertBefore(
+                    workspace,
+                    originalNextSibling
+                );
+            } else {
+                originalParent.appendChild(workspace);
+            }
+
+            originalParent = null;
+            originalNextSibling = null;
+
+        }
+
+    });
+
+
+    /* ---------------------------------
+       PRINT BUTTON
+    --------------------------------- */
+
+    printButton.addEventListener('click', function () {
+
+        updatePrintDate();
+
+        const startPrint = function () {
+
+            window.print();
+
+        };
+
+        if (logo.complete && logo.naturalWidth > 0) {
+
+            startPrint();
+
+        } else {
+
+            logo.addEventListener('load', startPrint, { once: true });
+            logo.addEventListener('error', startPrint, { once: true });
+
+        }
+
+    });
+
+});
 </script>
+
 {% endblock %}
