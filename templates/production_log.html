@@ -83,13 +83,33 @@
             flex: 1 1 auto !important;
         }
         .production-print-heading > div:last-child {
-            display: flex !important;
+            display: grid !important;
             flex: 0 0 auto !important;
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: center !important;
-            gap: 5mm !important;
+            grid-template-columns: max-content max-content !important;
+            align-items: stretch !important;
+            gap: 0 !important;
             white-space: nowrap !important;
+        }
+        .production-print-heading > div:last-child > div {
+            display: flex !important;
+            min-height: 16mm !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            padding: 0 5mm !important;
+            text-align: center !important;
+        }
+        .production-print-heading > div:last-child > div + div {
+            border-left: 1px solid #000 !important;
+        }
+        .production-print-heading > div:last-child > div > p:first-child {
+            font-size: 8pt !important;
+            line-height: 1.1 !important;
+        }
+        .production-print-heading > div:last-child > div > p:last-child {
+            margin: 0 !important;
+            font-size: 18pt !important;
+            line-height: 1 !important;
         }
         .production-print-stats {
             display: grid !important;
@@ -257,7 +277,8 @@
         <div class="production-order-panel relative z-10 mt-5 border-t border-white/15 pt-5">
             <div class="production-order-heading flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                    <h2 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">{{ selected_order.name or 'Production Order' }}</h2>
+                    {% set party_name_parts = (selected_order.name or '').split(' ', 1) %}
+                    <h2 class="mt-1 text-2xl font-black tracking-tight text-white sm:text-3xl"><span class="text-amber-300">{{ party_name_parts[0] }}</span>{% if party_name_parts|length > 1 %} {{ party_name_parts[1] }}{% endif %}</h2>
                     <p class="mt-1 text-sm font-medium text-slate-300">{{ selected_order.article_name or '-' }} <span class="mx-1 text-slate-500">|</span> {{ selected_order.color or '-' }} <span class="mx-1 text-slate-500">|</span>{{ selected_order.style or '-' }} <span class="mx-1 text-slate-500">|</span>{{ selected_order.article or '-' }}</p>
                 </div>
                 <div class="flex items-end gap-5">

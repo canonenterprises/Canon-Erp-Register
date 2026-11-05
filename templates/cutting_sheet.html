@@ -181,8 +181,9 @@
             </div>
 
             <div class="rightinfo border-[4px] border-black rounded-2xl p-4">
+                {% set order_name_parts = (order.name or '').split(' ', 1) %}
                 <div id="printblack" class="bg-slate-950 text-center text-white border-[4px] border-black rounded-2xl p-4 mb-4">
-                    <div class="text-5xl uppercase tracking-[0.18em] font-bold">{{ order.name or '' }}</div>
+                    <div class="text-5xl uppercase tracking-[0.18em] font-bold"><span class="cutting-party-name-first-word text-amber-300">{{ order_name_parts[0] }}</span>{% if order_name_parts|length > 1 %} {{ order_name_parts[1] }}{% endif %}</div>
                     <div class="text-3xl font-black uppercase mt-2">{{ order.article_name or order.article or '' }}</div>
                 </div>
                 <div class="grid gap-3 uppercase tracking-[0.14em] text-black-800 font-bold">
@@ -2055,6 +2056,7 @@ function initAvgLabelColors() {
         font-size: 48px !important;
     }
     #printblack {background-color:white; color: #000000 !important; border-width: 0; }
+    #printblack .cutting-party-name-first-word { color: #000000 !important; }
     .cutting_serial-print{display:block;}
 
     #printdategrid,

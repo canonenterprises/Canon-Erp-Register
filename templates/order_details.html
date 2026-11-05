@@ -7,7 +7,8 @@
         <div class="relative z-10 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div class="min-w-0">
                 <p class="text-[10px] font-bold uppercase tracking-[0.28em] text-amber-300">Production order</p>
-                <h1 class="mt-2 break-words text-3xl font-black uppercase tracking-tight sm:text-4xl">{{ order.name }}</h1>
+                {% set party_name_parts = (order.name or '').split(' ', 1) %}
+                <h1 class="mt-2 break-words text-3xl font-black uppercase tracking-tight sm:text-4xl"><span class="text-amber-300">{{ party_name_parts[0] }}</span>{% if party_name_parts|length > 1 %} <span class="text-white">{{ party_name_parts[1] }}</span>{% endif %}</h1>
                 <p class="mt-2 text-sm font-semibold text-slate-300 sm:text-base">{{ order.job_no }} <span class="mx-1 text-slate-500">|</span> {{ order.file_no }} <span class="mx-1 text-slate-500">|</span> ART-{{ order.article }} <span class="mx-1 text-slate-500">|</span> {{ order.article_name }}</p>
             </div>
             <a href="{{ url_for('article_orders', article=order.article) }}" class="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-100 hover:text-slate-900 sm:self-center"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back to Orders List</a>
